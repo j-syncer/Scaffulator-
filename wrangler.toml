@@ -1,0 +1,14 @@
+# Cloudflare Worker config — must stay in sync with the Worker named in the
+# Cloudflare dashboard (Workers & Pages > scaffulator).
+#
+# This is an assets-only Worker: there is no `main` script, so Cloudflare serves
+# the files in ./public directly from its edge. Static assets are not billed as
+# Worker invocations, so the Metrics panel legitimately stays at zero.
+name = "scaffulator"
+compatibility_date = "2026-08-12"
+
+[assets]
+directory = "./public"
+# Serve public/index.html for the bare domain and for unknown paths, so
+# scaffulator.com and scaffulator.com/anything both land on the calculator.
+not_found_handling = "single-page-application"

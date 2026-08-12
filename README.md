@@ -18,9 +18,23 @@ is inline and works offline.
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | The whole app — markup, styles, and the calculation engine |
-| `favicon.ico` | Tab icon |
-| `og-image.jpg` | Social preview image referenced by the `og:image` meta tag |
+| `public/index.html` | The whole app — markup, styles, and the calculation engine |
+| `public/favicon.ico` | Tab icon |
+| `public/og-image.jpg` | Social preview image referenced by the `og:image` meta tag |
+| `wrangler.toml` | Cloudflare Worker config — serves `public/` as static assets |
+
+## Deployment
+
+Live at <https://scaffulator.com>, served by the Cloudflare Worker named
+`scaffulator` as an assets-only Worker: there is no server-side script, so
+Cloudflare serves `public/` straight from its edge.
+
+Pushing to `main` triggers a rebuild. Everything Cloudflare needs is in
+`wrangler.toml` — the `name` there must keep matching the Worker's name in the
+dashboard, or the build will deploy to the wrong Worker.
+
+Because no Worker script runs, the dashboard's **Invocations** metric stays at
+zero even when the site is being served normally. That is expected, not a fault.
 
 ## Engine layout
 
