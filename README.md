@@ -46,6 +46,8 @@ update path, so state changes only need to mutate `runs` and call `render()`.
 These are the rules currently baked into the engine. They are estimates and are worth
 checking against your own yard's practice.
 
+- **Boarded lifts** can be set from 1 to 20. The ceiling is the `MAX_LIFTS` constant in the
+  engine; the dropdown is generated from it at boot, so raising it is a one-line change.
 - **Base offset** is a fixed 0.3 m. The standard column is the largest 0.5 m multiple that
   fits below the target deck height, and the jack takes up the remainder — so jack
   extension is always under 0.5 m.

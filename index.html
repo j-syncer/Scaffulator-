@@ -105,11 +105,8 @@
     <div class="grid grid-cols-2 gap-2">
       <div>
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Boarded Lifts</label>
-        <select id="lifts" class="form-select w-full" onchange="settingsChanged()">
-          <option value="1">1 Lift</option><option value="2">2 Lifts</option>
-          <option value="3">3 Lifts</option><option value="4">4 Lifts</option>
-          <option value="5">5 Lifts</option><option value="6">6 Lifts</option>
-        </select>
+        <!-- Options are generated at boot from MAX_LIFTS. -->
+        <select id="lifts" class="form-select w-full" onchange="settingsChanged()"></select>
       </div>
       <div>
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Top Guardrail</label>
@@ -244,7 +241,8 @@
       <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Elevation View — Current Run</h3>
       <span id="elev-label" class="mono text-xs text-slate-500"></span>
     </div>
-    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-x-auto p-4">
+    <!-- Tall scaffolds (up to MAX_LIFTS) scroll inside this box rather than stretching the page. -->
+    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-4" style="max-height:70vh;">
       <div id="elevation-view" class="relative" style="min-height:80px; min-width:400px;"></div>
     </div>
   </div>
@@ -396,6 +394,8 @@ const BASE_OFFSET_M = 0.3;
 const STD_POS_MM = 50;
 const PX_VERT = 28;
 const PX_HORIZ = 60;
+// Highest boarded-lift count offered in the Run Configuration dropdown.
+const MAX_LIFTS = 20;
 const DEFAULT_SETTINGS = {
   width: '0.71',
   height: '',
@@ -687,6 +687,17 @@ function loadSettings(run) {
   document.getElementById('clip').value = s.clip || 'Wine Glass';
   document.getElementById('piggyback').value = s.piggyback || '0';
   updateLiftOpts();
+}
+// Fills the Boarded Lifts dropdown with 1..MAX_LIFTS. Must run before the first
+// loadSettings(), which selects a value that has to already exist as an option.
+function buildLiftOpts() {
+  const sel = document.getElementById('lifts');
+  if (!sel || sel.options.length > 0) return;
+  let html = '';
+  for (let n = 1; n <= MAX_LIFTS; n++) {
+    html += `<option value="${n}">${n} ${n === 1 ? 'Lift' : 'Lifts'}</option>`;
+  }
+  sel.innerHTML = html;
 }
 function updateLiftOpts() {
   const h = parseFloat(document.getElementById('height').value) || 0;
@@ -1153,6 +1164,7 @@ function updateSummary() {
    BOOT
    ============================================================ */
 window.addEventListener('DOMContentLoaded', () => {
+  buildLiftOpts();
   loadSettings(currentRun());
   render();
 });
