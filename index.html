@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-id="th-modified">Kwik Stage Scaffolding calculator </title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  body { font-family:'Barlow',sans-serif; background:#0d1117; color:#e2e8f0; }
+  .mono { font-family:'JetBrains Mono',monospace; }
+  .cond { font-family:'Barlow Condensed',sans-serif; }
+  /* Inputs */
+  .form-input, .form-select {
+    background:#1e2a3a !important; border:1px solid #2d3f55 !important;
+    color:#e2e8f0 !important; border-radius:6px; font-size:13px; padding:6px 10px;
+  }
+  .form-checkbox { border-color:#2d3f55; }
+  input::placeholder { color:#4a6080 !important; }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width:5px; height:5px; }
+  ::-webkit-scrollbar-track { background:#0d1117; }
+  ::-webkit-scrollbar-thumb { background:#2d3f55; border-radius:3px; }
+  /* Print */
+  @media print {
+    body { background:white !important; color:#000 !important; }
+    .no-print { display:none !important; }
+    .print-show { display:block !important; }
+    #gear-table tr { border-bottom:1px solid #ccc; }
+  }
+  /* Elevation */
+  .elev-el { position:absolute; box-sizing:border-box; }
+</style>
+<meta property="og:title" content="Kwik Stage Scaffolding calculator " data-id="th-modified" ><meta name="description" content="Instantly calculate scaffold runs, generate detailed gear lists, and estimate total tonnage. Our free visual tool provides fast, accurate scaffol" data-id="th-modified" ><meta property="og:description" content="Instantly calculate scaffold runs, generate detailed gear lists, and estimate total tonnage. Our free visual tool provides fast, accurate scaffol" data-id="th-modified" ><meta property="og:image" content="https://scaffulater.tiiny.site/og-image.jpg" data-id="th-modified" ><meta property="og:url" content="https://scaffulater.tiiny.site/" data-id="th-modified" ><meta property="og:type" content="website" data-id="th-modified" ><script defer data-domain="scaffulater.tiiny.site" src="https://analytics.tiiny.site/js/plausible.js"></script></head>
+<body class="min-h-screen">
+
+<!-- ═══════════════════ HEADER ═══════════════════ -->
+<header class="no-print sticky top-0 z-50 bg-[#0d1117] border-b border-[#2d3f55] px-4 py-3 flex items-center justify-between gap-4">
+  <div class="flex items-center gap-3">
+    <div class="cond font-black text-lg tracking-widest bg-amber-400 text-slate-900 px-2.5 py-0.5 rounded">KWIK</div>
+    <div>
+      <h1 class="cond font-bold text-xl tracking-wide text-white leading-none">GEAR CALCULATOR</h1>
+      <p class="text-[11px] text-slate-500 mono mt-0.5">Kwikstage Scaffolding — Bill of Quantities</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2 flex-wrap">
+    <button onclick="saveProject()" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-2 px-3 rounded transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg>Save
+    </button>
+    <label class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-2 px-3 rounded transition-colors cursor-pointer">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>Load
+      <input type="file" class="hidden" accept=".json" onchange="loadProject(event)">
+    </label>
+    <button onclick="window.print()" class="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs font-bold py-2 px-3 rounded transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>Print Manifest
+    </button>
+  </div>
+</header>
+
+<!-- ═══════════════════ LAYOUT ═══════════════════ -->
+<div class="max-w-screen-2xl mx-auto p-3 gap-3 grid grid-cols-1 lg:grid-cols-[270px_1fr_255px]">
+
+<!-- ══ LEFT: Controls ══ -->
+<aside class="no-print space-y-3">
+
+  <!-- Bay Buttons -->
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Add Bays — Current Run</h3>
+    <div class="space-y-2">
+      <button onclick="addBay('700')" class="w-full text-left text-sm font-semibold py-2.5 px-3 rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20 active:scale-[0.98] transition-all flex items-center justify-between">
+        <span class="flex items-center gap-2.5"><span class="w-2.5 h-2.5 rounded-full bg-violet-400 shadow-[0_0_6px_2px_rgba(167,139,250,0.4)]"></span>0.71m — 700 Series</span>
+        <span id="ctr-700" class="mono text-xs bg-violet-900/50 border border-violet-500/30 text-violet-300 px-2 py-0.5 rounded min-w-[24px] text-center">0</span>
+      </button>
+      <button onclick="addBay('4ft')" class="w-full text-left text-sm font-semibold py-2.5 px-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/20 active:scale-[0.98] transition-all flex items-center justify-between">
+        <span class="flex items-center gap-2.5"><span class="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_2px_rgba(251,191,36,0.4)]"></span>1.22m — 4ft</span>
+        <span id="ctr-4ft" class="mono text-xs bg-amber-900/50 border border-amber-500/30 text-amber-300 px-2 py-0.5 rounded min-w-[24px] text-center">0</span>
+      </button>
+      <button onclick="addBay('6ft')" class="w-full text-left text-sm font-semibold py-2.5 px-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/20 active:scale-[0.98] transition-all flex items-center justify-between">
+        <span class="flex items-center gap-2.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.4)]"></span>1.78m — 6ft</span>
+        <span id="ctr-6ft" class="mono text-xs bg-emerald-900/50 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded min-w-[24px] text-center">0</span>
+      </button>
+      <button onclick="addBay('8ft')" class="w-full text-left text-sm font-semibold py-2.5 px-3 rounded-lg border border-sky-500/30 bg-sky-500/10 text-sky-200 hover:bg-sky-500/20 active:scale-[0.98] transition-all flex items-center justify-between">
+        <span class="flex items-center gap-2.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_6px_2px_rgba(56,189,248,0.4)]"></span>2.39m — 8ft</span>
+        <span id="ctr-8ft" class="mono text-xs bg-sky-900/50 border border-sky-500/30 text-sky-300 px-2 py-0.5 rounded min-w-[24px] text-center">0</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Run Settings -->
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 space-y-3">
+    <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400">Run Configuration</h3>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Deck Width</label>
+      <select id="width" class="form-select w-full" onchange="settingsChanged()">
+        <option value="0.51">2-Plank — 510mm</option>
+        <option value="0.71" selected>3-Plank — 710mm</option>
+        <option value="1.22">5-Plank — 1220mm</option>
+      </select>
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Top Deck Height (m)</label>
+      <input type="number" id="height" class="form-input w-full mono" placeholder="e.g. 3.7" step="0.1" onchange="settingsChanged(); updateLiftOpts()">
+      <p class="text-[9px] text-slate-600 mt-1">Base jack extension auto-calculates to reach height cleanly.</p>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Boarded Lifts</label>
+        <select id="lifts" class="form-select w-full" onchange="settingsChanged()">
+          <option value="1">1 Lift</option><option value="2">2 Lifts</option>
+          <option value="3">3 Lifts</option><option value="4">4 Lifts</option>
+          <option value="5">5 Lifts</option><option value="6">6 Lifts</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Top Guardrail</label>
+        <select id="handrail" class="form-select w-full" onchange="settingsChanged()">
+          <option value="1" selected>Standard (1m)</option>
+          <option value="2">Double (2m)</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-cols-2 gap-2">
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Side Hop-up</label>
+        <select id="hopup" class="form-select w-full" onchange="settingsChanged()">
+          <optgroup label="With Kickboard">
+            <option value="0">None</option><option value="1B">1-Board</option>
+            <option value="2B">2-Board</option><option value="3B">3-Board</option>
+          </optgroup>
+          <optgroup label="No Kickboard">
+            <option value="0_NK">None (No KB)</option><option value="1B_NK">1-Board (No KB)</option>
+            <option value="2B_NK">2-Board (No KB)</option><option value="3B_NK">3-Board (No KB)</option>
+          </optgroup>
+        </select>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">KB Clip Type</label>
+        <select id="clip" class="form-select w-full" onchange="settingsChanged()">
+          <option value="Wine Glass">Wine Glass</option>
+          <option value="Spade">Spade</option>
+        </select>
+      </div>
+    </div>
+    <!-- Piggyback -->
+    <div class="border-t border-[#2d3f55] pt-3">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Piggyback Bay <span class="text-teal-400">(Outside)</span></label>
+      <select id="piggyback" class="form-select w-full" onchange="settingsChanged()">
+        <option value="0">None</option>
+        <option value="0.51">2-Plank — 510mm</option>
+        <option value="0.71">3-Plank — 710mm</option>
+        <option value="1.22">5-Plank — 1220mm</option>
+      </select>
+      <p class="text-[9px] text-slate-600 mt-1 leading-tight">Shares outer standards as inner legs. Adds new outer row, transoms &amp; planks only.</p>
+    </div>
+  </div>
+
+  <!-- Stair / Gap / Break -->
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 space-y-3">
+    <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400">Stairs, Gaps & Breaks</h3>
+    <button onclick="addStair()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-xs font-bold py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-all">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
+      Attach Stair Tower to Last Bay
+    </button>
+    <p class="text-[9px] text-indigo-400/70 leading-tight text-center -mt-1">Auto-calculates 1.5m/2.0m tread mix, handrails, step-down brackets & stair standards.</p>
+    <div class="flex gap-2">
+      <input type="number" id="gap-mm" placeholder="Gap width (mm)" class="form-input w-full">
+      <button onclick="addGap()" class="bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg whitespace-nowrap transition-colors">Add Gap</button>
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Break / Join Type</label>
+      <select id="break-type" class="form-select w-full">
+        <option value="none">Standard Break (Tube &amp; Coupler)</option>
+        <option value="lap">Lap Boards</option>
+        <option value="1B">1-Board End Hop-up</option>
+        <option value="2B">2-Board End Hop-up</option>
+        <option value="3B">3-Board End Hop-up</option>
+      </select>
+    </div>
+    <button onclick="addBreak()" class="w-full bg-slate-700 hover:bg-slate-600 active:scale-[0.98] text-white text-xs font-bold py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-all">
+      Insert Run Break / Start New Run
+    </button>
+  </div>
+
+  <!-- Actions -->
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 space-y-3">
+    <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400">Actions</h3>
+    <div class="flex gap-2">
+      <button onclick="undoLast()" class="w-full bg-rose-700 hover:bg-rose-600 active:scale-[0.98] text-white text-xs font-bold py-2 px-3 rounded-lg transition-all">↩ Undo Last</button>
+      <button onclick="resetAll()" class="w-full bg-slate-700 hover:bg-slate-600 active:scale-[0.98] text-white text-xs font-bold py-2 px-3 rounded-lg transition-all">Clear All</button>
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Auto-fill to Target Length</label>
+      <div class="flex gap-2">
+        <input type="number" id="autofill-mm" placeholder="Target (mm)" class="form-input w-full mono">
+        <button onclick="autoFill()" class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold py-2 px-3 rounded-lg whitespace-nowrap transition-colors">Fill</button>
+      </div>
+    </div>
+    <div class="pt-1 border-t border-[#2d3f55]">
+      <label class="flex items-center gap-2.5 cursor-pointer">
+        <input type="checkbox" id="spares" class="form-checkbox h-4 w-4 text-amber-400 rounded" onchange="render()">
+        <span class="text-xs font-semibold text-slate-300">Add 5% Spares to Consumables</span>
+      </label>
+    </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Scaffolders on Strip</label>
+      <input type="number" id="scaffolders" class="form-input w-full mono" value="1" min="1" max="8" onchange="render()">
+    </div>
+  </div>
+
+  <!-- Standard Inventory -->
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Available Standards</h3>
+    <div class="space-y-2">
+      <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="3.0" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#0284c7">●</span> 3.0m — 6-Star</span></label>
+      <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="2.5" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#059669">●</span> 2.5m — 5-Star</span></label>
+      <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="2.0" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#ca8a04">●</span> 2.0m — 4-Star</span></label>
+      <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="1.5" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#db2777">●</span> 1.5m — 3-Star</span></label>
+      <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="1.0" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#7c3aed">●</span> 1.0m — 2-Star</span></label>
+      <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="0.5" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#be123c">●</span> 0.5m — 1-Star</span></label>
+    </div>
+  </div>
+</aside>
+
+<!-- ══ CENTER: Visuals + Gear List ══ -->
+<main class="space-y-3 min-w-0">
+
+  <!-- Summary badges -->
+  <div id="run-summary" class="no-print flex flex-wrap gap-2 min-h-[28px] items-center"></div>
+
+  <!-- Plan View -->
+  <div class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Plan View</h3>
+      <span id="plan-length-label" class="mono text-xs text-amber-400"></span>
+    </div>
+    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-x-auto p-4" style="min-height:120px;">
+      <div id="plan-view" class="inline-flex items-end" style="padding-bottom:30px;"></div>
+    </div>
+  </div>
+
+  <!-- Elevation View -->
+  <div class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Elevation View — Current Run</h3>
+      <span id="elev-label" class="mono text-xs text-slate-500"></span>
+    </div>
+    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-x-auto p-4">
+      <div id="elevation-view" class="relative" style="min-height:80px; min-width:400px;"></div>
+    </div>
+  </div>
+
+  <!-- Gear List -->
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <div class="flex items-center justify-between mb-4 no-print">
+      <h3 class="cond font-bold text-xl uppercase tracking-wide text-white">Equipment Manifest <span class="text-slate-500 font-normal">(BoQ)</span></h3>
+      <span class="mono text-[10px] bg-amber-400/15 text-amber-400 border border-amber-400/30 py-1 px-2 rounded font-bold tracking-widest">ESTIMATE</span>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full" style="border-collapse:collapse;">
+        <thead class="no-print">
+          <tr style="background:#1e2a3a;border-bottom:2px solid #2d3f55;">
+            <th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Component</th>
+            <th style="padding:8px 14px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Qty</th>
+            <th style="padding:8px 14px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Est. Wt (T)</th>
+          </tr>
+        </thead>
+        <tbody id="gear-table"></tbody>
+      </table>
+      <p id="gear-note" class="text-xs text-slate-600 mt-4 italic text-center"></p>
+    </div>
+  </div>
+</main>
+
+<!-- ══ RIGHT: Metrics ══ -->
+<aside class="no-print space-y-3">
+  <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400">Project Metrics</h3>
+
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 text-center">
+    <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Total Linear Run</p>
+    <p id="m-len-mm" class="mono text-2xl font-bold text-amber-400">0 mm</p>
+    <p id="m-len-m"  class="mono text-xs text-slate-500 mt-0.5">0.00 m</p>
+  </div>
+
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 text-center">
+    <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Surface Area</p>
+    <p id="m-area" class="mono text-2xl font-bold text-sky-400">0 m²</p>
+  </div>
+
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 text-center">
+    <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Jack Extension (grd → std)</p>
+    <p id="m-jack" class="mono text-2xl font-bold text-violet-400">0 mm</p>
+    <p id="m-jack-type" class="text-[9px] text-slate-500 mt-0.5"></p>
+  </div>
+
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 text-center">
+    <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Estimated Weight</p>
+    <p id="m-weight" class="mono text-2xl font-bold text-emerald-400">0.00 T</p>
+  </div>
+
+  <div class="border-t border-[#2d3f55] pt-3 space-y-3">
+    <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 text-center">
+      <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">Est. Strip Time</p>
+      <p id="m-strip" class="mono text-2xl font-bold text-rose-400">0 hrs</p>
+      <p id="m-strip-note" class="text-[9px] text-slate-500 mt-0.5"></p>
+    </div>
+    <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 text-center">
+      <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">RONIN Strip Time</p>
+      <p id="m-ronin" class="mono text-2xl font-bold text-indigo-400">0 hrs</p>
+      <p id="m-ronin-note" class="text-[9px] text-slate-500 mt-0.5"></p>
+    </div>
+  </div>
+
+  <!-- Standard colour legend -->
+  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">Standard Size Key</p>
+    <div class="space-y-1.5">
+      <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#0284c7"></span><span class="text-xs text-slate-400 mono">3.0m (6-Star)</span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#059669"></span><span class="text-xs text-slate-400 mono">2.5m (5-Star)</span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#ca8a04"></span><span class="text-xs text-slate-400 mono">2.0m (4-Star)</span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#db2777"></span><span class="text-xs text-slate-400 mono">1.5m (3-Star)</span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#7c3aed"></span><span class="text-xs text-slate-400 mono">1.0m (2-Star)</span></div>
+      <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#be123c"></span><span class="text-xs text-slate-400 mono">0.5m (1-Star)</span></div>
+    </div>
+  </div>
+</aside>
+</div><!-- end grid -->
+
+<div id="toasts" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
+
+<!-- ═══════════════════════════════════════════════════
+     CALCULATION ENGINE v2.0 — Bug-fixed & Complete
+═══════════════════════════════════════════════════ -->
+<script>
+/* ============================================================
+   DOMAIN CONSTANTS — bay sizes, deck widths, component weights
+   ============================================================ */
+const BAY = {
+  '8ft': { mm: 2390, label: '2.39m (8ft)', clr: '#38bdf8' },
+  '6ft': { mm: 1780, label: '1.78m (6ft)', clr: '#34d399' },
+  '4ft': { mm: 1220, label: '1.22m (4ft)', clr: '#fbbf24' },
+  700: { mm: 710, label: '0.71m (700)', clr: '#a78bfa' },
+};
+const WIDTH_SPEC = {
+  0.51: { planks: 2, transomMM: 510 },
+  0.71: { planks: 3, transomMM: 710 },
+  1.22: { planks: 5, transomMM: 1220 },
+};
+const STD_CLR = {
+  '3.0': '#0284c7',
+  2.5: '#059669',
+  '2.0': '#ca8a04',
+  1.5: '#db2777',
+  '1.0': '#7c3aed',
+  0.5: '#be123c',
+};
+const WEIGHTS = {
+  'Standard (3.0m)': 15,
+  'Standard (2.5m)': 12.5,
+  'Standard (2.0m)': 10,
+  'Standard (1.5m)': 7.5,
+  'Standard (1.0m)': 5,
+  'Standard (0.5m)': 2.5,
+  'Ledger (2390mm)': 9.5,
+  'Ledger (1780mm)': 7.5,
+  'Ledger (1220mm)': 5.5,
+  'Ledger (710mm)': 3.5,
+  'Transom (1220mm)': 6,
+  'Transom (710mm)': 4,
+  'Transom (510mm)': 3,
+  'Steel Plank (2390mm)': 16,
+  'Steel Plank (1780mm)': 12,
+  'Steel Plank (1220mm)': 9,
+  'Steel Plank (710mm)': 6,
+  'Base Jack (Screw Jack)': 4,
+  'Sole Board': 2,
+  'Console Bracket (1-Board)': 3,
+  'Console Bracket (2-Board)': 5,
+  'Console Bracket (3-Board)': 7,
+  'End Brace (Dogleg)': 8,
+  'Face Brace (Diagonal)': 8,
+  'Tie Bar': 4,
+  'Stair Tread (1.5m)': 25,
+  'Stair Tread (2.0m)': 30,
+  'Stair Handrail Intermediate (1.5m)': 10,
+  'Stair Handrail Intermediate (2.0m)': 12,
+  'Stair Handrail Top (1.5m)': 10,
+  'Stair Handrail Top (2.0m)': 12,
+  'Step Down Bracket (Single)': 4,
+  'Step Down Bracket (Double)': 6,
+  'Tube (1.2m)': 5,
+  'Right Angle Coupler': 1,
+  'Toe Board Clip': 0.5,
+  'Lap Board': 5,
+};
+const BASE_OFFSET_M = 0.3;
+const STD_POS_MM = 50;
+const PX_VERT = 28;
+const PX_HORIZ = 60;
+const DEFAULT_SETTINGS = {
+  width: '0.71',
+  height: '',
+  lifts: '1',
+  handrail: '1',
+  hopup: '0',
+  clip: 'Wine Glass',
+  piggyback: '0',
+};
+/* ============================================================
+   STATE
+   ============================================================ */
+let runs = [{ bays: [], settings: { ...DEFAULT_SETTINGS } }];
+/* ============================================================
+   GEOMETRY — jack extension, standard stacking, ring levels, treads
+   ============================================================ */
+function calcPhysics(targetH) {
+  if (!targetH || targetH <= 0)
+    return { starSpan: 0, jackExt: 0, gTFS: 0, stepDown: 'Single', nomH: 0 };
+  const starSpan = Math.floor((targetH - BASE_OFFSET_M) / 0.5) * 0.5;
+  const jackExt = targetH - BASE_OFFSET_M - starSpan;
+  const gTFS = BASE_OFFSET_M + jackExt;
+  return {
+    starSpan,
+    jackExt,
+    gTFS,
+    stepDown: gTFS > 0.4 ? 'Double' : 'Single',
+    nomH: starSpan + 0.5,
+  };
+}
+function calcStdStack(nomH, enabled) {
+  let rem = parseFloat(nomH.toFixed(3));
+  const result = {};
+  for (const s of [3.0, 2.5, 2.0, 1.5, 1.0, 0.5].filter((x) => enabled.includes(x))) {
+    if (rem >= s - 0.001) {
+      const n = Math.floor((rem + 0.001) / s);
+      if (n > 0) {
+        result[`Standard (${s.toFixed(1)}m)`] = n;
+        rem = parseFloat((rem - n * s).toFixed(3));
+      }
+    }
+  }
+  if (rem > 0.01)
+    result['Standard (0.5m)'] = (result['Standard (0.5m)'] || 0) + Math.ceil(rem / 0.5);
+  return result;
+}
+function getRingLevels(starSpan) {
+  const levels = [];
+  for (let h = 0; h <= starSpan + 0.001; h = parseFloat((h + 2.0).toFixed(2))) {
+    levels.push(h);
+  }
+  if (starSpan > 0 && !levels.some((l) => Math.abs(l - starSpan) < 0.01)) {
+    levels.push(starSpan);
+  }
+  return levels.sort((a, b) => a - b);
+}
+function calcTreads(starSpan) {
+  for (let n20 = Math.floor(starSpan / 2); n20 >= 0; n20--) {
+    const rem = parseFloat((starSpan - n20 * 2).toFixed(3));
+    const n15r = rem / 1.5;
+    if (Math.abs(n15r - Math.round(n15r)) < 0.01) return { t15: Math.round(n15r), t20: n20 };
+  }
+  const t20 = Math.floor(starSpan / 2);
+  return { t15: Math.ceil((starSpan - t20 * 2) / 1.5), t20 };
+}
+/* ============================================================
+   BILL OF QUANTITIES — per-run and total gear takeoff
+   ============================================================ */
+function getEnabledSizes() {
+  return [...document.querySelectorAll('.std-chk:checked')].map((el) => parseFloat(el.value));
+}
+function calcRunGear(run, enabled) {
+  const bayItems = run.bays.filter((b) => b.type === 'bay');
+  if (bayItems.length === 0) return {};
+  const { width, height, lifts, handrail, hopup, clip } = run.settings;
+  const boardedLifts = Math.max(1, parseInt(lifts) || 1);
+  const targetH = parseFloat(height) || boardedLifts * 2;
+  const phy = calcPhysics(targetH);
+  const { starSpan, gTFS, stepDown, nomH } = phy;
+  const guardrailM = handrail === '2' ? 2.0 : 1.0;
+  const wSpec = WIDTH_SPEC[width] || WIDTH_SPEC['0.71'];
+  const hopStr = hopup || '0';
+  const hasKB = !hopStr.includes('_NK');
+  const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
+  const ringLevels = getRingLevels(starSpan);
+  const numRings = ringLevels.length;
+  const numBays = bayItems.length;
+  const numPos = numBays + 1;
+  const byType = {};
+  let hasStair = false;
+  for (const item of bayItems) {
+    byType[item.value] = (byType[item.value] || 0) + 1;
+    if (item.stair) hasStair = true;
+  }
+  const g = {};
+  const add = (k, n) => {
+    const v = Math.round(n);
+    if (v > 0) g[k] = (g[k] || 0) + v;
+  };
+  add('Base Jack (Screw Jack)', numPos * 2);
+  add('Sole Board', numPos * 2);
+  const innerStack = calcStdStack(nomH, enabled);
+  const outerStack = calcStdStack(nomH + guardrailM, enabled);
+  for (const [k, v] of Object.entries(innerStack)) add(k, v * numPos);
+  for (const [k, v] of Object.entries(outerStack)) add(k, v * numPos);
+  const guardRailsPB = handrail === '2' ? 4 : 2;
+  const midRailsPB = 2 * Math.max(0, boardedLifts - 1);
+  const ledgersPB = 2 * numRings + midRailsPB + guardRailsPB;
+  for (const [type, count] of Object.entries(byType)) {
+    add(`Ledger (${BAY[type].mm}mm)`, count * ledgersPB);
+  }
+  add(`Transom (${wSpec.transomMM}mm)`, numPos * numRings);
+  const planksPerBayLift = wSpec.planks + sideBoards + (hasKB ? 1 : 0);
+  for (const [type, count] of Object.entries(byType)) {
+    add(`Steel Plank (${BAY[type].mm}mm)`, count * planksPerBayLift * boardedLifts);
+  }
+  if (sideBoards > 0) {
+    add(`Console Bracket (${sideBoards}-Board)`, numPos * boardedLifts);
+  }
+  if (hasKB) {
+    add(`Toe Board Clip (${clip})`, numPos * boardedLifts * 2);
+  }
+  if (sideBoards >= 2) {
+    const tieLevels = Math.max(1, Math.ceil(starSpan / 2));
+    add('Tie Bar', numBays * tieLevels);
+  }
+  const braceLevels = Math.max(1, Math.ceil(starSpan / 4));
+  add('End Brace (Dogleg)', 2 * braceLevels);
+  add('Face Brace (Diagonal)', Math.max(1, Math.ceil(numBays / 4)) * braceLevels);
+  if (hasStair) {
+    const stairNomH = nomH + 1.0;
+    const stairStack = calcStdStack(stairNomH, enabled);
+    const { t15, t20 } = calcTreads(starSpan);
+    const totalTreads = t15 + t20;
+    for (const [k, v] of Object.entries(stairStack)) add(k, v * 2);
+    add('Base Jack (Screw Jack)', 2);
+    add('Sole Board', 2);
+    add(`Step Down Bracket (${stepDown})`, 2);
+    add('Steel Plank (1220mm)', 1);
+    if (t20 > 0) add('Stair Tread (2.0m)', t20);
+    if (t15 > 0) add('Stair Tread (1.5m)', t15);
+    if (t20 > 0) {
+      add('Stair Handrail Top (2.0m)', 1);
+      if (t20 > 1) add('Stair Handrail Intermediate (2.0m)', t20 - 1);
+    }
+    if (t15 > 0) {
+      if (t20 === 0) add('Stair Handrail Top (1.5m)', 1);
+      const intermed15 = t20 === 0 ? Math.max(0, t15 - 1) : t15;
+      if (intermed15 > 0) add('Stair Handrail Intermediate (1.5m)', intermed15);
+    }
+    add('Ledger (1780mm)', totalTreads * 3);
+    add('Transom (1220mm)', (totalTreads + 1) * 2);
+    add('Ledger (1780mm)', boardedLifts * 3);
+    add('Standard (2.0m)', boardedLifts);
+  }
+  for (const item of run.bays) {
+    if (item.type !== 'break') continue;
+    const bridgeRails =
+      (boardedLifts > 1 ? (boardedLifts - 1) * 2 : 0) + (handrail === '2' ? 4 : 2);
+    add('Tube (1.2m)', bridgeRails);
+    add('Right Angle Coupler', bridgeRails * 2);
+    if (item.value === 'lap') {
+      add('Lap Board', wSpec.planks * boardedLifts);
+    } else if (['1B', '2B', '3B'].includes(item.value)) {
+      const n = parseInt(item.value);
+      add(`Console Bracket (${n}-Board)`, boardedLifts);
+      if (sideBoards > 0) add('Lap Board', sideBoards * boardedLifts);
+    }
+  }
+  const pbStr = run.settings.piggyback || '0';
+  if (pbStr !== '0') {
+    const pbSpec = WIDTH_SPEC[pbStr];
+    if (pbSpec) {
+      for (const [k, v] of Object.entries(outerStack)) add(k, v * numPos);
+      add('Base Jack (Screw Jack)', numPos);
+      add('Sole Board', numPos);
+      const pbLedgersPer = numRings + Math.max(0, boardedLifts - 1) + guardRailsPB;
+      for (const [type, count] of Object.entries(byType)) {
+        add(`Ledger (${BAY[type].mm}mm)`, count * pbLedgersPer);
+      }
+      add(`Transom (${pbSpec.transomMM}mm)`, numPos * numRings);
+      for (const [type, count] of Object.entries(byType)) {
+        add(`Steel Plank (${BAY[type].mm}mm)`, count * pbSpec.planks * boardedLifts);
+      }
+      if (hasKB) {
+        add(`Toe Board Clip (${clip})`, numPos * boardedLifts * 2);
+      }
+    }
+  }
+  return g;
+}
+function calcTotalGear() {
+  const enabled = getEnabledSizes();
+  const total = {};
+  for (const run of runs) {
+    const g = calcRunGear(run, enabled);
+    for (const [k, v] of Object.entries(g)) total[k] = (total[k] || 0) + v;
+  }
+  if (document.getElementById('spares')?.checked) {
+    const CONSUMABLE = ['Base Jack', 'Sole Board', 'Clip', 'Coupler', 'Tube'];
+    for (const k of Object.keys(total)) {
+      if (CONSUMABLE.some((c) => k.includes(c))) total[k] = Math.ceil(total[k] * 1.05);
+    }
+  }
+  return total;
+}
+function calcWeightKg(gear) {
+  let w = 0;
+  for (const [k, qty] of Object.entries(gear)) {
+    const wk = Object.keys(WEIGHTS).find((ik) => k.startsWith(ik) || k.includes(ik));
+    if (wk) w += WEIGHTS[wk] * qty;
+  }
+  return w;
+}
+/* ============================================================
+   USER ACTIONS — bays, gaps, breaks, stairs, settings, save/load
+   ============================================================ */
+const currentRun = () => runs[runs.length - 1];
+function addBay(type) {
+  currentRun().bays.push({ type: 'bay', value: type, stair: false });
+  render();
+}
+function addGap() {
+  const el = document.getElementById('gap-mm');
+  const g = parseInt(el.value, 10);
+  if (g > 0) {
+    currentRun().bays.push({ type: 'gap', value: g });
+    el.value = '';
+    render();
+  }
+}
+function addBreak() {
+  const bt = document.getElementById('break-type').value;
+  const cur = currentRun();
+  cur.bays.push({ type: 'break', value: bt });
+  runs.push({ bays: [], settings: { ...cur.settings } });
+  loadSettings(currentRun());
+  render();
+}
+function addStair() {
+  const run = currentRun();
+  const last = [...run.bays].reverse().find((b) => b.type === 'bay');
+  if (!last) {
+    toast('Add at least one bay before attaching a stair tower.');
+    return;
+  }
+  if (last.stair) {
+    toast('That bay already has a stair tower attached.');
+    return;
+  }
+  last.stair = true;
+  toast('Stair tower attached!', false);
+  render();
+}
+function undoLast() {
+  let run = currentRun();
+  if (run.bays.length === 0 && runs.length > 1) {
+    runs.pop();
+    run = currentRun();
+    loadSettings(run);
+  }
+  if (run.bays.length > 0) run.bays.pop();
+  render();
+}
+function resetAll() {
+  runs = [{ bays: [], settings: { ...DEFAULT_SETTINGS } }];
+  loadSettings(currentRun());
+  document.getElementById('autofill-mm').value = '';
+  render();
+}
+function settingsChanged() {
+  const s = currentRun().settings;
+  s.width = document.getElementById('width').value;
+  s.height = document.getElementById('height').value;
+  s.lifts = document.getElementById('lifts').value;
+  s.handrail = document.getElementById('handrail').value;
+  s.hopup = document.getElementById('hopup').value;
+  s.clip = document.getElementById('clip').value;
+  s.piggyback = document.getElementById('piggyback').value;
+  render();
+}
+function loadSettings(run) {
+  const s = run.settings;
+  document.getElementById('width').value = s.width || '0.71';
+  document.getElementById('height').value = s.height || '';
+  document.getElementById('lifts').value = s.lifts || '1';
+  document.getElementById('handrail').value = s.handrail || '1';
+  document.getElementById('hopup').value = s.hopup || '0';
+  document.getElementById('clip').value = s.clip || 'Wine Glass';
+  document.getElementById('piggyback').value = s.piggyback || '0';
+  updateLiftOpts();
+}
+function updateLiftOpts() {
+  const h = parseFloat(document.getElementById('height').value) || 0;
+  const sel = document.getElementById('lifts');
+  for (const opt of sel.options) {
+    opt.disabled = h > 0 && parseInt(opt.value) * 2 > h + 1.9;
+  }
+}
+function autoFill() {
+  const el = document.getElementById('autofill-mm');
+  const len = parseInt(el.value);
+  if (!len || len <= 0) return;
+  const run = currentRun();
+  let remaining = len;
+  const existingBays = run.bays.filter((b) => b.type === 'bay');
+  remaining -= existingBays.reduce((s, b) => s + BAY[b.value].mm + STD_POS_MM, 0);
+  if (existingBays.length === 0) remaining -= STD_POS_MM;
+  const added = [];
+  for (const t of ['8ft', '6ft', '4ft', '700']) {
+    const bLen = BAY[t].mm + STD_POS_MM;
+    while (remaining >= bLen) {
+      added.push(t);
+      remaining -= bLen;
+    }
+  }
+  if (added.length === 0) {
+    toast('Target length already reached or too small for any bay.');
+    return;
+  }
+  added.forEach((t) => run.bays.push({ type: 'bay', value: t, stair: false }));
+  render();
+}
+function saveProject() {
+  const blob = new Blob([JSON.stringify(runs, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `KwikStage_${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  toast('Project saved!', false);
+}
+function loadProject(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = (e) => {
+    try {
+      runs = JSON.parse(e.target.result);
+      loadSettings(currentRun());
+      render();
+      toast('Project loaded!', false);
+    } catch {
+      toast('Error: could not parse file.');
+    }
+  };
+  r.readAsText(f);
+  ev.target.value = '';
+}
+function toast(msg, isErr = true) {
+  const c = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = `pointer-events-auto px-4 py-2.5 rounded-lg text-sm font-semibold text-white shadow-lg transition-all duration-300 opacity-0 translate-y-2 ${isErr ? 'bg-rose-600' : 'bg-emerald-600'}`;
+  el.textContent = msg;
+  c.appendChild(el);
+  requestAnimationFrame(() => {
+    el.classList.remove('opacity-0', 'translate-y-2');
+  });
+  setTimeout(() => {
+    el.classList.add('opacity-0');
+    setTimeout(() => el.remove(), 300);
+  }, 3500);
+}
+/* ============================================================
+   RENDER — plan view, elevation view, gear table, metrics
+   ============================================================ */
+function render() {
+  renderPlan();
+  renderElevation();
+  renderGearList();
+  renderMetrics();
+  updateCounters();
+  updateSummary();
+}
+function renderPlan() {
+  const container = document.getElementById('plan-view');
+  container.innerHTML = '';
+  const H = 85;
+  let totalMM = 0,
+    hasContent = false;
+  runs.forEach((run, ri) => {
+    const bayItems = run.bays.filter((b) => b.type === 'bay');
+    if (bayItems.length === 0) return;
+    hasContent = true;
+    const phy = calcPhysics(parseFloat(run.settings.height) || parseInt(run.settings.lifts) * 2);
+    const rings = getRingLevels(phy.starSpan).length;
+    container.appendChild(makePlanStd(H, rings));
+    totalMM += STD_POS_MM;
+    run.bays.forEach((item) => {
+      if (item.type === 'bay') {
+        const b = BAY[item.value];
+        const w = (b.mm / 1000) * PX_HORIZ;
+        const el = document.createElement('div');
+        el.style.cssText = `width:${w}px;height:${H}px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;`;
+        for (let i = 0; i < rings; i++) {
+          const pct = rings > 1 ? (i / (rings - 1)) * 100 : 50;
+          const bar = document.createElement('div');
+          bar.style.cssText = `position:absolute;left:0;right:0;height:3px;background:${b.clr};bottom:${pct}%;opacity:.9;`;
+          el.appendChild(bar);
+        }
+        const lbl = document.createElement('span');
+        lbl.style.cssText = `position:absolute;font-size:10px;font-weight:700;color:${b.clr};background:rgba(13,17,23,.85);padding:2px 6px;border-radius:3px;white-space:nowrap;border:1px solid ${b.clr}40;`;
+        lbl.textContent = b.label;
+        el.appendChild(lbl);
+        if (item.stair) {
+          const st = document.createElement('div');
+          st.style.cssText = `position:absolute;bottom:-26px;left:0;right:0;height:24px;background:rgba(99,102,241,.2);border:1px solid #6366f1;border-top:none;display:flex;align-items:center;justify-content:center;`;
+          st.innerHTML = `<span style="font-size:8px;font-weight:800;color:#a5b4fc;letter-spacing:.05em;">STAIR TOWER</span>`;
+          el.appendChild(st);
+        }
+        container.appendChild(el);
+        container.appendChild(makePlanStd(H, rings));
+        totalMM += b.mm + STD_POS_MM;
+      } else if (item.type === 'gap') {
+        const w = Math.max(24, (item.value / 1000) * PX_HORIZ);
+        const el = document.createElement('div');
+        el.style.cssText = `width:${w}px;height:${H}px;border:2px dashed #374151;display:flex;align-items:center;justify-content:center;flex-shrink:0;`;
+        el.innerHTML = `<span style="font-size:9px;color:#6b7280;font-weight:700;text-align:center;">GAP<br/>${item.value}mm</span>`;
+        container.appendChild(el);
+        totalMM += item.value;
+      } else if (item.type === 'break') {
+        const el = document.createElement('div');
+        el.style.cssText = `width:22px;height:${H}px;border-left:3px dashed #4b5563;border-right:3px dashed #4b5563;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin:0 4px;`;
+        el.innerHTML = `<span style="font-size:8px;color:#9ca3af;font-weight:700;text-align:center;">R${ri + 1}|R${ri + 2}</span>`;
+        container.appendChild(el);
+      }
+    });
+  });
+  if (!hasContent) {
+    container.innerHTML = `<p style="color:#374151;font-size:13px;font-weight:600;padding:16px 8px;">Add bays to generate plan view</p>`;
+  }
+  const lbl = document.getElementById('plan-length-label');
+  if (lbl)
+    lbl.textContent = hasContent ? `${totalMM} mm · ${(totalMM / 1000).toFixed(2)} m total` : '';
+}
+function makePlanStd(h, rings) {
+  const el = document.createElement('div');
+  el.style.cssText = `width:7px;height:${h}px;background:#1e2a3a;flex-shrink:0;position:relative;border-left:1px solid #334155;border-right:1px solid #334155;`;
+  for (let i = 0; i < rings; i++) {
+    const pct = rings > 1 ? (i / (rings - 1)) * 100 : 50;
+    const dot = document.createElement('div');
+    dot.style.cssText = `position:absolute;left:-3px;right:-3px;height:2px;background:#475569;bottom:${pct}%;`;
+    el.appendChild(dot);
+  }
+  return el;
+}
+function renderElevation() {
+  const c = document.getElementById('elevation-view');
+  c.innerHTML = '';
+  const run = currentRun();
+  const { width, height, lifts, handrail, hopup } = run.settings;
+  const boardedLifts = parseInt(lifts) || 1;
+  const targetH = parseFloat(height) || boardedLifts * 2;
+  if (!targetH || targetH <= 0) {
+    c.innerHTML = `<p style="color:#374151;font-size:13px;font-weight:600;padding:16px 0 8px;">Enter a deck height to see the elevation view</p>`;
+    c.style.height = '80px';
+    document.getElementById('elev-label').textContent = '';
+    return;
+  }
+  const phy = calcPhysics(targetH);
+  const { starSpan, jackExt, gTFS, stepDown, nomH } = phy;
+  const guardrailM = handrail === '2' ? 2.0 : 1.0;
+  const hopStr = hopup || '0';
+  const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
+  const wSpec = WIDTH_SPEC[width] || WIDTH_SPEC['0.71'];
+  const enabled = getEnabledSizes();
+  const maxH = gTFS + starSpan + guardrailM + 0.3;
+  const totalPx = maxH * PX_VERT + 30;
+  c.style.height = totalPx + 'px';
+  document.getElementById('elev-label').textContent =
+    `Deck +${targetH}m · Jack: ${Math.round(jackExt * 1000)}mm · Std column: ${starSpan}m · Step-down: ${stepDown}`;
+  const wPct = { 0.51: 12, 0.71: 18, 1.22: 28 }[width] || 18;
+  const hopPct = sideBoards === 1 ? 7 : sideBoards === 2 ? 13 : sideBoards === 3 ? 19 : 0;
+  const iX = 38 - wPct / 2;
+  const oX = 38 + wPct / 2;
+  const pbStr = run.settings.piggyback || '0';
+  const pbWPct = pbStr !== '0' ? { 0.51: 12, 0.71: 18, 1.22: 28 }[pbStr] || 0 : 0;
+  const pbGap = pbStr !== '0' ? 3 : 0;
+  const pbX = oX + hopPct + pbGap + pbWPct / 2;
+  const innerStack = calcStdStack(nomH, enabled);
+  const outerStack = calcStdStack(nomH + guardrailM, enabled);
+  elvRect(c, 0, '2%', '92%', 2, '#1e2a3a', 1);
+  elvJack(c, iX, gTFS);
+  elvJack(c, oX, gTFS);
+  elvStdStack(c, iX, innerStack, gTFS);
+  elvStdStack(c, oX, outerStack, gTFS);
+  const ringLevels = getRingLevels(starSpan);
+  ringLevels.forEach((lv, i) => {
+    const isTop = i === ringLevels.length - 1;
+    elvRect(c, gTFS + lv, `${iX}%`, `${wPct}%`, isTop ? 4 : 2, '#334155', 6);
+  });
+  const boardedLvls = ringLevels.slice(-boardedLifts);
+  boardedLvls.forEach((lv, i) => {
+    const y = gTFS + lv;
+    const isTop = i === boardedLvls.length - 1;
+    elvRect(c, y, `${iX}%`, `${wPct}%`, 9, '#7c2d12', 14);
+    elvRect(c, y, `${iX}%`, `${wPct}%`, 4, '#9a3412', 18);
+    if (sideBoards > 0) {
+      elvRect(c, y, `${oX}%`, `${hopPct}%`, 9, '#7c2d12', 14);
+      elvRect(c, y, `${oX}%`, `${hopPct}%`, 4, '#9a3412', 18);
+    }
+    elvLabel(c, y, `${oX + hopPct + 1}%`, isTop ? 'Top Deck' : `Lift ${i + 1}`);
+    if (isTop) {
+      const railHts = guardrailM === 2.0 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
+      railHts.forEach((rh) =>
+        elvRect(c, y + rh, `${iX}%`, `${wPct + hopPct + 0.5}%`, 2, '#475569', 10),
+      );
+      elvLabel(c, y + guardrailM, `${iX - 8}%`, `+${guardrailM}m guard`);
+    } else {
+      elvRect(c, y + 0.5, `${iX}%`, `${wPct}%`, 2, '#334155', 10);
+      elvRect(c, y + 1.0, `${iX}%`, `${wPct}%`, 2, '#334155', 10);
+    }
+  });
+  const hasStair = run.bays.some((b) => b.stair);
+  if (hasStair) {
+    const sX = oX + wPct / 2 + hopPct + 22;
+    const stairNomH = nomH + 1.0;
+    const stairStack = calcStdStack(stairNomH, enabled);
+    elvJack(c, sX, gTFS, 0.65);
+    elvStdStack(c, sX, stairStack, gTFS, 0.65);
+    const { t15, t20 } = calcTreads(starSpan);
+    let sh = gTFS;
+    for (let i = 0; i < t20; i++) {
+      sh += 2.0;
+      elvRect(c, sh, `${oX + 1}%`, `${sX - oX - 2}%`, 5, '#818cf8', 8);
+    }
+    for (let i = 0; i < t15; i++) {
+      sh += 1.5;
+      elvRect(c, sh, `${oX + 1}%`, `${sX - oX - 2}%`, 5, '#818cf8', 8);
+    }
+    elvLabel(c, gTFS + starSpan / 2, `${sX + 3}%`, 'Stair Tower');
+  }
+  if (pbStr !== '0' && pbWPct > 0) {
+    elvJack(c, pbX, gTFS, 0.85);
+    elvStdStack(c, pbX, outerStack, gTFS, 0.85);
+    ringLevels.forEach((lv, i) => {
+      const isTop = i === ringLevels.length - 1;
+      elvRect(c, gTFS + lv, `${oX}%`, `${pbWPct}%`, isTop ? 4 : 2, '#0f766e', 6);
+    });
+    const pbBoardedLvls = ringLevels.slice(-boardedLifts);
+    pbBoardedLvls.forEach((lv, i) => {
+      const y = gTFS + lv;
+      const isTop = i === pbBoardedLvls.length - 1;
+      elvRect(c, y, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 9, '#134e4a', 14);
+      elvRect(c, y, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 4, '#0f766e', 18);
+      if (isTop) {
+        const railHts = guardrailM === 2.0 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
+        railHts.forEach((rh) =>
+          elvRect(c, y + rh, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 2, '#0d9488', 10),
+        );
+        elvLabel(c, y + guardrailM, `${pbX + pbWPct / 2 + 1}%`, 'PB');
+      } else {
+        elvRect(c, y + 0.5, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 2, '#134e4a', 10);
+        elvRect(c, y + 1.0, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 2, '#134e4a', 10);
+      }
+    });
+    elvLabel(c, gTFS + starSpan * 0.35, `${oX + hopPct + pbGap + pbWPct / 2 - 3}%`, 'Piggyback');
+  }
+  elvLabel(c, gTFS, `${iX - 10}%`, `↑ ${targetH}m`);
+  elvLabel(c, 0, `${iX - 10}%`, `Ground`);
+}
+function elvRect(c, yM, left, width, hPx, color, z = 1) {
+  const el = document.createElement('div');
+  el.className = 'elev-el';
+  el.style.cssText = `bottom:${yM * PX_VERT}px;left:${left};width:${width};height:${hPx}px;background:${color};z-index:${z};`;
+  c.appendChild(el);
+  return el;
+}
+function elvJack(c, xPct, topM, opacity = 1) {
+  const h = topM * PX_VERT;
+  const el = document.createElement('div');
+  el.className = 'elev-el';
+  el.style.cssText = `bottom:0;left:${xPct}%;width:10px;height:${h}px;background:linear-gradient(to top,#374151,#6b7280);z-index:4;transform:translateX(-5px);opacity:${opacity};border-radius:2px 2px 0 0;`;
+  c.appendChild(el);
+}
+function elvStdStack(c, xPct, stack, startYm, opacity = 1) {
+  let curH = startYm;
+  const keys = Object.keys(stack).sort((a, b) => {
+    const ga = parseFloat(a.match(/[\d.]+/)[0]),
+      gb = parseFloat(b.match(/[\d.]+/)[0]);
+    return gb - ga;
+  });
+  for (const k of keys) {
+    const sM = parseFloat(k.match(/[\d.]+/)[0]);
+    const color = STD_CLR[sM.toFixed(1)] || '#4A5568';
+    const cnt = stack[k];
+    for (let i = 0; i < cnt; i++) {
+      const el = document.createElement('div');
+      el.className = 'elev-el';
+      el.style.cssText = `bottom:${curH * PX_VERT}px;left:${xPct}%;width:7px;height:${sM * PX_VERT}px;background:${color};z-index:5;transform:translateX(-3.5px);border-bottom:2px solid #0d1117;opacity:${opacity};`;
+      for (let st = 0.5; st <= sM; st += 0.5) {
+        const star = document.createElement('div');
+        star.style.cssText = `position:absolute;left:-4px;right:-4px;height:2px;background:#0d1117;bottom:${st * PX_VERT - 1}px;`;
+        el.appendChild(star);
+      }
+      c.appendChild(el);
+      curH += sM;
+    }
+  }
+}
+function elvLabel(c, yM, left, text) {
+  const el = document.createElement('span');
+  el.className = 'elev-el';
+  el.style.cssText = `bottom:${yM * PX_VERT}px;left:${left};font-size:9px;font-weight:700;color:#64748b;background:rgba(13,17,23,.9);padding:1px 5px;border-radius:3px;white-space:nowrap;z-index:30;font-family:'JetBrains Mono',monospace;`;
+  el.textContent = text;
+  c.appendChild(el);
+}
+function renderGearList() {
+  const tbody = document.getElementById('gear-table');
+  const note = document.getElementById('gear-note');
+  tbody.innerHTML = '';
+  const allEmpty = runs.every((r) => !r.bays.some((b) => b.type === 'bay'));
+  if (allEmpty) {
+    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:#374151;padding:32px;font-style:italic;font-size:13px;">No equipment yet — add bays to generate the gear list.</td></tr>`;
+    note.textContent = '';
+    return;
+  }
+  const gear = calcTotalGear();
+  const totalWeightT = calcWeightKg(gear) / 1000;
+  const CATS = [
+    { name: 'Foundation', keys: ['Base Jack', 'Sole Board'] },
+    { name: 'Standards (Verticals)', keys: ['Standard'] },
+    { name: 'Ledgers (Along Run)', keys: ['Ledger'] },
+    { name: 'Transoms (Cross Width)', keys: ['Transom'] },
+    { name: 'Steel Planks & Decking', keys: ['Steel Plank', 'Lap Board'] },
+    { name: 'Console Brackets (Hop-up)', keys: ['Console Bracket'] },
+    { name: 'Toe Board Clips (Kickboard)', keys: ['Toe Board Clip'] },
+    { name: 'Bracing & Tie Bars', keys: ['End Brace', 'Face Brace', 'Tie Bar'] },
+    { name: 'Stair Access Tower', keys: ['Stair Tread', 'Stair Handrail', 'Step Down'] },
+    { name: 'Tubes & Couplers (Run Joints)', keys: ['Tube', 'Coupler', 'Right Angle'] },
+  ];
+  let html = '';
+  for (const cat of CATS) {
+    const items = Object.entries(gear)
+      .filter(([k, v]) => v > 0 && cat.keys.some((ck) => k.includes(ck)))
+      .sort(([a], [b]) => a.localeCompare(b));
+    if (items.length === 0) continue;
+    const catQty = items.reduce((s, [, v]) => s + v, 0);
+    html += `<tr>
+<th colspan="2" style="background:#0f1923;padding:9px 14px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#f59e0b;border-top:2px solid #1e2a3a;text-align:left;">${cat.name}</th>
+<th style="background:#0f1923;padding:9px 14px;font-size:10px;font-weight:400;color:#475569;border-top:2px solid #1e2a3a;text-align:right;font-family:'JetBrains Mono',monospace;">${catQty} items</th>
+</tr>`;
+    for (const [item, qty] of items) {
+      const wk = Object.keys(WEIGHTS).find((ik) => item.startsWith(ik) || item.includes(ik));
+      const wt = wk ? ((WEIGHTS[wk] * qty) / 1000).toFixed(3) : '—';
+      html += `<tr style="border-bottom:1px solid #1a2333;">
+<td style="padding:8px 14px;color:#cbd5e1;font-size:13px;">${item}</td>
+<td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace;font-weight:700;font-size:15px;color:#f1f5f9;">${qty}</td>
+<td style="padding:8px 14px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:11px;color:#475569;">${wt}</td>
+</tr>`;
+    }
+  }
+  html += `<tr style="background:#0f1923;border-top:2px solid #f59e0b;">
+<th colspan="2" style="padding:12px 14px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:#f59e0b;text-align:left;">Total Estimated Weight</th>
+<th style="padding:12px 14px;text-align:right;font-family:'JetBrains Mono',monospace;font-size:15px;color:#f59e0b;font-weight:700;">${totalWeightT.toFixed(2)} T</th>
+</tr>`;
+  tbody.innerHTML = html;
+  const validRuns = runs.filter((r) => r.bays.some((b) => b.type === 'bay')).length;
+  const sparesOn = document.getElementById('spares')?.checked;
+  note.textContent = `${validRuns} run(s) calculated. Spares ${sparesOn ? 'included (+5% on consumables)' : 'not included'}. Verify all quantities on-site prior to ordering.`;
+}
+function renderMetrics() {
+  const s = (id, v) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = v;
+  };
+  let totalMM = 0,
+    totalSqM = 0,
+    totalRings = 0,
+    totalBays = 0,
+    jackMM = 0;
+  runs.forEach((run) => {
+    const bays = run.bays.filter((b) => b.type === 'bay');
+    if (bays.length === 0) return;
+    const numPos = bays.length + 1;
+    const targetH = parseFloat(run.settings.height) || parseInt(run.settings.lifts) * 2;
+    const phy = calcPhysics(targetH);
+    jackMM = Math.round(phy.gTFS * 1000);
+    const rings = getRingLevels(phy.starSpan);
+    totalRings += rings.length * bays.length;
+    totalBays += bays.length;
+    let runMM = numPos * STD_POS_MM;
+    for (const b of run.bays) {
+      if (b.type === 'bay') runMM += BAY[b.value].mm;
+      if (b.type === 'gap') runMM += b.value;
+    }
+    totalMM += runMM;
+    totalSqM += (runMM / 1000) * targetH;
+  });
+  const scaffolders = Math.max(1, parseInt(document.getElementById('scaffolders').value) || 1);
+  const gear = calcTotalGear();
+  const weightT = calcWeightKg(gear) / 1000;
+  const stripHrs = totalSqM / 4 / scaffolders;
+  const roninHrs = (totalRings * 0.25) / scaffolders;
+  s('m-len-mm', totalMM > 0 ? `${totalMM} mm` : '0 mm');
+  s('m-len-m', `${(totalMM / 1000).toFixed(2)} m`);
+  s('m-area', `${totalSqM.toFixed(1)} m²`);
+  s('m-jack', `${jackMM} mm`);
+  s(
+    'm-jack-type',
+    jackMM > 400 ? '⚠ Double step-down bracket required' : '✓ Single step-down bracket',
+  );
+  s('m-weight', `${weightT.toFixed(2)} T`);
+  s('m-strip', `${stripHrs.toFixed(1)} hrs`);
+  s('m-strip-note', totalSqM > 0 ? `${scaffolders} scaffolder(s) @ 4 m²/hr` : '');
+  s('m-ronin', `${roninHrs.toFixed(1)} hrs`);
+  s('m-ronin-note', totalBays > 0 ? `${scaffolders} scaffolder(s) w/ material hoist` : '');
+}
+function updateCounters() {
+  const run = currentRun();
+  const cnts = {};
+  run.bays
+    .filter((b) => b.type === 'bay')
+    .forEach((b) => (cnts[b.value] = (cnts[b.value] || 0) + 1));
+  ['700', '4ft', '6ft', '8ft'].forEach((t) => {
+    const el = document.getElementById(`ctr-${t}`);
+    if (el) el.textContent = cnts[t] || 0;
+  });
+}
+function updateSummary() {
+  const container = document.getElementById('run-summary');
+  if (!container) return;
+  container.innerHTML = '';
+  const totals = {};
+  let stairs = 0;
+  runs.forEach((run) =>
+    run.bays.forEach((b) => {
+      if (b.type === 'bay') {
+        totals[b.value] = (totals[b.value] || 0) + 1;
+        if (b.stair) stairs++;
+      }
+    }),
+  );
+  if (Object.keys(totals).length === 0) return;
+  for (const [t, n] of Object.entries(totals)) {
+    const b = BAY[t];
+    const tag = document.createElement('span');
+    tag.style.cssText = `display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;border:1px solid ${b.clr}35;color:${b.clr};background:${b.clr}12;font-family:'Barlow',sans-serif;`;
+    tag.textContent = `${n} × ${b.label}`;
+    container.appendChild(tag);
+  }
+  if (stairs > 0) {
+    const tag = document.createElement('span');
+    tag.style.cssText = `display:inline-flex;align-items:center;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;background:#3730a3;color:#c7d2fe;`;
+    tag.textContent = `${stairs} × Stair Tower`;
+    container.appendChild(tag);
+  }
+  if (runs.length > 1) {
+    const tag = document.createElement('span');
+    tag.style.cssText = `display:inline-flex;align-items:center;padding:3px 10px;border-radius:5px;font-size:11px;font-weight:700;background:#1e2a3a;color:#64748b;`;
+    tag.textContent = `${runs.length} Runs`;
+    container.appendChild(tag);
+  }
+}
+/* ============================================================
+   BOOT
+   ============================================================ */
+window.addEventListener('DOMContentLoaded', () => {
+  loadSettings(currentRun());
+  render();
+});
+</script>
+</body>
+</html>
