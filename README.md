@@ -72,8 +72,11 @@ checking against your own yard's practice.
 - **Bracing** is one dogleg pair per 4 m of height, and one face brace per 4 bays per
   bracing level.
 - **Tie bars** are only added for 2-board and 3-board hop-ups, at one per bay per 2 m.
-- **Standards** are stacked greedily from the largest enabled size down, so unchecking
-  sizes in *Available Standards* changes the mix.
+- **Standards** run 0.5 m to 4.0 m (1-Star to 8-Star) and are stacked greedily from the
+  largest enabled size down, so unchecking sizes in *Available Standards* changes the mix.
+  Weights are linear at 5 kg per metre, so the mix changes the piece count but not the
+  tonnage. Adding a size means touching five places: the checkbox list, the legend,
+  `STD_CLR`, `WEIGHTS`, and the size array in `calcStdStack`.
 - **Spares** (when enabled) add 5% to base jacks, sole boards, clips, couplers and tubes
   only — not to structural members.
 - **Strip time** assumes 4 m² per scaffolder per hour. **RONIN strip time** assumes

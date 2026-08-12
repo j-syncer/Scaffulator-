@@ -214,6 +214,7 @@
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Available Standards</h3>
     <div class="space-y-2">
+      <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="4.0" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#ea580c">●</span> 4.0m — 8-Star</span></label>
       <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="3.0" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#0284c7">●</span> 3.0m — 6-Star</span></label>
       <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="2.5" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#059669">●</span> 2.5m — 5-Star</span></label>
       <label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="std-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="2.0" checked onchange="render()"><span class="text-xs text-slate-300"><span style="color:#ca8a04">●</span> 2.0m — 4-Star</span></label>
@@ -318,6 +319,7 @@
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <p class="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-2">Standard Size Key</p>
     <div class="space-y-1.5">
+      <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#ea580c"></span><span class="text-xs text-slate-400 mono">4.0m (8-Star)</span></div>
       <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#0284c7"></span><span class="text-xs text-slate-400 mono">3.0m (6-Star)</span></div>
       <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#059669"></span><span class="text-xs text-slate-400 mono">2.5m (5-Star)</span></div>
       <div class="flex items-center gap-2"><span class="w-4 h-3 rounded-sm flex-shrink-0" style="background:#ca8a04"></span><span class="text-xs text-slate-400 mono">2.0m (4-Star)</span></div>
@@ -350,6 +352,7 @@ const WIDTH_SPEC = {
   1.22: { planks: 5, transomMM: 1220 },
 };
 const STD_CLR = {
+  '4.0': '#ea580c',
   '3.0': '#0284c7',
   2.5: '#059669',
   '2.0': '#ca8a04',
@@ -358,6 +361,7 @@ const STD_CLR = {
   0.5: '#be123c',
 };
 const WEIGHTS = {
+  'Standard (4.0m)': 20,
   'Standard (3.0m)': 15,
   'Standard (2.5m)': 12.5,
   'Standard (2.0m)': 10,
@@ -435,7 +439,7 @@ function calcPhysics(targetH) {
 function calcStdStack(nomH, enabled) {
   let rem = parseFloat(nomH.toFixed(3));
   const result = {};
-  for (const s of [3.0, 2.5, 2.0, 1.5, 1.0, 0.5].filter((x) => enabled.includes(x))) {
+  for (const s of [4.0, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5].filter((x) => enabled.includes(x))) {
     if (rem >= s - 0.001) {
       const n = Math.floor((rem + 0.001) / s);
       if (n > 0) {
