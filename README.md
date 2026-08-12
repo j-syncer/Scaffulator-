@@ -60,6 +60,12 @@ update path, so state changes only need to mutate `runs` and call `render()`.
 These are the rules currently baked into the engine. They are estimates and are worth
 checking against your own yard's practice.
 
+- **Bay lengths** are 0.71 m (700), 1.22 m (4ft), 1.78 m (6ft), 2.39 m (8ft) and 3.00 m.
+  Each bay contributes its own ledgers and planks at that length, and every standard
+  position adds a further 50 mm (`STD_POS_MM`) to the run. Auto-fill packs greedily from
+  the longest bay down. Adding a length means touching `BAY`, two `WEIGHTS` entries
+  (ledger and plank), the button and counter markup, and the type arrays in `autoFill`
+  and `updateCounters`.
 - **Boarded lifts** can be set from 1 to 20. The ceiling is the `MAX_LIFTS` constant in the
   engine; the dropdown is generated from it at boot, so raising it is a one-line change.
 - **Base offset** is a fixed 0.3 m. The standard column is the largest 0.5 m multiple that

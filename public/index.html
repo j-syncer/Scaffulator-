@@ -89,6 +89,10 @@
         <span class="flex items-center gap-2.5"><span class="w-2.5 h-2.5 rounded-full bg-sky-400 shadow-[0_0_6px_2px_rgba(56,189,248,0.4)]"></span>2.39m — 8ft</span>
         <span id="ctr-8ft" class="mono text-xs bg-sky-900/50 border border-sky-500/30 text-sky-300 px-2 py-0.5 rounded min-w-[24px] text-center">0</span>
       </button>
+      <button onclick="addBay('3m')" class="w-full text-left text-sm font-semibold py-2.5 px-3 rounded-lg border border-pink-500/30 bg-pink-500/10 text-pink-200 hover:bg-pink-500/20 active:scale-[0.98] transition-all flex items-center justify-between">
+        <span class="flex items-center gap-2.5"><span class="w-2.5 h-2.5 rounded-full bg-pink-400 shadow-[0_0_6px_2px_rgba(244,114,182,0.4)]"></span>3.00m — 3m Bay</span>
+        <span id="ctr-3m" class="mono text-xs bg-pink-900/50 border border-pink-500/30 text-pink-300 px-2 py-0.5 rounded min-w-[24px] text-center">0</span>
+      </button>
     </div>
   </div>
 
@@ -341,6 +345,7 @@
    DOMAIN CONSTANTS — bay sizes, deck widths, component weights
    ============================================================ */
 const BAY = {
+  '3m': { mm: 3000, label: '3.00m (3m)', clr: '#f472b6' },
   '8ft': { mm: 2390, label: '2.39m (8ft)', clr: '#38bdf8' },
   '6ft': { mm: 1780, label: '1.78m (6ft)', clr: '#34d399' },
   '4ft': { mm: 1220, label: '1.22m (4ft)', clr: '#fbbf24' },
@@ -368,6 +373,7 @@ const WEIGHTS = {
   'Standard (1.5m)': 7.5,
   'Standard (1.0m)': 5,
   'Standard (0.5m)': 2.5,
+  'Ledger (3000mm)': 11.5,
   'Ledger (2390mm)': 9.5,
   'Ledger (1780mm)': 7.5,
   'Ledger (1220mm)': 5.5,
@@ -375,6 +381,7 @@ const WEIGHTS = {
   'Transom (1220mm)': 6,
   'Transom (710mm)': 4,
   'Transom (510mm)': 3,
+  'Steel Plank (3000mm)': 20,
   'Steel Plank (2390mm)': 16,
   'Steel Plank (1780mm)': 12,
   'Steel Plank (1220mm)': 9,
@@ -726,7 +733,7 @@ function autoFill() {
   remaining -= existingBays.reduce((s, b) => s + BAY[b.value].mm + STD_POS_MM, 0);
   if (existingBays.length === 0) remaining -= STD_POS_MM;
   const added = [];
-  for (const t of ['8ft', '6ft', '4ft', '700']) {
+  for (const t of ['3m', '8ft', '6ft', '4ft', '700']) {
     const bLen = BAY[t].mm + STD_POS_MM;
     while (remaining >= bLen) {
       added.push(t);
@@ -1130,7 +1137,7 @@ function updateCounters() {
   run.bays
     .filter((b) => b.type === 'bay')
     .forEach((b) => (cnts[b.value] = (cnts[b.value] || 0) + 1));
-  ['700', '4ft', '6ft', '8ft'].forEach((t) => {
+  ['700', '4ft', '6ft', '8ft', '3m'].forEach((t) => {
     const el = document.getElementById(`ctr-${t}`);
     if (el) el.textContent = cnts[t] || 0;
   });
