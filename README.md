@@ -87,15 +87,19 @@ catalogue's 10-Leg Steel Stair System:
   collar, standards stacked to a metre above the top landing, and ledgers framing every
   landing.
 
-`treadsPerFlight` is **derived, not quoted**. Ten treads over the 2.13 m stringer bay
-rising 2.0 m gives a 200 mm rise and 213 mm going, which satisfies AS 1657's 2R+G rule, and
-it is the only count making the 1.0 m flight exactly half the 2.0 m flight as the
-catalogue's paired stringer lengths require. If your stringers carry nine treads with the
-landing as the tenth step, that is a one-number change.
+Step geometry is **derived, not quoted**. Ten risers over the 2.13 m stringer bay rising
+2.0 m give a 200 mm rise and 213 mm going, inside AS 1657's 2R+G rule; the 1.0 m flight is
+the same stair at five risers over 1.065 m. A flight carries **one fewer tread than it has
+risers** — nine and four — because its top step is the landing, and the landing is decked
+separately. Counting a tread there would bill that step twice.
 
 The tower's **footprint and landing framing are not in the catalogue**, which says only
-that landings are "built in any size from the AT-PAC Ledger range". The ledger counts per
-landing are our assumption and are flagged in the code.
+that landings are "built in any size from the AT-PAC Ledger range". It is modelled as the
+plan that reconciles with the catalogue's ten legs: a switchback tower two 2.13 m bays long
+by one walkway wide, giving three positions by two rows (six legs) plus four intermediate
+legs carrying the half-landings. That yields four long ledgers and five cross ledgers per
+landing, decked across the tower width. These counts are our assumption and are flagged in
+the code — correct them against your standard tower drawing.
 
 Two takeoff models exist, selected by each system's `model` field:
 

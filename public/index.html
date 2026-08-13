@@ -476,26 +476,31 @@ const SYSTEMS = {
     // and 1.52m walkway widths, the 1.52m being the stretcher tower; handrails
     // match the flight bay length; the tower has ten legs.
     //
-    // treadsPerFlight is derived rather than quoted: ten treads over a 2.13m bay
-    // rising 2.0m gives a 200mm rise and 213mm going, which satisfies AS 1657's
-    // 2R+G rule, and it is the only count that makes the 1.0m flight exactly half
-    // the 2.0m flight as the catalogue's paired stringer lengths require. If your
-    // stringers carry nine treads with the landing as the tenth step, change this
-    // one number.
+    // Step geometry is derived rather than quoted. Ten risers over the 2.13m
+    // stringer bay rising 2.0m gives a 200mm rise and 213mm going, inside
+    // AS 1657's 2R+G rule; the 1.0m flight is the same stair at five risers over
+    // 1.065m. A flight carries one fewer tread than it has risers, because its
+    // top step is the landing — which is billed below as its own planks, so
+    // counting a tread there would bill that step twice.
     //
     // The tower's own framing is NOT in the catalogue, which says only that
-    // landings are "built in any size from the AT-PAC Ledger range". The footprint
-    // and the ledgers per landing below are our assumption — correct them to match
-    // your standard tower drawing.
+    // landings are "built in any size from the AT-PAC Ledger range". It is
+    // modelled as the plan that reconciles with the catalogue's ten legs: a
+    // switchback tower two 2.13m bays long by one walkway wide, so three
+    // positions along by two rows is six legs, plus four intermediate legs
+    // carrying the half-landings. That gives four long ledgers (two rows of two
+    // bays) and five cross ledgers (three at the main positions, two tying the
+    // intermediates) at every landing, and a landing decked across its width.
+    // Correct these to match your standard tower drawing.
     stairTower: {
       legs: 10,
       flightM: 2.0,
-      treadsPerFlight: 10,
+      risersPerFlight: 10,
       bayMM: 2130,
       fullBayMM: 2130,
       halfBayMM: 1065,
       ledgersLongPerLevel: 4,
-      ledgersCrossPerLevel: 4,
+      ledgersCrossPerLevel: 5,
       walkways: {
         0.81: { label: '0.81m', towerWidthMM: 1065, landingPlanks: 4 },
         1.52: { label: '1.52m', towerWidthMM: 1570, landingPlanks: 6 },
@@ -685,12 +690,12 @@ function calcStairFlights(climb, st) {
   }
   const full = rises.filter((r) => r > st.flightM / 2 + 0.001).length;
   const half = rises.length - full;
-  return {
-    full,
-    half,
-    rises,
-    treads: full * st.treadsPerFlight + half * (st.treadsPerFlight / 2),
-  };
+  return { full, half, rises, treads: stairTreadCount(full, half, st) };
+}
+// Treads carried on the stringers. Each flight's top step is its landing, which
+// is decked separately, so a flight carries one tread fewer than it has risers.
+function stairTreadCount(full, half, st) {
+  return full * (st.risersPerFlight - 1) + half * (st.risersPerFlight / 2 - 1);
 }
 // AT-PAC 10-Leg Steel Stair Tower takeoff. Everything stair-specific here comes
 // from the catalogue; see the STAIR_TOWER notes on the system for what does not.
@@ -708,7 +713,7 @@ function addStairTowerGear(add, st, ctx) {
     add(`Stair Stringer (${(st.flightM / 2).toFixed(1)}m Lift)`, half * 2);
     add(`Stair Handrail (${st.halfBayMM}mm)`, half * 2);
   }
-  const treads = full * st.treadsPerFlight + half * (st.treadsPerFlight / 2);
+  const treads = stairTreadCount(full, half, st);
   if (treads > 0) add(`Stair Tread (${walk.label})`, treads);
 
   // The tower itself is ordinary system scaffold: legs to handrail height on a
@@ -1176,7 +1181,7 @@ function buildStairOpts() {
   if (row) row.classList.toggle('hidden', !st);
   if (note) {
     note.textContent = st
-      ? `Auto-calculates ${st.legs}-leg tower: stringers, ${st.treadsPerFlight} treads per ${st.flightM.toFixed(1)}m flight, handrails, landings & legs.`
+      ? `Auto-calculates ${st.legs}-leg tower: stringers, ${st.risersPerFlight - 1} treads per ${st.flightM.toFixed(1)}m flight, handrails, landings & legs.`
       : 'Auto-calculates 1.5m/2.0m tread mix, handrails, step-down brackets & stair standards.';
   }
   if (!st || !sel) return;
