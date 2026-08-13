@@ -1,8 +1,8 @@
 # Scaffold Gear Calculator
 
 A single-page visual calculator for scaffolding runs across Kwikstage, AT-PAC Ringlock,
-Kwikally and Ally Frame. Add bays, set the deck height and configuration, and it produces a plan view, an
-elevation view, a categorised bill of quantities, and estimated tonnage.
+Kwikally and Ally Frame. Add bays, set the deck height and configuration, and it produces a
+plan view, a section, a categorised bill of quantities, and estimated tonnage.
 
 ## Running it
 
@@ -35,7 +35,7 @@ zero even when the site is being served normally. That is expected, not a fault.
 
 ## Scaffold systems
 
-The calculator supports three systems, chosen per run from the **Scaffold System**
+The calculator supports four systems, chosen per run from the **Scaffold System**
 dropdown. Each is one entry in the `SYSTEMS` registry at the top of the engine, holding
 its own geometry, bay lengths, deck widths, component names and weights.
 
