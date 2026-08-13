@@ -131,7 +131,7 @@
           </optgroup>
         </select>
       </div>
-      <div>
+      <div id="clip-row">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">KB Clip Type</label>
         <select id="clip" class="form-select w-full" onchange="settingsChanged()">
           <option value="Wine Glass">Wine Glass</option>
@@ -422,6 +422,96 @@ const SYSTEMS = {
     },
   },
 
+  ringlock: {
+    id: 'ringlock',
+    name: 'AT-PAC Ringlock',
+    blurb: 'Steel modular — rosette node, 0.5m increments',
+    model: 'modular',
+    provisional: false,
+    // Weights and lengths taken from the AT-PAC AUS Product Catalogue v5.6
+    // (AP-AUS-001-V5-P6, 2023). Items marked below are not in that catalogue.
+    source: 'AT-PAC AUS catalogue v5.6',
+    plank: 'Steel Plank O-Type',
+    parts: {
+      ledger: 'Ledger O-Type',
+      // In Ringlock the transverse member is a Ledger O-Type cut to the bay
+      // width, so transoms and ledgers merge into one line by length.
+      transom: 'Ledger O-Type',
+      baseJack: 'Screwjack (Base Jack)',
+      soleBoard: 'Soleboard',
+      baseCollar: 'Starter (Base Collar)',
+      console: 'Side Bracket (Hop-Up)',
+      endBrace: 'Bay Brace (End)',
+      faceBrace: 'Bay Brace (Diagonal)',
+      toeClip: 'Toe Board Retaining Clamp',
+      toeBoard: 'Interlocking Toeboard',
+    },
+    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2 },
+    bays: {
+      3050: { mm: 3050, label: '3.05m', clr: '#f472b6' },
+      2430: { mm: 2430, label: '2.43m', clr: '#38bdf8' },
+      2130: { mm: 2130, label: '2.13m', clr: '#34d399' },
+      1820: { mm: 1820, label: '1.82m', clr: '#fbbf24' },
+      1570: { mm: 1570, label: '1.57m', clr: '#a78bfa' },
+      1065: { mm: 1065, label: '1.07m', clr: '#fb923c' },
+    },
+    widths: {
+      0.6: { planks: 2, transomMM: 600, label: '2-Plank — 600mm' },
+      0.88: { planks: 3, transomMM: 880, label: '3-Plank — 880mm' },
+      1.065: { planks: 4, transomMM: 1065, label: '4-Plank — 1065mm' },
+    },
+    stdSizes: [4.0, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5],
+    stdClr: {
+      '4.0': '#ea580c', '3.0': '#0284c7', 2.5: '#059669', '2.0': '#ca8a04',
+      1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c',
+    },
+    weights: {
+      // Standard with crimped spigot (01.01.xxx)
+      'Standard (4.0m)': 19.77, 'Standard (3.0m)': 14.99, 'Standard (2.5m)': 12.03,
+      'Standard (2.0m)': 10.32, 'Standard (1.5m)': 7.94, 'Standard (1.0m)': 5.62,
+      'Standard (0.5m)': 3.31,
+      // Ledger O-Type (01.03.xxx) — used along the run and across the width
+      'Ledger O-Type (3050mm)': 11.59, 'Ledger O-Type (2430mm)': 9.52,
+      'Ledger O-Type (2130mm)': 8.4, 'Ledger O-Type (1820mm)': 7.25,
+      'Ledger O-Type (1570mm)': 6.45, 'Ledger O-Type (1065mm)': 4.59,
+      'Ledger O-Type (880mm)': 4.0, 'Ledger O-Type (600mm)': 2.8,
+      // Steel Plank O-Type 0.24m (08.02.xxx)
+      'Steel Plank O-Type (3050mm)': 19.57, 'Steel Plank O-Type (2430mm)': 15.98,
+      'Steel Plank O-Type (2130mm)': 14.33, 'Steel Plank O-Type (1820mm)': 12.48,
+      'Steel Plank O-Type (1570mm)': 10.98, 'Steel Plank O-Type (1065mm)': 8.15,
+      // Interlocking Toeboard (08.08.xxx)
+      'Interlocking Toeboard (3050mm)': 8.93, 'Interlocking Toeboard (2430mm)': 7.19,
+      'Interlocking Toeboard (2130mm)': 6.33, 'Interlocking Toeboard (1820mm)': 5.5,
+      'Interlocking Toeboard (1570mm)': 4.75, 'Interlocking Toeboard (1065mm)': 3.3,
+      // Base (06.01.060 / 34.12.500 / 01.27.000)
+      'Screwjack (Base Jack)': 3.87,
+      Soleboard: 2.65,
+      'Starter (Base Collar)': 2.43,
+      // Side Bracket / Hop-Up O-Type (01.11.xxx), by board count
+      'Side Bracket (Hop-Up) (1-Board)': 4.55,
+      'Side Bracket (Hop-Up) (2-Board)': 7.1,
+      'Side Bracket (Hop-Up) (3-Board)': 8.2,
+      // Bay Brace for 2.0m lift (01.06.213) — one weight for a mixed-bay job
+      'Bay Brace (End)': 9.52,
+      'Bay Brace (Diagonal)': 9.52,
+      // Toe Board Retaining Clamp (04.16.001)
+      'Toe Board Retaining Clamp': 0.74,
+      // Stair: Stringer 2.0m lift (15.01.213) and 1.0m lift (15.01.106),
+      // Stair Handrail (15.03.xxx), Step Down Bracket (01.15.027).
+      'Stair Tread (2.0m)': 15.95, 'Stair Tread (1.5m)': 8.95,
+      'Stair Handrail Intermediate (2.0m)': 8.7, 'Stair Handrail Intermediate (1.5m)': 5.58,
+      'Stair Handrail Top (2.0m)': 8.7, 'Stair Handrail Top (1.5m)': 5.58,
+      'Step Down Bracket (Single)': 3.32, 'Step Down Bracket (Double)': 6.64,
+      // T-Bolt Right Angle Clamp (04.05.202)
+      'Right Angle Coupler': 1.05,
+      // Not in the AT-PAC catalogue: 48.3mm tube at 4.4 kg/m, a nominal tie,
+      // and a plank reused as a lap board.
+      'Tube (1.2m)': 5.3,
+      'Tie Bar': 4.0,
+      'Lap Board': 8.15,
+    },
+  },
+
   allyframe: {
     id: 'allyframe',
     name: 'Ally Frame',
@@ -544,6 +634,19 @@ function calcTreads(starSpan) {
 function getEnabledSizes() {
   return [...document.querySelectorAll('.std-chk:checked')].map((el) => parseFloat(el.value));
 }
+// Component names differ between systems: a Kwikstage transom is a Ringlock
+// Ledger O-Type, a dogleg is a Bay Brace. A system may override any of these
+// through its `parts` map; otherwise the Kwikstage wording is used.
+function partName(key, fallback) {
+  return (SYS.parts && SYS.parts[key]) || fallback;
+}
+// The Wine Glass / Spade variants belong to the Kwikstage clip. A system with
+// its own clip part has no such variant, so the suffix is dropped.
+function clipPartName(clip) {
+  return SYS.parts && SYS.parts.toeClip
+    ? SYS.parts.toeClip
+    : `Toe Board Clip (${clip})`;
+}
 // A run's target deck height. Guards against blank, zero and negative input by
 // falling back to the nominal height implied by the lift count.
 function runTargetHeight(run) {
@@ -599,8 +702,10 @@ function calcModularGear(run, enabled) {
     const v = Math.round(n);
     if (v > 0) g[k] = (g[k] || 0) + v;
   };
-  add('Base Jack (Screw Jack)', numPos * 2);
-  add('Sole Board', numPos * 2);
+  add(partName('baseJack', 'Base Jack (Screw Jack)'), numPos * 2);
+  add(partName('soleBoard', 'Sole Board'), numPos * 2);
+  // Ringlock starts each leg on a base collar between jack and standard.
+  if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, numPos * 2);
   const innerStack = calcStdStack(nomH, enabled);
   const outerStack = calcStdStack(nomH + guardrailM, enabled);
   for (const [k, v] of Object.entries(innerStack)) add(k, v * numPos);
@@ -609,26 +714,37 @@ function calcModularGear(run, enabled) {
   const midRailsPB = 2 * Math.max(0, boardedLifts - 1);
   const ledgersPB = 2 * numRings + midRailsPB + guardRailsPB;
   for (const [type, count] of Object.entries(byType)) {
-    add(`Ledger (${SYS.bays[type].mm}mm)`, count * ledgersPB);
+    add(`${partName('ledger', 'Ledger')} (${SYS.bays[type].mm}mm)`, count * ledgersPB);
   }
-  add(`Transom (${wSpec.transomMM}mm)`, numPos * numRings);
-  const planksPerBayLift = wSpec.planks + sideBoards + (hasKB ? 1 : 0);
+  add(`${partName('transom', 'Transom')} (${wSpec.transomMM}mm)`, numPos * numRings);
+  // Kwikstage decks its kickboard as an extra plank; a system with a dedicated
+  // toe board part bills that instead.
+  const kbPart = SYS.parts && SYS.parts.toeBoard;
+  const planksPerBayLift = wSpec.planks + sideBoards + (hasKB && !kbPart ? 1 : 0);
+  if (hasKB && kbPart) {
+    for (const [type, count] of Object.entries(byType)) {
+      add(`${kbPart} (${SYS.bays[type].mm}mm)`, count * boardedLifts);
+    }
+  }
   for (const [type, count] of Object.entries(byType)) {
     add(`${SYS.plank} (${SYS.bays[type].mm}mm)`, count * planksPerBayLift * boardedLifts);
   }
   if (sideBoards > 0) {
-    add(`Console Bracket (${sideBoards}-Board)`, numPos * boardedLifts);
+    add(`${partName('console', 'Console Bracket')} (${sideBoards}-Board)`, numPos * boardedLifts);
   }
   if (hasKB) {
-    add(`Toe Board Clip (${clip})`, numPos * boardedLifts * 2);
+    add(clipPartName(clip), numPos * boardedLifts * 2);
   }
   if (sideBoards >= 2) {
     const tieLevels = Math.max(1, Math.ceil(starSpan / 2));
-    add('Tie Bar', numBays * tieLevels);
+    add(partName('tieBar', 'Tie Bar'), numBays * tieLevels);
   }
   const braceLevels = Math.max(1, Math.ceil(starSpan / 4));
-  add('End Brace (Dogleg)', 2 * braceLevels);
-  add('Face Brace (Diagonal)', Math.max(1, Math.ceil(numBays / 4)) * braceLevels);
+  add(partName('endBrace', 'End Brace (Dogleg)'), 2 * braceLevels);
+  add(
+    partName('faceBrace', 'Face Brace (Diagonal)'),
+    Math.max(1, Math.ceil(numBays / 4)) * braceLevels
+  );
   if (hasStair) {
     const stairNomH = nomH + 1.0;
     const stairStack = calcStdStack(stairNomH, enabled);
@@ -674,18 +790,19 @@ function calcModularGear(run, enabled) {
     const pbSpec = SYS.widths[pbStr];
     if (pbSpec) {
       for (const [k, v] of Object.entries(outerStack)) add(k, v * numPos);
-      add('Base Jack (Screw Jack)', numPos);
-      add('Sole Board', numPos);
+      add(partName('baseJack', 'Base Jack (Screw Jack)'), numPos);
+      add(partName('soleBoard', 'Sole Board'), numPos);
+      if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, numPos);
       const pbLedgersPer = numRings + Math.max(0, boardedLifts - 1) + guardRailsPB;
       for (const [type, count] of Object.entries(byType)) {
-        add(`Ledger (${SYS.bays[type].mm}mm)`, count * pbLedgersPer);
+        add(`${partName('ledger', 'Ledger')} (${SYS.bays[type].mm}mm)`, count * pbLedgersPer);
       }
-      add(`Transom (${pbSpec.transomMM}mm)`, numPos * numRings);
+      add(`${partName('transom', 'Transom')} (${pbSpec.transomMM}mm)`, numPos * numRings);
       for (const [type, count] of Object.entries(byType)) {
         add(`${SYS.plank} (${SYS.bays[type].mm}mm)`, count * pbSpec.planks * boardedLifts);
       }
       if (hasKB) {
-        add(`Toe Board Clip (${clip})`, numPos * boardedLifts * 2);
+        add(clipPartName(clip), numPos * boardedLifts * 2);
       }
     }
   }
@@ -977,10 +1094,12 @@ function buildStandardsList() {
 function applySystemChrome() {
   const isFrame = SYS.model === 'frame';
   document.querySelectorAll('.modular-only').forEach((el) => el.classList.toggle('hidden', isFrame));
+  const clipRow = document.getElementById('clip-row');
+  if (clipRow) clipRow.classList.toggle('hidden', !!(SYS.parts && SYS.parts.toeClip));
   const banner = document.getElementById('provisional-banner');
   if (banner) banner.classList.toggle('hidden', !SYS.provisional);
   const blurb = document.getElementById('system-blurb');
-  if (blurb) blurb.textContent = SYS.blurb;
+  if (blurb) blurb.textContent = SYS.blurb + (SYS.source ? ` · weights from ${SYS.source}` : '');
 }
 // Rebuilds every system-dependent control. Bays from another system cannot be
 // carried over, so switching clears the current run's bays.
@@ -1580,14 +1699,15 @@ function renderGearList() {
   const totalWeightT = calcTotalWeightKg(bySystem) / 1000;
   const multi = Object.keys(bySystem).length > 1;
   const CATS = [
-    { name: 'Foundation', keys: ['Base Jack', 'Sole Board'] },
+    { name: 'Foundation', keys: ['Base Jack', 'Sole Board', 'Screwjack', 'Soleboard', 'Starter ('] },
     { name: 'Standards (Verticals)', keys: ['Standard'] },
     { name: 'Ledgers (Along Run)', keys: ['Ledger'] },
     { name: 'Transoms (Cross Width)', keys: ['Transom'] },
     { name: 'Planks & Decking', keys: ['Steel Plank', 'Alloy Plank', 'Alloy Platform', 'Lap Board'] },
-    { name: 'Console Brackets (Hop-up)', keys: ['Console Bracket'] },
-    { name: 'Toe Board Clips (Kickboard)', keys: ['Toe Board Clip'] },
-    { name: 'Bracing & Tie Bars', keys: ['End Brace', 'Face Brace', 'Tie Bar'] },
+    { name: 'Toe Boards', keys: ['Interlocking Toeboard'] },
+    { name: 'Console Brackets (Hop-up)', keys: ['Console Bracket', 'Side Bracket'] },
+    { name: 'Toe Board Clips (Kickboard)', keys: ['Toe Board Clip', 'Toe Board Retaining'] },
+    { name: 'Bracing & Tie Bars', keys: ['End Brace', 'Face Brace', 'Tie Bar', 'Bay Brace'] },
     { name: 'Stair Access Tower', keys: ['Stair Tread', 'Stair Handrail', 'Step Down'] },
     { name: 'Tubes & Couplers (Run Joints)', keys: ['Tube', 'Coupler', 'Right Angle'] },
     { name: 'Frames & Pins', keys: ['Frame (', 'Coupling Pin', 'Locking Clip'] },

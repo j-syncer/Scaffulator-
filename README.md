@@ -1,7 +1,7 @@
 # Scaffold Gear Calculator
 
-A single-page visual calculator for scaffolding runs across Kwikstage, Kwikally and Ally
-Frame. Add bays, set the deck height and configuration, and it produces a plan view, an
+A single-page visual calculator for scaffolding runs across Kwikstage, AT-PAC Ringlock,
+Kwikally and Ally Frame. Add bays, set the deck height and configuration, and it produces a plan view, an
 elevation view, a categorised bill of quantities, and estimated tonnage.
 
 ## Running it
@@ -42,8 +42,35 @@ its own geometry, bay lengths, deck widths, component names and weights.
 | System | Model | Data |
 | --- | --- | --- |
 | Kwikstage | `modular` | Confirmed |
+| AT-PAC Ringlock | `modular` | From AT-PAC AUS catalogue v5.6 |
 | Kwikally | `modular` | **Provisional** |
 | Ally Frame | `frame` | **Provisional** |
+
+### Component naming
+
+Systems name the same structural member differently, so each may override the wording via a
+`parts` map: a Kwikstage transom is a Ringlock Ledger O-Type, a dogleg is a Bay Brace. Two
+`parts` entries also change the takeoff rather than just the label — `baseCollar` adds one
+per standard position (Ringlock starts each leg on one), and `toeBoard` bills a dedicated
+toe board per bay per lift instead of Kwikstage's convention of decking the kickboard as an
+extra plank.
+
+### AT-PAC Ringlock
+
+Lengths and weights come from the AT-PAC AUS Product Catalogue v5.6 (AP-AUS-001-V5-P6,
+2023): standards with crimped spigot (01.01.xxx), Ledger O-Type (01.03.xxx), Steel Plank
+O-Type 0.24 m (08.02.xxx), Interlocking Toeboard (08.08.xxx), Screwjack (06.01.060),
+Starter/Base Collar (01.27.000), Side Bracket/Hop-Up O-Type (01.11.xxx), Bay Brace for
+2.0 m lift (01.06.xxx), Toe Board Retaining Clamp (04.16.001), stair stringers, handrails
+and step-down bracket (15.xx / 01.15.027), and the T-Bolt Right Angle Clamp (04.05.202).
+
+Because Ringlock's transverse member is a Ledger O-Type cut to the bay width, ledgers and
+transoms merge into one line by length rather than appearing as separate categories.
+
+Four figures are **not** from the catalogue and are marked as such in the code: scaffold
+tube (48.3 mm at 4.4 kg/m), the tie bar, the lap board, and a single Bay Brace weight
+standing in for all bay lengths. The stair takeoff also still follows the Kwikstage tread
+model, so Ringlock stair quantities are approximate even though the part weights are real.
 
 Two takeoff models exist, selected by each system's `model` field:
 
