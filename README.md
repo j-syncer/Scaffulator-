@@ -36,6 +36,42 @@ dashboard, or the build will deploy to the wrong Worker.
 Because no Worker script runs, the dashboard's **Invocations** metric stays at
 zero even when the site is being served normally. That is expected, not a fault.
 
+## Scaffold systems
+
+The calculator supports three systems, chosen per run from the **Scaffold System**
+dropdown. Each is one entry in the `SYSTEMS` registry at the top of the engine, holding
+its own geometry, bay lengths, deck widths, component names and weights.
+
+| System | Model | Data |
+| --- | --- | --- |
+| Kwikstage | `modular` | Confirmed |
+| Kwikally | `modular` | **Provisional** |
+| Ally Frame | `frame` | **Provisional** |
+
+Two takeoff models exist, selected by each system's `model` field:
+
+- **`modular`** — standards, ledgers and transoms (`calcModularGear`). Standards stack to
+  the deck height, ledgers ring at fixed spacing, planks fill the deck width.
+- **`frame`** — stacked frames, braces and platforms (`calcFrameGear`). Frames stand at
+  each position and stack to height; each bay takes a horizontal and a diagonal brace per
+  frame level, platforms lie in the boarded lifts, and the adjustable leg takes the
+  remainder below the first frame.
+
+Runs may use different systems in one job. Quantities are bucketed per system, because the
+same component name (`Ledger (3000mm)`) means different weights in different systems, and
+the manifest prints a section per system with its own subtotal.
+
+### Provisional data
+
+`provisional: true` marks a system whose dimensions and weights are estimates awaiting
+supplier confirmation. While such a system is selected the UI shows an orange warning
+panel, the manifest stamps that section `PROVISIONAL DATA`, and the footnote says so.
+
+**Kwikally and Ally Frame are both provisional.** Their bay lengths, deck widths, frame
+heights and every weight are placeholders derived from typical aluminium practice, not
+from a supplier spec sheet. Correct them in the `SYSTEMS` entry and flip `provisional` to
+`false` once verified — nothing else needs to change.
+
 ## Engine layout
 
 The engine lives in the single `<script>` block at the bottom of `index.html`, split into
