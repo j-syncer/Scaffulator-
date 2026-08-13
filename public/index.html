@@ -221,23 +221,23 @@
   <!-- Plan View -->
   <div class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Plan View</h3>
+      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Plan View — Looking Down</h3>
       <span id="plan-length-label" class="mono text-xs text-amber-400"></span>
     </div>
-    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-x-auto p-4" style="min-height:120px;">
-      <div id="plan-view" class="inline-flex items-end" style="padding-bottom:30px;"></div>
+    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-x-auto p-3">
+      <div id="plan-view"></div>
     </div>
   </div>
 
   <!-- Elevation View -->
   <div class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <div class="flex items-center justify-between mb-3">
-      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Elevation View — Current Run</h3>
+      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Section — Current Run</h3>
       <span id="elev-label" class="mono text-xs text-slate-500"></span>
     </div>
-    <!-- Tall scaffolds (up to MAX_LIFTS) scroll inside this box rather than stretching the page. -->
-    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-4" style="max-height:70vh;">
-      <div id="elevation-view" class="relative" style="min-height:80px; min-width:400px;"></div>
+    <!-- The section scales itself to fit, so this only scrolls for very tall jobs. -->
+    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-3" style="max-height:70vh;">
+      <div id="elevation-view"></div>
     </div>
   </div>
 
@@ -698,13 +698,20 @@ function calcModularGear(run, enabled) {
    bays between them take a horizontal and a diagonal brace per
    frame level, and platforms lie in the boarded lifts.
    ------------------------------------------------------------ */
+// An adjustable leg only has a few hundred mm of travel, so deck heights on a
+// frame system are quantised by the frames themselves. Pick the smallest stack
+// the leg can lift to the requested height, and report the height actually
+// reached — it will not always be the height asked for.
+const FRAME_LEG_MAX_M = 0.6;
 function calcFramePhysics(targetH, frameH) {
   const base = SYS.geom.baseOffsetM;
-  if (!targetH || targetH <= 0) return { frameLevels: 0, legExt: 0, gTFS: base, stackH: 0 };
-  const frameLevels = Math.max(1, Math.floor((targetH - base) / frameH));
+  if (!targetH || targetH <= 0) {
+    return { frameLevels: 0, legExt: 0, gTFS: base, stackH: 0, actualH: base };
+  }
+  const frameLevels = Math.max(1, Math.ceil((targetH - base - FRAME_LEG_MAX_M) / frameH));
   const stackH = frameLevels * frameH;
-  const legExt = Math.max(0, targetH - base - stackH);
-  return { frameLevels, legExt, gTFS: base + legExt, stackH };
+  const legExt = Math.min(FRAME_LEG_MAX_M, Math.max(0, targetH - base - stackH));
+  return { frameLevels, legExt, gTFS: base + legExt, stackH, actualH: base + legExt + stackH };
 }
 function calcFrameGear(run) {
   const bayItems = run.bays.filter((b) => b.type === 'bay');
@@ -1139,98 +1146,229 @@ function render() {
   updateCounters();
   updateSummary();
 }
+/* ============================================================
+   DRAWING — both views are SVG on a real millimetre scale.
+   Plan is a true top-down view; the section looks along the run.
+   ============================================================ */
+const NS = 'http://www.w3.org/2000/svg';
+const PLAN_PX_PER_M = 58; // plan view is drawn to one honest scale
+const SEC_PX_PER_M_H = 108; // section: width is exaggerated so detail stays readable
+function el(tag, attrs = {}, parent = null) {
+  const e = document.createElementNS(NS, tag);
+  for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function txt(parent, x, y, s, o = {}) {
+  const t = el(
+    'text',
+    {
+      x, y,
+      fill: o.fill || '#94a3b8',
+      'font-size': o.size || 10,
+      'font-family': o.mono === false ? 'Barlow, sans-serif' : "'JetBrains Mono', monospace",
+      'font-weight': o.weight || 500,
+      'text-anchor': o.anchor || 'middle',
+      'dominant-baseline': o.baseline || 'middle',
+    },
+    parent
+  );
+  t.textContent = s;
+  return t;
+}
+// Diagonal hatch used for gaps and for ground fill.
+function defsHatch(svg, id, color, opacity = 1) {
+  const defs = el('defs', {}, svg);
+  const pat = el(
+    'pattern',
+    { id, width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' },
+    defs
+  );
+  el('rect', { width: 6, height: 6, fill: 'transparent' }, pat);
+  el('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: color, 'stroke-width': 1.5, opacity }, pat);
+}
+function emptyNote(container, message) {
+  container.innerHTML = `<p style="color:#475569;font-size:13px;font-weight:600;padding:18px 8px;">${message}</p>`;
+}
+
+/* ---------------- PLAN VIEW — looking down on the run ---------------- */
 function renderPlan() {
   const container = document.getElementById('plan-view');
   container.innerHTML = '';
-  const H = 85;
-  let totalMM = 0,
-    hasContent = false;
-  runs.forEach((run, ri) => {
-    const bayItems = run.bays.filter((b) => b.type === 'bay');
-    if (bayItems.length === 0) return;
-    hasContent = true;
-    useSystem(run.settings.system);
-    const phy = calcPhysics(parseFloat(run.settings.height) || parseInt(run.settings.lifts) * 2);
-    const rings = SYS.model === 'frame'
-      ? calcFramePhysics(
-          parseFloat(run.settings.height) ||
-            (parseInt(run.settings.lifts) || 1) * (parseFloat(run.settings.frameH) || 2),
-          parseFloat(run.settings.frameH) || 2
-        ).frameLevels + 1
-      : getRingLevels(phy.starSpan).length;
-    container.appendChild(makePlanStd(H, rings));
-    totalMM += SYS.geom.posMM;
-    run.bays.forEach((item) => {
-      if (item.type === 'bay') {
-        const b = SYS.bays[item.value];
-        const w = (b.mm / 1000) * PX_HORIZ;
-        const el = document.createElement('div');
-        el.style.cssText = `width:${w}px;height:${H}px;position:relative;display:flex;align-items:center;justify-content:center;flex-shrink:0;`;
-        for (let i = 0; i < rings; i++) {
-          const pct = rings > 1 ? (i / (rings - 1)) * 100 : 50;
-          const bar = document.createElement('div');
-          bar.style.cssText = `position:absolute;left:0;right:0;height:3px;background:${b.clr};bottom:${pct}%;opacity:.9;`;
-          el.appendChild(bar);
-        }
-        const lbl = document.createElement('span');
-        lbl.style.cssText = `position:absolute;font-size:10px;font-weight:700;color:${b.clr};background:rgba(13,17,23,.85);padding:2px 6px;border-radius:3px;white-space:nowrap;border:1px solid ${b.clr}40;`;
-        lbl.textContent = b.label;
-        el.appendChild(lbl);
-        if (item.stair) {
-          const st = document.createElement('div');
-          st.style.cssText = `position:absolute;bottom:-26px;left:0;right:0;height:24px;background:rgba(99,102,241,.2);border:1px solid #6366f1;border-top:none;display:flex;align-items:center;justify-content:center;`;
-          st.innerHTML = `<span style="font-size:8px;font-weight:800;color:#a5b4fc;letter-spacing:.05em;">STAIR TOWER</span>`;
-          el.appendChild(st);
-        }
-        container.appendChild(el);
-        container.appendChild(makePlanStd(H, rings));
-        totalMM += b.mm + SYS.geom.posMM;
-      } else if (item.type === 'gap') {
-        const w = Math.max(24, (item.value / 1000) * PX_HORIZ);
-        const el = document.createElement('div');
-        el.style.cssText = `width:${w}px;height:${H}px;border:2px dashed #374151;display:flex;align-items:center;justify-content:center;flex-shrink:0;`;
-        el.innerHTML = `<span style="font-size:9px;color:#6b7280;font-weight:700;text-align:center;">GAP<br/>${item.value}mm</span>`;
-        container.appendChild(el);
-        totalMM += item.value;
-      } else if (item.type === 'break') {
-        const el = document.createElement('div');
-        el.style.cssText = `width:22px;height:${H}px;border-left:3px dashed #4b5563;border-right:3px dashed #4b5563;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin:0 4px;`;
-        el.innerHTML = `<span style="font-size:8px;color:#9ca3af;font-weight:700;text-align:center;">R${ri + 1}|R${ri + 2}</span>`;
-        container.appendChild(el);
-      }
-    });
+  const drawn = runs.filter((r) => r.bays.some((b) => b.type === 'bay'));
+  if (drawn.length === 0) {
+    emptyNote(container, 'Add bays to generate the plan view');
+    const lbl = document.getElementById('plan-length-label');
+    if (lbl) lbl.textContent = '';
+    return;
+  }
+  const S = PLAN_PX_PER_M / 1000; // px per mm
+  const PAD_L = 10, PAD_T = 30, PAD_B = 44;
+
+  // Measure first so the viewBox is exact.
+  let totalMM = 0, maxBandPx = 0;
+  const plans = runs.map((run) => {
+    const sys = SYSTEMS[run.settings.system] || SYSTEMS.kwikstage;
+    const bays = run.bays.filter((b) => b.type === 'bay');
+    if (bays.length === 0) return null;
+    const wSpec = sys.widths[run.settings.width] || Object.values(sys.widths)[0];
+    const deckMM = wSpec.transomMM || parseFloat(run.settings.width) * 1000 || 700;
+    const side = parseInt((String(run.settings.hopup || '0').match(/(\d)B/) || [, 0])[1]) || 0;
+    const hopMM = sys.model === 'frame' ? 0 : side * 250;
+    const pbStr = sys.model === 'frame' ? '0' : run.settings.piggyback || '0';
+    const pbMM = pbStr !== '0' ? (sys.widths[pbStr] || {}).transomMM || 0 : 0;
+    const band = (deckMM + hopMM + pbMM) * S;
+    maxBandPx = Math.max(maxBandPx, Math.max(band, 18));
+    let mm = sys.geom.posMM;
+    for (const it of run.bays) {
+      if (it.type === 'bay') mm += sys.bays[it.value].mm + sys.geom.posMM;
+      else if (it.type === 'gap') mm += it.value;
+      else if (it.type === 'break') mm += 260;
+    }
+    totalMM += mm;
+    return { run, sys, deckMM, hopMM, pbMM, runMM: mm };
   });
-  if (!hasContent) {
-    container.innerHTML = `<p style="color:#374151;font-size:13px;font-weight:600;padding:16px 8px;">Add bays to generate plan view</p>`;
-  }
+
+  const W = PAD_L * 2 + totalMM * S;
+  const H = PAD_T + Math.max(maxBandPx, 18) + PAD_B;
+  const svg = el('svg', {
+    width: Math.max(W, 320), height: H, viewBox: `0 0 ${Math.max(W, 320)} ${H}`,
+    style: 'display:block;',
+  }, container);
+  defsHatch(svg, 'plan-gap', '#475569');
+
+  let x = PAD_L;
+  plans.forEach((plan, ri) => {
+    if (!plan) return;
+    const { run, sys, deckMM, hopMM, pbMM } = plan;
+    const S_ = S;
+    const yDeck = PAD_T;
+    const deckPx = Math.max(deckMM * S_, 16);
+    const hopPx = hopMM * S_;
+    const pbPx = pbMM * S_;
+    const bandBottom = yDeck + deckPx + hopPx + pbPx;
+    const posXs = [];
+    let cursor = x;
+
+    // Bands: hop-up sits outboard of the deck, piggyback beyond that.
+    const runStart = cursor;
+    const runWidth = plan.runMM * S_;
+    el('rect', { x: runStart, y: yDeck, width: runWidth, height: deckPx,
+      fill: '#1e293b', stroke: '#334155', 'stroke-width': 1, rx: 2 }, svg);
+    if (hopPx > 0) {
+      el('rect', { x: runStart, y: yDeck + deckPx, width: runWidth, height: hopPx,
+        fill: '#78350f', opacity: 0.5, stroke: '#9a3412', 'stroke-width': 1 }, svg);
+      txt(svg, runStart + runWidth / 2, yDeck + deckPx + hopPx / 2, `HOP-UP ${hopMM}mm`,
+        { size: 8, fill: '#fdba74', weight: 700 });
+    }
+    if (pbPx > 0) {
+      el('rect', { x: runStart, y: yDeck + deckPx + hopPx, width: runWidth, height: pbPx,
+        fill: '#134e4a', opacity: 0.55, stroke: '#0d9488', 'stroke-width': 1 }, svg);
+      txt(svg, runStart + runWidth / 2, yDeck + deckPx + hopPx + pbPx / 2, `PIGGYBACK ${pbMM}mm`,
+        { size: 8, fill: '#5eead4', weight: 700 });
+    }
+
+    posXs.push(cursor);
+    cursor += sys.geom.posMM * S_;
+    for (const item of run.bays) {
+      if (item.type === 'bay') {
+        const b = sys.bays[item.value];
+        const w = b.mm * S_;
+        // Bay body, tinted by size so lengths are readable at a glance.
+        el('rect', { x: cursor, y: yDeck + 1, width: w, height: deckPx - 2,
+          fill: b.clr, opacity: 0.16 }, svg);
+        txt(svg, cursor + w / 2, yDeck + deckPx / 2, b.label.replace(/\s*\(.*\)/, ''),
+          { size: 9, fill: b.clr, weight: 700 });
+        // Dimension tick + length under the run.
+        const yDim = bandBottom + 16;
+        el('line', { x1: cursor, y1: yDim, x2: cursor + w, y2: yDim,
+          stroke: b.clr, 'stroke-width': 1.2 }, svg);
+        el('line', { x1: cursor, y1: yDim - 3, x2: cursor, y2: yDim + 3, stroke: b.clr, 'stroke-width': 1.2 }, svg);
+        el('line', { x1: cursor + w, y1: yDim - 3, x2: cursor + w, y2: yDim + 3, stroke: b.clr, 'stroke-width': 1.2 }, svg);
+        if (w > 30) txt(svg, cursor + w / 2, yDim + 12, `${b.mm}`, { size: 8, fill: '#64748b' });
+        if (item.stair) {
+          el('rect', { x: cursor, y: yDeck - 22, width: w, height: 17,
+            fill: '#3730a3', opacity: 0.55, stroke: '#6366f1', 'stroke-width': 1, rx: 2 }, svg);
+          txt(svg, cursor + w / 2, yDeck - 13.5, 'STAIR', { size: 8, fill: '#c7d2fe', weight: 800 });
+        }
+        cursor += w;
+        posXs.push(cursor);
+        cursor += sys.geom.posMM * S_;
+      } else if (item.type === 'gap') {
+        const w = item.value * S_;
+        el('rect', { x: cursor, y: yDeck, width: w, height: deckPx,
+          fill: 'url(#plan-gap)', stroke: '#475569', 'stroke-width': 1, 'stroke-dasharray': '3 2' }, svg);
+        txt(svg, cursor + w / 2, yDeck + deckPx / 2, `${item.value}`, { size: 8, fill: '#94a3b8', weight: 700 });
+        txt(svg, cursor + w / 2, bandBottom + 28, 'GAP', { size: 7, fill: '#64748b', weight: 700 });
+        cursor += w;
+      } else if (item.type === 'break') {
+        const w = 260 * S_;
+        el('line', { x1: cursor + w / 2, y1: yDeck - 6, x2: cursor + w / 2, y2: bandBottom + 6,
+          stroke: '#64748b', 'stroke-width': 2, 'stroke-dasharray': '4 3' }, svg);
+        txt(svg, cursor + w / 2, bandBottom + 28, `R${ri + 1}|R${ri + 2}`, { size: 7, fill: '#94a3b8', weight: 700 });
+        cursor += w;
+      }
+    }
+    // Standards last so they sit on top of the bands.
+    for (const px of posXs) {
+      for (const py of [yDeck, yDeck + deckPx]) {
+        el('circle', { cx: px, cy: py, r: 3.4, fill: '#0f172a', stroke: '#94a3b8', 'stroke-width': 1.6 }, svg);
+      }
+      if (pbPx > 0) {
+        el('circle', { cx: px, cy: yDeck + deckPx + hopPx + pbPx, r: 3.4,
+          fill: '#0f172a', stroke: '#2dd4bf', 'stroke-width': 1.6 }, svg);
+      }
+    }
+    // Run label above.
+    txt(svg, runStart + 2, 12, `RUN ${ri + 1} · ${sys.name} · ${plan.runMM}mm`,
+      { size: 8, fill: '#64748b', weight: 700, anchor: 'start' });
+    x = cursor;
+  });
+
   const lbl = document.getElementById('plan-length-label');
-  if (lbl)
-    lbl.textContent = hasContent ? `${totalMM} mm · ${(totalMM / 1000).toFixed(2)} m total` : '';
+  if (lbl) lbl.textContent = `${totalMM} mm · ${(totalMM / 1000).toFixed(2)} m total`;
 }
-function makePlanStd(h, rings) {
-  const el = document.createElement('div');
-  el.style.cssText = `width:7px;height:${h}px;background:#1e2a3a;flex-shrink:0;position:relative;border-left:1px solid #334155;border-right:1px solid #334155;`;
-  for (let i = 0; i < rings; i++) {
-    const pct = rings > 1 ? (i / (rings - 1)) * 100 : 50;
-    const dot = document.createElement('div');
-    dot.style.cssText = `position:absolute;left:-3px;right:-3px;height:2px;background:#475569;bottom:${pct}%;`;
-    el.appendChild(dot);
+
+/* ---------------- SECTION — looking along the run ---------------- */
+// Shared frame: axis, ground, and the label gutter on the right.
+function sectionCanvas(container, totalH, widthM, label) {
+  const V = Math.min(60, Math.max(12, 430 / Math.max(totalH, 0.5)));
+  const PAD_T = 18, PAD_B = 26, AXIS = 44, GUTTER = 96;
+  const drawW = Math.max(widthM * SEC_PX_PER_M_H, 60);
+  const W = AXIS + drawW + GUTTER;
+  const H = PAD_T + totalH * V + PAD_B;
+  container.innerHTML = '';
+  const svg = el('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, style: 'display:block;' }, container);
+  defsHatch(svg, 'sec-ground', '#334155');
+  const yOf = (m) => PAD_T + (totalH - m) * V;
+  const x0 = AXIS;
+  // Ground.
+  el('line', { x1: 6, y1: yOf(0), x2: W - 8, y2: yOf(0), stroke: '#475569', 'stroke-width': 2 }, svg);
+  el('rect', { x: 6, y: yOf(0), width: W - 14, height: Math.min(PAD_B - 4, 14),
+    fill: 'url(#sec-ground)', opacity: 0.5 }, svg);
+  // Height axis: pick a tick spacing that stays readable.
+  const step = totalH <= 8 ? 1 : totalH <= 20 ? 2 : totalH <= 45 ? 5 : 10;
+  for (let m = 0; m <= totalH + 0.001; m += step) {
+    const y = yOf(m);
+    el('line', { x1: AXIS - 6, y1: y, x2: W - 8, y2: y, stroke: '#1e293b', 'stroke-width': 1 }, svg);
+    el('line', { x1: AXIS - 10, y1: y, x2: AXIS - 6, y2: y, stroke: '#475569', 'stroke-width': 1.5 }, svg);
+    txt(svg, AXIS - 14, y, `${m % 1 ? m.toFixed(1) : m}m`, { size: 9, anchor: 'end', fill: '#64748b' });
   }
-  return el;
+  if (label) txt(svg, 6, 10, label, { size: 8, anchor: 'start', fill: '#475569', weight: 700 });
+  const ratio = Math.max(V, SEC_PX_PER_M_H) / Math.min(V, SEC_PX_PER_M_H);
+  return { svg, yOf, x0, V, drawW, W, scalesDiffer: ratio > 2 };
 }
 function renderElevation() {
   const c = document.getElementById('elevation-view');
-  c.innerHTML = '';
   const run = currentRun();
-  const { width, height, lifts, handrail, hopup } = run.settings;
   useSystem(run.settings.system);
   if (SYS.model === 'frame') return renderFrameElevation(c, run);
-  const requestedLifts = Math.max(1, parseInt(lifts) || 1);
+  const { width, handrail, hopup } = run.settings;
+  const label = document.getElementById('elev-label');
   const targetH = runTargetHeight(run);
-  if (!targetH || targetH <= 0) {
-    c.innerHTML = `<p style="color:#374151;font-size:13px;font-weight:600;padding:16px 0 8px;">Enter a deck height to see the elevation view</p>`;
-    c.style.height = '80px';
-    document.getElementById('elev-label').textContent = '';
+  if (!run.bays.some((b) => b.type === 'bay') || !targetH || targetH <= 0) {
+    emptyNote(c, 'Add bays and a deck height to see the section');
+    if (label) label.textContent = '';
     return;
   }
   const phy = calcPhysics(targetH);
@@ -1239,208 +1377,194 @@ function renderElevation() {
   const hopStr = hopup || '0';
   const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
   const wSpec = SYS.widths[width] || Object.values(SYS.widths)[0];
-  const enabled = getEnabledSizes();
-  const maxH = gTFS + starSpan + guardrailM + 0.3;
-  const totalPx = maxH * PX_VERT + 30;
-  c.style.height = totalPx + 'px';
-  document.getElementById('elev-label').textContent =
-    `Deck +${targetH}m · Jack: ${Math.round(jackExt * 1000)}mm · Std column: ${starSpan}m · Step-down: ${stepDown}`;
-  const wPct = { 0.51: 12, 0.71: 18, 1.22: 28 }[width] || 18;
-  const hopPct = sideBoards === 1 ? 7 : sideBoards === 2 ? 13 : sideBoards === 3 ? 19 : 0;
-  const iX = 38 - wPct / 2;
-  const oX = 38 + wPct / 2;
+  const deckM = (wSpec.transomMM || 710) / 1000;
+  const hopM = sideBoards * 0.25;
   const pbStr = run.settings.piggyback || '0';
-  const pbWPct = pbStr !== '0' ? { 0.51: 12, 0.71: 18, 1.22: 28 }[pbStr] || 0 : 0;
-  const pbGap = pbStr !== '0' ? 3 : 0;
-  const pbX = oX + hopPct + pbGap + pbWPct / 2;
+  const pbM = pbStr !== '0' ? ((SYS.widths[pbStr] || {}).transomMM || 0) / 1000 : 0;
+  const enabled = getEnabledSizes();
+  const ringLevels = getRingLevels(starSpan);
+  const boardedLifts = Math.max(1, Math.min(Math.max(1, parseInt(run.settings.lifts) || 1), ringLevels.length));
+  const hasStair = run.bays.some((b) => b.stair);
+  // Everything is placed along one metre axis: deck, hop-up, piggyback, stair.
+  // The label gutter then starts beyond all of it, so nothing can collide.
+  const pbGapM = pbM ? 0.18 : 0;
+  const stairGapM = hasStair ? 0.3 : 0;
+  const stairWM = hasStair ? 0.85 : 0;
+  const pbX0 = deckM + hopM + pbGapM;
+  const stairX0 = pbX0 + pbM + stairGapM;
+  const totalH = gTFS + starSpan + guardrailM + 0.4;
+  const totalW = stairX0 + stairWM;
+  const { svg, yOf, x0, V, scalesDiffer } = sectionCanvas(c, totalH, totalW, null);
+  const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
+  const labelX = xOf(totalW) + 10;
+  const iX = xOf(0), oX = xOf(deckM);
+  if (label) {
+    label.textContent =
+      `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m · Step-down ${stepDown}` +
+      (scalesDiffer ? ' · width exaggerated' : '');
+  }
   const innerStack = calcStdStack(nomH, enabled);
   const outerStack = calcStdStack(nomH + guardrailM, enabled);
-  elvRect(c, 0, '2%', '92%', 2, '#1e2a3a', 1);
-  elvJack(c, iX, gTFS);
-  elvJack(c, oX, gTFS);
-  elvStdStack(c, iX, innerStack, gTFS);
-  elvStdStack(c, oX, outerStack, gTFS);
-  const ringLevels = getRingLevels(starSpan);
-  const boardedLifts = Math.max(1, Math.min(requestedLifts, ringLevels.length));
+  drawFoundation(svg, yOf, iX, gTFS);
+  drawFoundation(svg, yOf, oX, gTFS);
+  // Ledger rings between the two standard lines.
   ringLevels.forEach((lv, i) => {
-    const isTop = i === ringLevels.length - 1;
-    elvRect(c, gTFS + lv, `${iX}%`, `${wPct}%`, isTop ? 4 : 2, '#334155', 6);
+    const y = yOf(gTFS + lv);
+    const top = i === ringLevels.length - 1;
+    el('line', { x1: iX, y1: y, x2: oX, y2: y, stroke: top ? '#64748b' : '#3f4c5f',
+      'stroke-width': top ? 2.5 : 1.5 }, svg);
   });
-  const boardedLvls = ringLevels.slice(-boardedLifts);
-  boardedLvls.forEach((lv, i) => {
-    const y = gTFS + lv;
-    const isTop = i === boardedLvls.length - 1;
-    elvRect(c, y, `${iX}%`, `${wPct}%`, 9, '#7c2d12', 14);
-    elvRect(c, y, `${iX}%`, `${wPct}%`, 4, '#9a3412', 18);
-    if (sideBoards > 0) {
-      elvRect(c, y, `${oX}%`, `${hopPct}%`, 9, '#7c2d12', 14);
-      elvRect(c, y, `${oX}%`, `${hopPct}%`, 4, '#9a3412', 18);
-    }
-    elvLabel(c, y, `${oX + hopPct + 1}%`, isTop ? 'Top Deck' : `Lift ${i + 1}`);
-    if (isTop) {
-      const railHts = guardrailM === 2.0 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
-      railHts.forEach((rh) =>
-        elvRect(c, y + rh, `${iX}%`, `${wPct + hopPct + 0.5}%`, 2, '#475569', 10),
-      );
-      elvLabel(c, y + guardrailM, `${iX - 8}%`, `+${guardrailM}m guard`);
-    } else {
-      elvRect(c, y + 0.5, `${iX}%`, `${wPct}%`, 2, '#334155', 10);
-      elvRect(c, y + 1.0, `${iX}%`, `${wPct}%`, 2, '#334155', 10);
-    }
-  });
-  const hasStair = run.bays.some((b) => b.stair);
-  if (hasStair) {
-    const sX = oX + wPct / 2 + hopPct + 22;
-    const stairNomH = nomH + 1.0;
-    const stairStack = calcStdStack(stairNomH, enabled);
-    elvJack(c, sX, gTFS, 0.65);
-    elvStdStack(c, sX, stairStack, gTFS, 0.65);
-    const { t15, t20 } = calcTreads(starSpan);
-    let sh = gTFS;
-    for (let i = 0; i < t20; i++) {
-      sh += 2.0;
-      elvRect(c, sh, `${oX + 1}%`, `${sX - oX - 2}%`, 5, '#818cf8', 8);
-    }
-    for (let i = 0; i < t15; i++) {
-      sh += 1.5;
-      elvRect(c, sh, `${oX + 1}%`, `${sX - oX - 2}%`, 5, '#818cf8', 8);
-    }
-    elvLabel(c, gTFS + starSpan / 2, `${sX + 3}%`, 'Stair Tower');
-  }
-  if (pbStr !== '0' && pbWPct > 0) {
-    elvJack(c, pbX, gTFS, 0.85);
-    elvStdStack(c, pbX, outerStack, gTFS, 0.85);
-    ringLevels.forEach((lv, i) => {
-      const isTop = i === ringLevels.length - 1;
-      elvRect(c, gTFS + lv, `${oX}%`, `${pbWPct}%`, isTop ? 4 : 2, '#0f766e', 6);
+  // Decks.
+  const boarded = ringLevels.slice(-boardedLifts);
+  boarded.forEach((lv, i) => {
+    const y = yOf(gTFS + lv);
+    const top = i === boarded.length - 1;
+    drawDeck(svg, iX, y, oX - iX, wSpec.planks);
+    if (hopM > 0) drawDeck(svg, oX, y, hopM * SEC_PX_PER_M_H, sideBoards);
+    txt(svg, labelX, y, top ? `Top deck +${targetH}m` : `Lift ${i + 1}`,
+      { size: 9, anchor: 'start', fill: top ? '#fbbf24' : '#94a3b8', weight: top ? 700 : 500 });
+    const rails = guardrailM === 2 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
+    (top ? rails : [0.5, 1.0]).forEach((rh) => {
+      const ry = yOf(gTFS + lv + rh);
+      el('line', { x1: iX, y1: ry, x2: oX + hopM * SEC_PX_PER_M_H, y2: ry,
+        stroke: top ? '#94a3b8' : '#3f4c5f', 'stroke-width': top ? 2 : 1.2 }, svg);
     });
-    const pbBoardedLvls = ringLevels.slice(-boardedLifts);
-    pbBoardedLvls.forEach((lv, i) => {
-      const y = gTFS + lv;
-      const isTop = i === pbBoardedLvls.length - 1;
-      elvRect(c, y, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 9, '#134e4a', 14);
-      elvRect(c, y, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 4, '#0f766e', 18);
-      if (isTop) {
-        const railHts = guardrailM === 2.0 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
-        railHts.forEach((rh) =>
-          elvRect(c, y + rh, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 2, '#0d9488', 10),
-        );
-        elvLabel(c, y + guardrailM, `${pbX + pbWPct / 2 + 1}%`, 'PB');
-      } else {
-        elvRect(c, y + 0.5, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 2, '#134e4a', 10);
-        elvRect(c, y + 1.0, `${oX + hopPct + pbGap}%`, `${pbWPct}%`, 2, '#134e4a', 10);
+  });
+  // Piggyback bay outboard of the hop-up.
+  if (pbM > 0) {
+    const pX = xOf(pbX0);
+    drawFoundation(svg, yOf, pX + pbM * SEC_PX_PER_M_H, gTFS, '#0d9488');
+    ringLevels.forEach((lv) => {
+      const y = yOf(gTFS + lv);
+      el('line', { x1: pX, y1: y, x2: pX + pbM * SEC_PX_PER_M_H, y2: y, stroke: '#0f766e', 'stroke-width': 1.5 }, svg);
+    });
+    boarded.forEach((lv, i) => {
+      const y = yOf(gTFS + lv);
+      drawDeck(svg, pX, y, pbM * SEC_PX_PER_M_H, (SYS.widths[pbStr] || {}).planks || 2, '#134e4a', '#5eead4');
+      if (i === boarded.length - 1) {
+        txt(svg, pX + (pbM * SEC_PX_PER_M_H) / 2, yOf(gTFS + lv + guardrailM) - 12, 'PIGGYBACK',
+          { size: 7, fill: '#5eead4', weight: 800 });
       }
     });
-    elvLabel(c, gTFS + starSpan * 0.35, `${oX + hopPct + pbGap + pbWPct / 2 - 3}%`, 'Piggyback');
+    drawStandards(svg, yOf, pX + pbM * SEC_PX_PER_M_H, outerStack, gTFS, 0.85);
   }
-  elvLabel(c, gTFS, `${iX - 10}%`, `↑ ${targetH}m`);
-  elvLabel(c, 0, `${iX - 10}%`, `Ground`);
+  drawStandards(svg, yOf, iX, innerStack, gTFS);
+  drawStandards(svg, yOf, oX, outerStack, gTFS);
+  // Stair tower, drawn as a labelled zone rather than overlapping geometry.
+  if (hasStair) {
+    const sxL = xOf(stairX0);
+    const sxW = stairWM * SEC_PX_PER_M_H;
+    el('rect', { x: sxL, y: yOf(gTFS + starSpan), width: sxW, height: starSpan * V,
+      fill: '#3730a3', opacity: 0.25, stroke: '#6366f1', 'stroke-width': 1, rx: 3 }, svg);
+    const { t15, t20 } = calcTreads(starSpan);
+    let sh = gTFS;
+    for (let i = 0; i < t20; i++) { sh += 2.0; el('line', { x1: sxL + 3, y1: yOf(sh), x2: sxL + sxW - 3, y2: yOf(sh), stroke: '#818cf8', 'stroke-width': 2.5 }, svg); }
+    for (let i = 0; i < t15; i++) { sh += 1.5; el('line', { x1: sxL + 3, y1: yOf(sh), x2: sxL + sxW - 3, y2: yOf(sh), stroke: '#818cf8', 'stroke-width': 2.5 }, svg); }
+    txt(svg, sxL + sxW / 2, yOf(gTFS + starSpan) - 9, 'STAIR', { size: 7, fill: '#c7d2fe', weight: 800 });
+  }
+  // Deck width dimension across the base.
+  dimension(svg, iX, oX, yOf(0) + 10, `${wSpec.transomMM}mm`);
 }
-/* Elevation for the frame model: stacked frames, braces, platforms. */
+// Sole board + base jack under one standard line.
+function drawFoundation(svg, yOf, x, gTFS, color = '#94a3b8') {
+  el('rect', { x: x - 13, y: yOf(0) - 3, width: 26, height: 4, fill: '#475569', rx: 1 }, svg);
+  el('line', { x1: x, y1: yOf(0) - 3, x2: x, y2: yOf(gTFS), stroke: color, 'stroke-width': 3.5,
+    'stroke-linecap': 'round', opacity: 0.75 }, svg);
+}
+// Colour-coded standard stack with star marks every 0.5m.
+function drawStandards(svg, yOf, x, stack, startYm, opacity = 1) {
+  let cur = startYm;
+  const keys = Object.keys(stack).sort(
+    (a, b) => parseFloat(b.match(/[\d.]+/)[0]) - parseFloat(a.match(/[\d.]+/)[0])
+  );
+  for (const k of keys) {
+    const sM = parseFloat(k.match(/[\d.]+/)[0]);
+    const color = SYS.stdClr[sM.toFixed(1)] || '#64748b';
+    for (let i = 0; i < stack[k]; i++) {
+      const yTop = yOf(cur + sM), yBot = yOf(cur);
+      el('rect', { x: x - 3.5, y: yTop, width: 7, height: Math.max(yBot - yTop, 1),
+        fill: color, opacity, rx: 1.5, stroke: '#0d1117', 'stroke-width': 0.8 }, svg);
+      for (let st = 0.5; st < sM - 0.001; st += 0.5) {
+        el('line', { x1: x - 5, y1: yOf(cur + st), x2: x + 5, y2: yOf(cur + st),
+          stroke: '#0d1117', 'stroke-width': 1, opacity: 0.85 }, svg);
+      }
+      cur += sM;
+    }
+  }
+}
+// A deck: slab plus plank divisions so the board count reads at a glance.
+function drawDeck(svg, x, y, w, planks, fill = '#475569', edge = '#cbd5e1') {
+  if (w <= 0) return;
+  el('rect', { x, y: y - 7, width: w, height: 7, fill, stroke: edge, 'stroke-width': 1, rx: 1 }, svg);
+  el('line', { x1: x, y1: y - 7, x2: x + w, y2: y - 7, stroke: edge, 'stroke-width': 1.4 }, svg);
+  const n = Math.max(1, planks || 1);
+  for (let i = 1; i < n; i++) {
+    el('line', { x1: x + (w / n) * i, y1: y - 7, x2: x + (w / n) * i, y2: y, stroke: edge, 'stroke-width': 0.8, opacity: 0.9 }, svg);
+  }
+}
+function dimension(svg, x1, x2, y, text) {
+  el('line', { x1, y1: y, x2, y2: y, stroke: '#475569', 'stroke-width': 1 }, svg);
+  el('line', { x1, y1: y - 3, x2: x1, y2: y + 3, stroke: '#475569', 'stroke-width': 1 }, svg);
+  el('line', { x1: x2, y1: y - 3, x2: x2, y2: y + 3, stroke: '#475569', 'stroke-width': 1 }, svg);
+  txt(svg, (x1 + x2) / 2, y + 10, text, { size: 8, fill: '#64748b' });
+}
+/* Section for the frame model. */
 function renderFrameElevation(c, run) {
-  const { width, height, lifts, handrail } = run.settings;
-  const frameH = parseFloat(run.settings.frameH) || 2.0;
-  const requested = Math.max(1, parseInt(lifts) || 1);
-  const targetH = runTargetHeight(run);
   const label = document.getElementById('elev-label');
-  if (!targetH || targetH <= 0) {
-    c.innerHTML = `<p style="color:#374151;font-size:13px;font-weight:600;padding:16px 0 8px;">Enter a deck height to see the elevation view</p>`;
-    c.style.height = '80px';
+  const frameH = parseFloat(run.settings.frameH) || 2.0;
+  const targetH = runTargetHeight(run);
+  if (!run.bays.some((b) => b.type === 'bay') || !targetH || targetH <= 0) {
+    emptyNote(c, 'Add bays and a deck height to see the section');
     if (label) label.textContent = '';
     return;
   }
-  const { frameLevels, legExt, gTFS } = calcFramePhysics(targetH, frameH);
+  const { frameLevels, legExt, gTFS, actualH } = calcFramePhysics(targetH, frameH);
+  const requested = Math.max(1, parseInt(run.settings.lifts) || 1);
   const boarded = Math.max(1, Math.min(requested, frameLevels));
-  const guardrailM = handrail === '2' ? 2.0 : 1.0;
-  const wPct = { 0.7: 16, 1.3: 26 }[width] || 20;
-  const iX = 38 - wPct / 2;
-  const oX = 38 + wPct / 2;
-  const maxH = gTFS + frameLevels * frameH + guardrailM + 0.3;
-  c.style.height = maxH * PX_VERT + 30 + 'px';
+  const guardrailM = run.settings.handrail === '2' ? 2.0 : 1.0;
+  const wSpec = SYS.widths[run.settings.width] || Object.values(SYS.widths)[0];
+  const deckM = parseFloat(Object.keys(SYS.widths).find((k) => SYS.widths[k] === wSpec)) || 0.7;
+  const totalH = actualH + guardrailM + 0.4;
+  const { svg, yOf, x0, V } = sectionCanvas(c, totalH, deckM, null);
+  const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
+  const labelX = xOf(deckM) + 12;
+  const iX = xOf(0), oX = xOf(deckM);
   if (label) {
+    const reached = actualH.toFixed(2).replace(/0$/, '');
     label.textContent =
-      `Deck +${targetH}m · ${frameLevels} x ${frameH.toFixed(1)}m frames · Leg: ${Math.round(legExt * 1000)}mm`;
+      `Deck +${reached}m · ${frameLevels} × ${frameH.toFixed(1)}m frames · Leg ${Math.round(legExt * 1000)}mm` +
+      (Math.abs(actualH - targetH) > 0.01 ? ` · nearest to ${targetH}m` : '');
   }
-  elvRect(c, 0, '2%', '92%', 2, '#1e2a3a', 1);
-  elvJack(c, iX, gTFS);
-  elvJack(c, oX, gTFS);
-  // Each frame: two legs plus the transom across its head.
+  drawFoundation(svg, yOf, iX, gTFS, '#22d3ee');
+  drawFoundation(svg, yOf, oX, gTFS, '#22d3ee');
+  // Each frame: two legs, a head transom and a mid rail.
   for (let i = 0; i < frameLevels; i++) {
     const yB = gTFS + i * frameH;
     for (const x of [iX, oX]) {
-      const el = document.createElement('div');
-      el.className = 'elev-el';
-      el.style.cssText = `bottom:${yB * PX_VERT}px;left:${x}%;width:8px;height:${frameH * PX_VERT}px;background:#0891b2;z-index:5;transform:translateX(-4px);border-bottom:2px solid #0d1117;`;
-      c.appendChild(el);
+      el('rect', { x: x - 4, y: yOf(yB + frameH), width: 8, height: frameH * V,
+        fill: '#0891b2', stroke: '#0d1117', 'stroke-width': 0.8, rx: 1.5 }, svg);
     }
-    elvRect(c, yB + frameH, `${iX}%`, `${wPct}%`, 4, '#0e7490', 6);
-    elvRect(c, yB + frameH / 2, `${iX}%`, `${wPct}%`, 2, '#155e75', 4);
+    el('line', { x1: iX, y1: yOf(yB + frameH), x2: oX, y2: yOf(yB + frameH), stroke: '#0e7490', 'stroke-width': 3 }, svg);
+    el('line', { x1: iX, y1: yOf(yB + frameH / 2), x2: oX, y2: yOf(yB + frameH / 2), stroke: '#155e75', 'stroke-width': 1.5 }, svg);
+    // Frame joint marker.
+    if (i > 0) {
+      for (const x of [iX, oX]) el('circle', { cx: x, cy: yOf(yB), r: 2.6, fill: '#0d1117', stroke: '#67e8f9', 'stroke-width': 1.3 }, svg);
+    }
   }
-  // Platforms in the boarded lifts, counted down from the top frame level.
   for (let i = 0; i < boarded; i++) {
     const lvl = frameLevels - boarded + i + 1;
-    const y = gTFS + lvl * frameH;
-    const isTop = i === boarded - 1;
-    elvRect(c, y, `${iX}%`, `${wPct}%`, 9, '#7c2d12', 14);
-    elvRect(c, y, `${iX}%`, `${wPct}%`, 4, '#9a3412', 18);
-    elvLabel(c, y, `${oX + 1}%`, isTop ? 'Top Deck' : `Lift ${i + 1}`);
-    const rails = guardrailM === 2.0 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
-    if (isTop) {
-      rails.forEach((rh) => elvRect(c, y + rh, `${iX}%`, `${wPct}%`, 2, '#475569', 10));
-      elvLabel(c, y + guardrailM, `${iX - 9}%`, `+${guardrailM}m guard`);
-    } else {
-      elvRect(c, y + 0.5, `${iX}%`, `${wPct}%`, 2, '#334155', 10);
-      elvRect(c, y + 1.0, `${iX}%`, `${wPct}%`, 2, '#334155', 10);
-    }
+    const y = yOf(gTFS + lvl * frameH);
+    const top = i === boarded - 1;
+    drawDeck(svg, iX, y, oX - iX, wSpec.decks);
+    txt(svg, labelX, y, top ? `Top deck +${actualH.toFixed(2).replace(/0$/, '')}m` : `Lift ${i + 1}`,
+      { size: 9, anchor: 'start', fill: top ? '#fbbf24' : '#94a3b8', weight: top ? 700 : 500 });
+    const rails = top ? (guardrailM === 2 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0]) : [0.5, 1.0];
+    rails.forEach((rh) => {
+      const ry = yOf(gTFS + lvl * frameH + rh);
+      el('line', { x1: iX, y1: ry, x2: oX, y2: ry, stroke: top ? '#94a3b8' : '#3f4c5f', 'stroke-width': top ? 2 : 1.2 }, svg);
+    });
   }
-  elvLabel(c, gTFS, `${iX - 10}%`, `↑ ${targetH}m`);
-  elvLabel(c, 0, `${iX - 10}%`, 'Ground');
-}
-function elvRect(c, yM, left, width, hPx, color, z = 1) {
-  const el = document.createElement('div');
-  el.className = 'elev-el';
-  el.style.cssText = `bottom:${yM * PX_VERT}px;left:${left};width:${width};height:${hPx}px;background:${color};z-index:${z};`;
-  c.appendChild(el);
-  return el;
-}
-function elvJack(c, xPct, topM, opacity = 1) {
-  const h = topM * PX_VERT;
-  const el = document.createElement('div');
-  el.className = 'elev-el';
-  el.style.cssText = `bottom:0;left:${xPct}%;width:10px;height:${h}px;background:linear-gradient(to top,#374151,#6b7280);z-index:4;transform:translateX(-5px);opacity:${opacity};border-radius:2px 2px 0 0;`;
-  c.appendChild(el);
-}
-function elvStdStack(c, xPct, stack, startYm, opacity = 1) {
-  let curH = startYm;
-  const keys = Object.keys(stack).sort((a, b) => {
-    const ga = parseFloat(a.match(/[\d.]+/)[0]),
-      gb = parseFloat(b.match(/[\d.]+/)[0]);
-    return gb - ga;
-  });
-  for (const k of keys) {
-    const sM = parseFloat(k.match(/[\d.]+/)[0]);
-    const color = SYS.stdClr[sM.toFixed(1)] || '#4A5568';
-    const cnt = stack[k];
-    for (let i = 0; i < cnt; i++) {
-      const el = document.createElement('div');
-      el.className = 'elev-el';
-      el.style.cssText = `bottom:${curH * PX_VERT}px;left:${xPct}%;width:7px;height:${sM * PX_VERT}px;background:${color};z-index:5;transform:translateX(-3.5px);border-bottom:2px solid #0d1117;opacity:${opacity};`;
-      for (let st = 0.5; st <= sM; st += 0.5) {
-        const star = document.createElement('div');
-        star.style.cssText = `position:absolute;left:-4px;right:-4px;height:2px;background:#0d1117;bottom:${st * PX_VERT - 1}px;`;
-        el.appendChild(star);
-      }
-      c.appendChild(el);
-      curH += sM;
-    }
-  }
-}
-function elvLabel(c, yM, left, text) {
-  const el = document.createElement('span');
-  el.className = 'elev-el';
-  el.style.cssText = `bottom:${yM * PX_VERT}px;left:${left};font-size:9px;font-weight:700;color:#64748b;background:rgba(13,17,23,.9);padding:1px 5px;border-radius:3px;white-space:nowrap;z-index:30;font-family:'JetBrains Mono',monospace;`;
-  el.textContent = text;
-  c.appendChild(el);
+  dimension(svg, iX, oX, yOf(0) + 10, `${Math.round(deckM * 1000)}mm`);
 }
 function renderGearList() {
   const tbody = document.getElementById('gear-table');

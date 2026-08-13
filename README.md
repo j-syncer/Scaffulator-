@@ -51,8 +51,9 @@ Two takeoff models exist, selected by each system's `model` field:
   the deck height, ledgers ring at fixed spacing, planks fill the deck width.
 - **`frame`** — stacked frames, braces and platforms (`calcFrameGear`). Frames stand at
   each position and stack to height; each bay takes a horizontal and a diagonal brace per
-  frame level, platforms lie in the boarded lifts, and the adjustable leg takes the
-  remainder below the first frame.
+  frame level, and platforms lie in the boarded lifts. Deck heights are quantised by the
+  frames: the leg has only `FRAME_LEG_MAX_M` of travel, so the engine picks the smallest
+  stack the leg can lift to the requested height and reports the height actually reached.
 
 Runs may use different systems in one job. Quantities are bucketed per system, because the
 same component name (`Ledger (3000mm)`) means different weights in different systems, and
@@ -90,11 +91,27 @@ labelled sections:
   `buildFrameHeightOpts` and `applySystemChrome` regenerate the controls whenever the
   system changes.
 - **User actions** — the handlers wired to the buttons and selects.
-- **Render** — `renderPlan`, `renderElevation` (with `renderFrameElevation` for the frame
-  model), `renderGearList`, `renderMetrics`.
+- **Drawing** — both views are SVG on a real millimetre scale. `renderPlan` is a true
+  top-down view of the run; `renderElevation` (and `renderFrameElevation`) draw a section
+  looking along the run. `sectionCanvas` sets up the height axis, ground and label gutter;
+  `drawStandards`, `drawDeck`, `drawFoundation` and `dimension` are the shared parts.
+- **Render** — `renderGearList`, `renderMetrics`.
 
 `render()` recomputes everything from `runs` on every change; there is no incremental
 update path, so state changes only need to mutate `runs` and call `render()`.
+
+## The two views
+
+**Plan view** looks down on the run, drawn to one scale (`PLAN_PX_PER_M`). Bays are tinted
+by size and dimensioned underneath, standards appear as circles at every position on both
+edges of the deck, and hop-up and piggyback are bands outboard of the deck.
+
+**Section** looks along the run, showing deck width, lift heights, standards, guardrails,
+hop-up, piggyback and the stair tower. Height is drawn to a scale that adapts so a 40 m
+job still fits on screen, while width uses a fixed larger scale (`SEC_PX_PER_M_H`) so
+detail stays readable. When those two scales diverge far enough to matter the label says
+`width exaggerated`. Every element is placed along one metre axis and the labels sit in a
+gutter beyond it, so nothing overlaps regardless of configuration.
 
 ## Calculation assumptions
 
