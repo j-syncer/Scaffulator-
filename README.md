@@ -110,6 +110,9 @@ the frame rules described above.
   `weights` entries (ledger and plank) — the buttons and counters generate themselves.
 - **Boarded lifts** can be set from 1 to 20. The ceiling is the `MAX_LIFTS` constant in the
   engine; the dropdown is generated from it at boot, so raising it is a one-line change.
+  The count is also clamped to the levels the deck height actually provides — a lift can
+  only be boarded where a ledger ring (or frame level) exists, so a 4 m deck bills three
+  lifts however many are selected, and the dropdown snaps back to match.
 - **Base offset** is a fixed 0.3 m (`geom.baseOffsetM`). The standard column is the largest 0.5 m multiple that
   fits below the target deck height, and the jack takes up the remainder — so jack
   extension is always under 0.5 m.
@@ -134,7 +137,9 @@ the frame rules described above.
 
 ## Save / load
 
-*Save* downloads the `runs` array as JSON; *Load* reads it back. The file is the raw state
+*Save* downloads the `runs` array as JSON; *Load* reads it back through `sanitiseRuns`,
+which drops unrecognised bays, unknown systems and invalid gaps rather than trusting the
+file. A file that yields no usable runs is rejected and the open job is left untouched. The file is the raw state
 array with no version field, so changing the shape of `runs` will break previously saved
 projects. Each run records its `system`, so a saved job reopens on the systems it was
 built with. Projects saved before multi-system support have no `system` field and fall

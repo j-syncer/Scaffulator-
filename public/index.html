@@ -100,7 +100,7 @@
     </div>
     <div>
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Top Deck Height (m)</label>
-      <input type="number" id="height" class="form-input w-full mono" placeholder="e.g. 3.7" step="0.1" onchange="settingsChanged(); updateLiftOpts()">
+      <input type="number" id="height" class="form-input w-full mono" placeholder="e.g. 3.7" step="0.1" min="0" onchange="settingsChanged(); updateLiftOpts()">
       <p class="text-[9px] text-slate-600 mt-1">Base jack extension auto-calculates to reach height cleanly.</p>
     </div>
     <div class="grid grid-cols-2 gap-2">
@@ -249,7 +249,7 @@
     </div>
     <div class="overflow-x-auto">
       <table class="w-full" style="border-collapse:collapse;">
-        <thead class="no-print">
+        <thead>
           <tr style="background:#1e2a3a;border-bottom:2px solid #2d3f55;">
             <th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Component</th>
             <th style="padding:8px 14px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;">Qty</th>
@@ -544,6 +544,14 @@ function calcTreads(starSpan) {
 function getEnabledSizes() {
   return [...document.querySelectorAll('.std-chk:checked')].map((el) => parseFloat(el.value));
 }
+// A run's target deck height. Guards against blank, zero and negative input by
+// falling back to the nominal height implied by the lift count.
+function runTargetHeight(run) {
+  const lifts = Math.max(1, parseInt(run.settings.lifts) || 1);
+  const step = SYS.model === 'frame' ? parseFloat(run.settings.frameH) || 2 : 2;
+  const h = parseFloat(run.settings.height);
+  return Number.isFinite(h) && h > 0 ? h : lifts * step;
+}
 // Closest available bay length in the active system, for components the
 // modular takeoff pins to a fixed size (e.g. the stair landing plank).
 function nearestBayMM(targetMM) {
@@ -562,9 +570,9 @@ function calcRunGear(run, enabled) {
 function calcModularGear(run, enabled) {
   const bayItems = run.bays.filter((b) => b.type === 'bay');
   if (bayItems.length === 0) return {};
-  const { width, height, lifts, handrail, hopup, clip } = run.settings;
-  const boardedLifts = Math.max(1, parseInt(lifts) || 1);
-  const targetH = parseFloat(height) || boardedLifts * 2;
+  const { width, lifts, handrail, hopup, clip } = run.settings;
+  const requestedLifts = Math.max(1, parseInt(lifts) || 1);
+  const targetH = runTargetHeight(run);
   const phy = calcPhysics(targetH);
   const { starSpan, gTFS, stepDown, nomH } = phy;
   const guardrailM = handrail === '2' ? 2.0 : 1.0;
@@ -574,6 +582,10 @@ function calcModularGear(run, enabled) {
   const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
   const ringLevels = getRingLevels(starSpan);
   const numRings = ringLevels.length;
+  // A lift can only be boarded where a ledger ring exists. Without this clamp a
+  // lift count left over from a taller job bills planks, clips and brackets for
+  // decks the scaffold cannot physically carry.
+  const boardedLifts = Math.max(1, Math.min(requestedLifts, numRings));
   const numBays = bayItems.length;
   const numPos = numBays + 1;
   const byType = {};
@@ -700,7 +712,7 @@ function calcFrameGear(run) {
   const { width, height, lifts, handrail } = run.settings;
   const frameH = parseFloat(run.settings.frameH) || 2.0;
   const requestedLifts = Math.max(1, parseInt(lifts) || 1);
-  const targetH = parseFloat(height) || requestedLifts * frameH;
+  const targetH = runTargetHeight(run);
   const { frameLevels } = calcFramePhysics(targetH, frameH);
   // Platforms can only sit where a frame level exists.
   const boardedLifts = Math.max(1, Math.min(requestedLifts, frameLevels));
@@ -996,12 +1008,22 @@ function buildLiftOpts() {
   sel.innerHTML = html;
 }
 function updateLiftOpts() {
-  const h = parseFloat(document.getElementById('height').value) || 0;
+  useSystem(currentRun().settings.system);
   const sel = document.getElementById('lifts');
-  const frameH = parseFloat(document.getElementById('frameH')?.value) || 2.0;
-  const step = SYS.model === 'frame' ? frameH : 2;
-  for (const opt of sel.options) {
-    opt.disabled = h > 0 && parseInt(opt.value) * step > h + step - 0.1;
+  const run = currentRun();
+  const targetH = runTargetHeight(run);
+  // How many boardable levels the height actually gives us.
+  const maxLifts =
+    SYS.model === 'frame'
+      ? calcFramePhysics(targetH, parseFloat(run.settings.frameH) || 2).frameLevels
+      : getRingLevels(calcPhysics(targetH).starSpan).length;
+  for (const opt of sel.options) opt.disabled = parseInt(opt.value) > maxLifts;
+  // Snapping back matters: a stale lift count silently bills decks that cannot
+  // exist, so the selection is corrected rather than left invalid.
+  if (parseInt(sel.value) > maxLifts) {
+    sel.value = String(Math.max(1, maxLifts));
+    run.settings.lifts = sel.value;
+    toast(`Height only allows ${maxLifts} boarded lift(s) — lifts reduced to match.`);
   }
 }
 function autoFill() {
@@ -1011,8 +1033,11 @@ function autoFill() {
   const run = currentRun();
   let remaining = len;
   const existingBays = run.bays.filter((b) => b.type === 'bay');
+  // A run of n bays spans sum(bays) + (n+1) standard positions, so the closing
+  // position comes off the budget whether or not bays already exist.
   remaining -= existingBays.reduce((s, b) => s + SYS.bays[b.value].mm + SYS.geom.posMM, 0);
-  if (existingBays.length === 0) remaining -= SYS.geom.posMM;
+  remaining -= run.bays.reduce((s, b) => s + (b.type === 'gap' ? b.value : 0), 0);
+  remaining -= SYS.geom.posMM;
   const added = [];
   const order = Object.keys(SYS.bays).sort((a, b) => SYS.bays[b].mm - SYS.bays[a].mm);
   for (const t of order) {
@@ -1037,20 +1062,55 @@ function saveProject() {
   a.click();
   toast('Project saved!', false);
 }
+// Rebuilds a trusted `runs` array from whatever a project file contains,
+// dropping anything unrecognised. Files predating multi-system support have no
+// `system` field and load as Kwikstage.
+function sanitiseRuns(data) {
+  if (!Array.isArray(data)) throw new Error('not a run list');
+  const clean = data
+    .map((run) => {
+      if (!run || typeof run !== 'object') return null;
+      const src = run.settings && typeof run.settings === 'object' ? run.settings : {};
+      const sys = SYSTEMS[src.system] || SYSTEMS.kwikstage;
+      const settings = { ...DEFAULT_SETTINGS, ...src, system: sys.id };
+      if (!sys.widths[settings.width]) settings.width = Object.keys(sys.widths)[0];
+      if (sys.model === 'frame' && !(sys.frameHeights || {})[settings.frameH]) {
+        settings.frameH = Object.keys(sys.frameHeights)[0];
+      }
+      const bays = (Array.isArray(run.bays) ? run.bays : []).filter((b) => {
+        if (!b || typeof b !== 'object') return false;
+        if (b.type === 'bay') return !!sys.bays[b.value];
+        if (b.type === 'gap') return Number.isFinite(b.value) && b.value > 0;
+        return b.type === 'break';
+      });
+      return { bays, settings };
+    })
+    .filter(Boolean);
+  if (clean.length === 0) throw new Error('no usable runs');
+  return clean;
+}
 function loadProject(ev) {
   const f = ev.target.files[0];
   if (!f) return;
   const r = new FileReader();
   r.onload = (e) => {
+    const before = runs;
     try {
-      runs = JSON.parse(e.target.result);
+      const parsed = JSON.parse(e.target.result);
+      const cleaned = sanitiseRuns(parsed);
+      const dropped = (Array.isArray(parsed) ? parsed.length : 0) - cleaned.length;
+      runs = cleaned;
       loadSettings(currentRun());
       render();
-      toast('Project loaded!', false);
-    } catch {
-      toast('Error: could not parse file.');
+      toast(dropped > 0 ? `Project loaded — ${dropped} unreadable run(s) skipped.` : 'Project loaded!', false);
+    } catch (err) {
+      runs = before; // leave the current job untouched rather than half-loaded
+      loadSettings(currentRun());
+      render();
+      toast(`Could not load that file: ${err.message}.`);
     }
   };
+  r.onerror = () => toast('Could not read that file.');
   r.readAsText(f);
   ev.target.value = '';
 }
@@ -1165,8 +1225,8 @@ function renderElevation() {
   const { width, height, lifts, handrail, hopup } = run.settings;
   useSystem(run.settings.system);
   if (SYS.model === 'frame') return renderFrameElevation(c, run);
-  const boardedLifts = parseInt(lifts) || 1;
-  const targetH = parseFloat(height) || boardedLifts * 2;
+  const requestedLifts = Math.max(1, parseInt(lifts) || 1);
+  const targetH = runTargetHeight(run);
   if (!targetH || targetH <= 0) {
     c.innerHTML = `<p style="color:#374151;font-size:13px;font-weight:600;padding:16px 0 8px;">Enter a deck height to see the elevation view</p>`;
     c.style.height = '80px';
@@ -1201,6 +1261,7 @@ function renderElevation() {
   elvStdStack(c, iX, innerStack, gTFS);
   elvStdStack(c, oX, outerStack, gTFS);
   const ringLevels = getRingLevels(starSpan);
+  const boardedLifts = Math.max(1, Math.min(requestedLifts, ringLevels.length));
   ringLevels.forEach((lv, i) => {
     const isTop = i === ringLevels.length - 1;
     elvRect(c, gTFS + lv, `${iX}%`, `${wPct}%`, isTop ? 4 : 2, '#334155', 6);
@@ -1280,7 +1341,7 @@ function renderFrameElevation(c, run) {
   const { width, height, lifts, handrail } = run.settings;
   const frameH = parseFloat(run.settings.frameH) || 2.0;
   const requested = Math.max(1, parseInt(lifts) || 1);
-  const targetH = parseFloat(height) || requested * frameH;
+  const targetH = runTargetHeight(run);
   const label = document.getElementById('elev-label');
   if (!targetH || targetH <= 0) {
     c.innerHTML = `<p style="color:#374151;font-size:13px;font-weight:600;padding:16px 0 8px;">Enter a deck height to see the elevation view</p>`;
@@ -1459,24 +1520,28 @@ function renderMetrics() {
   let totalMM = 0,
     totalSqM = 0,
     totalRings = 0,
-    totalBays = 0,
-    jackMM = 0;
+    totalBays = 0;
+  const jacks = [];
   runs.forEach((run) => {
     const bays = run.bays.filter((b) => b.type === 'bay');
-    if (bays.length === 0) return;
     useSystem(run.settings.system);
+    if (bays.length === 0) {
+      // A run holding only gaps still occupies length on the plan.
+      totalMM += run.bays.reduce((a, b) => a + (b.type === 'gap' ? b.value : 0), 0);
+      return;
+    }
     const numPos = bays.length + 1;
     const frameH = parseFloat(run.settings.frameH) || 2.0;
     const lifts = Math.max(1, parseInt(run.settings.lifts) || 1);
-    const targetH = parseFloat(run.settings.height) || lifts * (SYS.model === 'frame' ? frameH : 2);
+    const targetH = runTargetHeight(run);
     let levels;
     if (SYS.model === 'frame') {
       const fp = calcFramePhysics(targetH, frameH);
-      jackMM = Math.round(fp.gTFS * 1000);
+      jacks.push(Math.round(fp.gTFS * 1000));
       levels = fp.frameLevels;
     } else {
       const phy = calcPhysics(targetH);
-      jackMM = Math.round(phy.gTFS * 1000);
+      jacks.push(Math.round(phy.gTFS * 1000));
       levels = getRingLevels(phy.starSpan).length;
     }
     totalRings += levels * bays.length;
@@ -1496,10 +1561,15 @@ function renderMetrics() {
   s('m-len-mm', totalMM > 0 ? `${totalMM} mm` : '0 mm');
   s('m-len-m', `${(totalMM / 1000).toFixed(2)} m`);
   s('m-area', `${totalSqM.toFixed(1)} m²`);
-  s('m-jack', `${jackMM} mm`);
+  const jackMin = jacks.length ? Math.min(...jacks) : 0;
+  const jackMax = jacks.length ? Math.max(...jacks) : 0;
+  s('m-jack', jackMin === jackMax ? `${jackMax} mm` : `${jackMin}–${jackMax} mm`);
   s(
     'm-jack-type',
-    jackMM > 400 ? '⚠ Double step-down bracket required' : '✓ Single step-down bracket',
+    jacks.length === 0
+      ? ''
+      : (jackMax > 400 ? '⚠ Double step-down bracket required' : '✓ Single step-down bracket') +
+        (jackMin === jackMax ? '' : ` · varies across ${jacks.length} runs`),
   );
   s('m-weight', `${weightT.toFixed(2)} T`);
   s('m-strip', `${stripHrs.toFixed(1)} hrs`);
@@ -1509,6 +1579,7 @@ function renderMetrics() {
 }
 function updateCounters() {
   const run = currentRun();
+  useSystem(run.settings.system);
   const cnts = {};
   run.bays
     .filter((b) => b.type === 'bay')
