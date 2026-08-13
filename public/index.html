@@ -159,7 +159,11 @@
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
       Attach Stair Tower to Last Bay
     </button>
-    <p class="text-[9px] text-indigo-400/70 leading-tight text-center -mt-1">Auto-calculates 1.5m/2.0m tread mix, handrails, step-down brackets & stair standards.</p>
+    <p id="stair-note" class="text-[9px] text-indigo-400/70 leading-tight text-center -mt-1"></p>
+    <div id="stair-walkway-row" class="hidden">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Stair Walkway Width</label>
+      <select id="stairWalkway" class="form-select w-full" onchange="settingsChanged()"></select>
+    </div>
     <div class="flex gap-2">
       <input type="number" id="gap-mm" placeholder="Gap width (mm)" class="form-input w-full">
       <button onclick="addGap()" class="bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg whitespace-nowrap transition-colors">Add Gap</button>
@@ -465,6 +469,38 @@ const SYSTEMS = {
       '4.0': '#ea580c', '3.0': '#0284c7', 2.5: '#059669', '2.0': '#ca8a04',
       1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c',
     },
+    // AT-PAC 10-Leg Steel Stair Tower.
+    //
+    // From the catalogue: stringers are used in pairs per flight and come for a
+    // 2.0m lift (2.13m bay) and a 1.0m lift (1.065m bay); treads come in 0.81m
+    // and 1.52m walkway widths, the 1.52m being the stretcher tower; handrails
+    // match the flight bay length; the tower has ten legs.
+    //
+    // treadsPerFlight is derived rather than quoted: ten treads over a 2.13m bay
+    // rising 2.0m gives a 200mm rise and 213mm going, which satisfies AS 1657's
+    // 2R+G rule, and it is the only count that makes the 1.0m flight exactly half
+    // the 2.0m flight as the catalogue's paired stringer lengths require. If your
+    // stringers carry nine treads with the landing as the tenth step, change this
+    // one number.
+    //
+    // The tower's own framing is NOT in the catalogue, which says only that
+    // landings are "built in any size from the AT-PAC Ledger range". The footprint
+    // and the ledgers per landing below are our assumption — correct them to match
+    // your standard tower drawing.
+    stairTower: {
+      legs: 10,
+      flightM: 2.0,
+      treadsPerFlight: 10,
+      bayMM: 2130,
+      fullBayMM: 2130,
+      halfBayMM: 1065,
+      ledgersLongPerLevel: 4,
+      ledgersCrossPerLevel: 4,
+      walkways: {
+        0.81: { label: '0.81m', towerWidthMM: 1065, landingPlanks: 4 },
+        1.52: { label: '1.52m', towerWidthMM: 1570, landingPlanks: 6 },
+      },
+    },
     weights: {
       // Standard with crimped spigot (01.01.xxx)
       'Standard (4.0m)': 19.77, 'Standard (3.0m)': 14.99, 'Standard (2.5m)': 12.03,
@@ -496,11 +532,11 @@ const SYSTEMS = {
       'Bay Brace (Diagonal)': 9.52,
       // Toe Board Retaining Clamp (04.16.001)
       'Toe Board Retaining Clamp': 0.74,
-      // Stair: Stringer 2.0m lift (15.01.213) and 1.0m lift (15.01.106),
-      // Stair Handrail (15.03.xxx), Step Down Bracket (01.15.027).
-      'Stair Tread (2.0m)': 15.95, 'Stair Tread (1.5m)': 8.95,
-      'Stair Handrail Intermediate (2.0m)': 8.7, 'Stair Handrail Intermediate (1.5m)': 5.58,
-      'Stair Handrail Top (2.0m)': 8.7, 'Stair Handrail Top (1.5m)': 5.58,
+      // 10-Leg Steel Stair Tower: Stringer (15.01.xxx), Tread (15.02.xxx),
+      // Handrail (15.03.xxx), Step Down Bracket (01.15.027).
+      'Stair Stringer (2.0m Lift)': 15.95, 'Stair Stringer (1.0m Lift)': 8.95,
+      'Stair Tread (0.81m)': 8.37, 'Stair Tread (1.52m)': 11.67,
+      'Stair Handrail (2130mm)': 8.7, 'Stair Handrail (1065mm)': 5.58,
       'Step Down Bracket (Single)': 3.32, 'Step Down Bracket (Double)': 6.64,
       // T-Bolt Right Angle Clamp (04.05.202)
       'Right Angle Coupler': 1.05,
@@ -564,6 +600,7 @@ const MAX_LIFTS = 20;
 const DEFAULT_SETTINGS = {
   system: 'kwikstage',
   frameH: '2.0',
+  stairWalkway: '0.81',
   width: '0.71',
   height: '',
   lifts: '1',
@@ -633,6 +670,63 @@ function calcTreads(starSpan) {
    ============================================================ */
 function getEnabledSizes() {
   return [...document.querySelectorAll('.std-chk:checked')].map((el) => parseFloat(el.value));
+}
+// Splits a climb into stair flights. Systems with a stairTower spec climb in
+// full-lift flights (2.0m) with any remainder taken by half-lift flights.
+function calcStairFlights(climb, st) {
+  if (!climb || climb <= 0) return { full: 0, half: 0, treads: 0, rises: [] };
+  // A flight runs between consecutive lift levels, because that is where the
+  // landings are. Only 1.0m and 2.0m stringers exist, so a rise over half a
+  // flight takes a full stringer and anything shorter takes a half.
+  const levels = getRingLevels(climb);
+  const rises = [];
+  for (let i = 1; i < levels.length; i++) {
+    rises.push(parseFloat((levels[i] - levels[i - 1]).toFixed(3)));
+  }
+  const full = rises.filter((r) => r > st.flightM / 2 + 0.001).length;
+  const half = rises.length - full;
+  return {
+    full,
+    half,
+    rises,
+    treads: full * st.treadsPerFlight + half * (st.treadsPerFlight / 2),
+  };
+}
+// AT-PAC 10-Leg Steel Stair Tower takeoff. Everything stair-specific here comes
+// from the catalogue; see the STAIR_TOWER notes on the system for what does not.
+function addStairTowerGear(add, st, ctx) {
+  const { climb, nomH, enabled, stepDown } = ctx;
+  const { full, half } = calcStairFlights(climb, st);
+  const walk = st.walkways[ctx.walkway] || Object.values(st.walkways)[0];
+
+  // Flights: stringers in pairs, treads at the walkway width, a handrail each side.
+  if (full > 0) {
+    add(`Stair Stringer (${st.flightM.toFixed(1)}m Lift)`, full * 2);
+    add(`Stair Handrail (${st.fullBayMM}mm)`, full * 2);
+  }
+  if (half > 0) {
+    add(`Stair Stringer (${(st.flightM / 2).toFixed(1)}m Lift)`, half * 2);
+    add(`Stair Handrail (${st.halfBayMM}mm)`, half * 2);
+  }
+  const treads = full * st.treadsPerFlight + half * (st.treadsPerFlight / 2);
+  if (treads > 0) add(`Stair Tread (${walk.label})`, treads);
+
+  // The tower itself is ordinary system scaffold: legs to handrail height on a
+  // jack, collar and soleboard, framed with ledgers at every landing.
+  const towerStack = calcStdStack(nomH + 1.0, enabled);
+  for (const [k, v] of Object.entries(towerStack)) add(k, v * st.legs);
+  add(partName('baseJack', 'Base Jack (Screw Jack)'), st.legs);
+  add(partName('soleBoard', 'Sole Board'), st.legs);
+  if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, st.legs);
+  add(`Step Down Bracket (${stepDown})`, 2);
+
+  const landings = full + half;
+  if (landings > 0) {
+    const ledger = partName('ledger', 'Ledger');
+    add(`${ledger} (${st.bayMM}mm)`, landings * st.ledgersLongPerLevel);
+    add(`${ledger} (${walk.towerWidthMM}mm)`, landings * st.ledgersCrossPerLevel);
+    add(`${SYS.plank} (${st.bayMM}mm)`, landings * walk.landingPlanks);
+  }
 }
 // Component names differ between systems: a Kwikstage transom is a Ringlock
 // Ledger O-Type, a dogleg is a Bay Brace. A system may override any of these
@@ -745,7 +839,15 @@ function calcModularGear(run, enabled) {
     partName('faceBrace', 'Face Brace (Diagonal)'),
     Math.max(1, Math.ceil(numBays / 4)) * braceLevels
   );
-  if (hasStair) {
+  if (hasStair && SYS.stairTower) {
+    addStairTowerGear(add, SYS.stairTower, {
+      climb: starSpan,
+      nomH,
+      enabled,
+      stepDown,
+      walkway: run.settings.stairWalkway,
+    });
+  } else if (hasStair) {
     const stairNomH = nomH + 1.0;
     const stairStack = calcStdStack(stairNomH, enabled);
     const { t15, t20 } = calcTreads(starSpan);
@@ -999,6 +1101,8 @@ function settingsChanged() {
   s.system = document.getElementById('system').value;
   const fh = document.getElementById('frameH');
   if (fh && SYS.model === 'frame' && fh.value) s.frameH = fh.value;
+  const walk = document.getElementById('stairWalkway');
+  if (walk && SYS.stairTower && walk.value) s.stairWalkway = walk.value;
   render();
 }
 function loadSettings(run) {
@@ -1009,8 +1113,16 @@ function loadSettings(run) {
   buildBayButtons();
   buildWidthOpts();
   buildFrameHeightOpts();
+  buildStairOpts();
   buildStandardsList();
   applySystemChrome();
+  const walkSel = document.getElementById('stairWalkway');
+  if (walkSel && SYS.stairTower) {
+    walkSel.value =
+      s.stairWalkway && SYS.stairTower.walkways[s.stairWalkway]
+        ? s.stairWalkway
+        : Object.keys(SYS.stairTower.walkways)[0];
+  }
   const frameSel = document.getElementById('frameH');
   if (frameSel && SYS.model === 'frame') {
     frameSel.value = s.frameH && SYS.frameHeights[s.frameH] ? s.frameH : Object.keys(SYS.frameHeights)[0];
@@ -1053,6 +1165,23 @@ function buildWidthOpts() {
   if (!sel) return;
   sel.innerHTML = Object.entries(SYS.widths)
     .map(([k, w]) => `<option value="${k}">${w.label}</option>`)
+    .join('');
+}
+// Walkway options exist only for systems with a modelled stair tower.
+function buildStairOpts() {
+  const row = document.getElementById('stair-walkway-row');
+  const sel = document.getElementById('stairWalkway');
+  const note = document.getElementById('stair-note');
+  const st = SYS.stairTower;
+  if (row) row.classList.toggle('hidden', !st);
+  if (note) {
+    note.textContent = st
+      ? `Auto-calculates ${st.legs}-leg tower: stringers, ${st.treadsPerFlight} treads per ${st.flightM.toFixed(1)}m flight, handrails, landings & legs.`
+      : 'Auto-calculates 1.5m/2.0m tread mix, handrails, step-down brackets & stair standards.';
+  }
+  if (!st || !sel) return;
+  sel.innerHTML = Object.entries(st.walkways)
+    .map(([k, w]) => `<option value="${k}">${w.label} walkway${k === '1.52' ? ' (stretcher)' : ''}</option>`)
     .join('');
 }
 function buildFrameHeightOpts() {
@@ -1116,6 +1245,7 @@ function systemChanged() {
   buildBayButtons();
   buildWidthOpts();
   buildFrameHeightOpts();
+  buildStairOpts();
   buildStandardsList();
   applySystemChrome();
   loadSettings(run);
@@ -1575,11 +1705,23 @@ function renderElevation() {
     const sxW = stairWM * SEC_PX_PER_M_H;
     el('rect', { x: sxL, y: yOf(gTFS + starSpan), width: sxW, height: starSpan * V,
       fill: '#3730a3', opacity: 0.25, stroke: '#6366f1', 'stroke-width': 1, rx: 3 }, svg);
-    const { t15, t20 } = calcTreads(starSpan);
+    // Landings, drawn where each flight tops out.
     let sh = gTFS;
-    for (let i = 0; i < t20; i++) { sh += 2.0; el('line', { x1: sxL + 3, y1: yOf(sh), x2: sxL + sxW - 3, y2: yOf(sh), stroke: '#818cf8', 'stroke-width': 2.5 }, svg); }
-    for (let i = 0; i < t15; i++) { sh += 1.5; el('line', { x1: sxL + 3, y1: yOf(sh), x2: sxL + sxW - 3, y2: yOf(sh), stroke: '#818cf8', 'stroke-width': 2.5 }, svg); }
-    txt(svg, sxL + sxW / 2, yOf(gTFS + starSpan) - 9, 'STAIR', { size: 7, fill: '#c7d2fe', weight: 800 });
+    const steps = [];
+    if (SYS.stairTower) {
+      steps.push(...calcStairFlights(starSpan, SYS.stairTower).rises);
+    } else {
+      const { t15, t20 } = calcTreads(starSpan);
+      for (let i = 0; i < t20; i++) steps.push(2.0);
+      for (let i = 0; i < t15; i++) steps.push(1.5);
+    }
+    steps.forEach((rise) => {
+      sh += rise;
+      el('line', { x1: sxL + 3, y1: yOf(sh), x2: sxL + sxW - 3, y2: yOf(sh),
+        stroke: '#818cf8', 'stroke-width': 2.5 }, svg);
+    });
+    txt(svg, sxL + sxW / 2, yOf(gTFS + starSpan) - 9,
+      SYS.stairTower ? `STAIR ×${steps.length}` : 'STAIR', { size: 7, fill: '#c7d2fe', weight: 800 });
   }
   // Deck width dimension across the base.
   dimension(svg, iX, oX, yOf(0) + 10, `${wSpec.transomMM}mm`);
@@ -1708,7 +1850,7 @@ function renderGearList() {
     { name: 'Console Brackets (Hop-up)', keys: ['Console Bracket', 'Side Bracket'] },
     { name: 'Toe Board Clips (Kickboard)', keys: ['Toe Board Clip', 'Toe Board Retaining'] },
     { name: 'Bracing & Tie Bars', keys: ['End Brace', 'Face Brace', 'Tie Bar', 'Bay Brace'] },
-    { name: 'Stair Access Tower', keys: ['Stair Tread', 'Stair Handrail', 'Step Down'] },
+    { name: 'Stair Access Tower', keys: ['Stair Tread', 'Stair Handrail', 'Stair Stringer', 'Step Down'] },
     { name: 'Tubes & Couplers (Run Joints)', keys: ['Tube', 'Coupler', 'Right Angle'] },
     { name: 'Frames & Pins', keys: ['Frame (', 'Coupling Pin', 'Locking Clip'] },
     { name: 'Braces', keys: ['Horizontal Brace', 'Diagonal Brace'] },

@@ -69,8 +69,33 @@ transoms merge into one line by length rather than appearing as separate categor
 
 Four figures are **not** from the catalogue and are marked as such in the code: scaffold
 tube (48.3 mm at 4.4 kg/m), the tie bar, the lap board, and a single Bay Brace weight
-standing in for all bay lengths. The stair takeoff also still follows the Kwikstage tread
-model, so Ringlock stair quantities are approximate even though the part weights are real.
+standing in for all bay lengths.
+
+#### 10-Leg Steel Stair Tower
+
+A system may carry a `stairTower` spec, in which case attaching a stair uses
+`addStairTowerGear` instead of the Kwikstage tread model. Ringlock's is modelled from the
+catalogue's 10-Leg Steel Stair System:
+
+- **Flights run between lift levels**, because that is where the landings sit.
+  `calcStairFlights` walks the ring levels and sizes each rise: over half a flight takes a
+  2.0 m stringer, anything shorter a 1.0 m one — those being the only two the catalogue
+  lists. Stringers are billed in pairs, as the catalogue requires.
+- **Treads** come in 0.81 m and 1.52 m walkway widths, selectable per run; the 1.52 m is
+  the stretcher tower. Handrails match the flight's bay length (2.13 m or 1.065 m).
+- **The tower is ordinary Ringlock**: ten legs each with a screwjack, soleboard and base
+  collar, standards stacked to a metre above the top landing, and ledgers framing every
+  landing.
+
+`treadsPerFlight` is **derived, not quoted**. Ten treads over the 2.13 m stringer bay
+rising 2.0 m gives a 200 mm rise and 213 mm going, which satisfies AS 1657's 2R+G rule, and
+it is the only count making the 1.0 m flight exactly half the 2.0 m flight as the
+catalogue's paired stringer lengths require. If your stringers carry nine treads with the
+landing as the tenth step, that is a one-number change.
+
+The tower's **footprint and landing framing are not in the catalogue**, which says only
+that landings are "built in any size from the AT-PAC Ledger range". The ledger counts per
+landing are our assumption and are flagged in the code.
 
 Two takeoff models exist, selected by each system's `model` field:
 
