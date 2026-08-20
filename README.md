@@ -332,13 +332,18 @@ band — not a billed quantity: the units are prefabricated and billed whole.
 **Section** looks along the run, showing deck width, lift heights, standards, guardrails,
 hop-up, piggyback and the stair tower. Standards carry a rosette at every 0.5 m, drawn as
 the flange it is rather than a notch in the tube. A standard's rosettes run from 0.5 m
-above its foot to its very **top** — a 2.0 m standard is a 4-Star with rings at 0.5, 1.0,
-1.5 and 2.0 — so the top ring sits at the head of the tube with only a short spigot stub
-above it, and the next standard stacked on carries the same ladder upward. The node at the
-foot of the column is drawn once, because that is where the base lift's ring lands.
-(Drawing it the other way round, with rings from the foot of each standard, left half a
-metre of bare tube above the topmost ring and made every column look half a standard
-taller than it is.) Ledger rings, decks
+above its foot to its very **top** — a 2.0 m standard is a 4-Star. Below the lowest ring — the star
+the transom goes into — there is **190 mm** of tube down to the base of the standard: the
+socket that slides over the spigot of the one underneath. That leaves **310 mm** above the
+top ring for the spigot itself, and 190 + 310 being one 500 mm pitch is what makes the
+star counts come out (0.5 m = 1-Star, 3.0 m = 6-Star, 4.0 m = 8-Star).
+
+It is also what makes a joint readable: the next standard starts 190 mm **below** its
+first ring, so a short bleed of its colour shows under that ring. Drawing the joints *on*
+a ring instead made every boundary ambiguous — a 3.0 m standard appeared to carry seven
+rings because it also showed the one belonging to the standard above it, a 1.5 m looked
+like a 4-Star, and a ring was left stranded above the top deck on the inside column, where
+the run breaks at the deck and nothing sits above it. Ledger rings, decks
 and guardrails all land on 0.5 m multiples, so every one of them lines up with a star, and
 each deck is drawn resting **on** its ring: the ring line, the star and the underside of
 the boards are one line. Height is drawn to a scale that adapts so a 40 m

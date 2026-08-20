@@ -2367,20 +2367,33 @@ function drawRosette(svg, x, y, V) {
   el('rect', { x: x - 6, y: y - h / 2, width: 12, height: h,
     fill: '#0d1117', stroke: '#94a3b8', 'stroke-width': 0.5, rx: 0.6 }, svg);
 }
+// A standard's rings sit at 500mm centres. Below the lowest one — the star the
+// transom goes into — there is 190mm of tube down to the base of the standard:
+// the socket that slides over the spigot of the standard underneath. That
+// leaves 310mm above the top ring for the spigot itself, and the two together
+// reproduce every star count exactly, since 190 + 310 = one 500mm pitch: 0.5m
+// is a 1-Star, 2.0m a 4-Star, 3.0m a 6-Star, 4.0m an 8-Star.
+//
+// It is also what makes a joint visible. The next standard starts 190mm BELOW
+// its first ring, so a short bleed of its colour shows under that ring and you
+// can see where one standard ends and the next begins.
+const RING_FROM_FOOT_M = 0.19;
+const SPIGOT_M = 0.31;
 // Colour-coded standard stack with a rosette at every 0.5m.
 //
-// A standard's rosettes run from 0.5m above its foot to its very TOP — a 2.0m
-// standard is a 4-Star with rings at 0.5, 1.0, 1.5 and 2.0 — so the top ring
-// sits at the head of the tube with only the spigot poking above it, and the
-// next standard stacked on carries the same 0.5m ladder upward. The node at
-// the foot of the whole column — the base collar on Ringlock — is drawn once,
-// because that is where the base lift's ring lands.
+// `startYm` is the first ring of the column, so the foot of the bottom
+// standard is 190mm under it, sitting on the jack. Everything the takeoff
+// already computes lines up with that: an inner column stacked to
+// nomH = starSpan + 0.5 puts its last ring exactly on the top deck, and an
+// outer column a guardrail higher puts one on each rail.
 //
-// Drawing it the other way round, with rings from the foot of each standard,
-// left a full half-metre of bare tube above the topmost ring: every column
-// looked half a standard taller than it is.
+// Putting the joints ON a ring instead, as this used to, made every boundary
+// ambiguous — a 3.0m standard appeared to carry seven rings because it also
+// showed the one belonging to the standard above it, and a 1.5m looked like a
+// 4-Star. It also left a ring stranded above the top deck on the inside
+// column, where the run breaks at the deck and there is nothing above it.
 function drawStandards(svg, yOf, x, stack, startYm, opacity = 1, V = 40) {
-  let cur = startYm;
+  let cur = startYm - RING_FROM_FOOT_M;
   const keys = Object.keys(stack).sort(
     (a, b) => parseFloat(b.match(/[\d.]+/)[0]) - parseFloat(a.match(/[\d.]+/)[0])
   );
@@ -2394,13 +2407,13 @@ function drawStandards(svg, yOf, x, stack, startYm, opacity = 1, V = 40) {
       cur += sM;
     }
   }
-  // The spigot above the head of the column — a stub, not another lift.
-  const nib = Math.max(2.5, Math.min(7, V * 0.15));
-  const headY = yOf(cur);
-  el('rect', { x: x - 2, y: headY - nib, width: 4, height: nib,
+  // The spigot: the 300mm of the top standard above its last ring, drawn narrow
+  // because on every standard below this one it is swallowed by the next.
+  const topRing = parseFloat((cur - SPIGOT_M).toFixed(3));
+  el('rect', { x: x - 2, y: yOf(cur), width: 4, height: Math.max(yOf(topRing) - yOf(cur), 1.5),
     fill: '#94a3b8', opacity: opacity * 0.8, rx: 1 }, svg);
   // Rosettes last, so they read over every joint in the stack.
-  for (let h = startYm; h <= cur + 0.001; h = parseFloat((h + STAR_PITCH_M).toFixed(3))) {
+  for (let h = startYm; h <= topRing + 0.001; h = parseFloat((h + STAR_PITCH_M).toFixed(3))) {
     drawRosette(svg, x, yOf(h), V);
   }
 }
@@ -2659,7 +2672,7 @@ function renderStairView() {
   // The two tower standards, with a star at every rosette and numbers up one
   // side so the flights can be read against them.
   const enabled = getEnabledSizes();
-  const stack = calcStdStack(railTopM, enabled);
+  const stack = calcStdStack(railTopM + STAR_PITCH_M, enabled);
   drawFoundation(svg, yOf, xL, gTFS, '#818cf8');
   drawFoundation(svg, yOf, xR, gTFS, '#818cf8');
   drawStandards(svg, yOf, xL, stack, gTFS, 1, V);
