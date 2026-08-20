@@ -1098,9 +1098,10 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
       // through onto the tread.
       add(`${ledgerPart} (${SYS.stair.openRailMM}mm)`, SYS.stair.openRails * boardedLifts);
       // The intermediate standard those rails hook into is a short one — 2m,
-      // stood on the deck rather than run up from the ground, which is what
-      // gives it the four stars the rails need. One per boarded lift, since
-      // each lift has its own opening onto the stairs.
+      // clipped straight onto the base ledger of the deck you are standing on
+      // rather than run up from the ground, which is what gives it the four
+      // stars the rails need. One per boarded lift, since each lift has its
+      // own opening onto the stairs.
       const postStack = calcStdStack(stairRailAboveM(), enabled);
       for (const [k, v] of Object.entries(postStack)) add(k, v * boardedLifts);
     } else {
@@ -1173,13 +1174,14 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
     // too: the ledgers carry on for the full 2m above the landing, four more
     // of them, whatever the run's own guardrail is set to.
     //
-    // Stars are counted from 1 at the foot of the column, so a 3.5m climb runs
-    // star 1 to star 8, then rails to star 12: 11 ledgers, one at every star
-    // above the base. Star 1 is at ground level and needs no rail.
+    // The ledgers start at the very FIRST star, not the one above it — the
+    // bottom one ties the tower's feet together, it is not there as a rail. So
+    // the count is stars, not gaps between them: a 3.5m climb runs star 1 to
+    // star 8 as stair and star 8 to star 12 as handrail, and takes 12 ledgers.
     const stairBayMM = SYS.bays[stairBayKey] ? SYS.bays[stairBayKey].mm : nearestBayMM(2390);
     const everyM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
     if (everyM > 0) {
-      add(`Ledger (${stairBayMM}mm)`, Math.round((starSpan + railAboveM) / everyM));
+      add(`Ledger (${stairBayMM}mm)`, Math.round((starSpan + railAboveM) / everyM) + 1);
     }
     // Transoms carrying the treads, one pair per tread plus the top landing.
     // The tower's own walkway is about 1.2m wide, which is not the run's deck
@@ -2246,7 +2248,7 @@ function renderElevation() {
       // Carries on above the top landing: the stair side keeps its rail for
       // the full 2m even where the run's own deck only has 1m of guardrail.
       const railTopM = starSpan + stairRailAboveM();
-      for (let h = climbEveryM; h <= railTopM + 0.001; h += climbEveryM) {
+      for (let h = 0; h <= railTopM + 0.001; h += climbEveryM) {
         const above = h > starSpan + 0.001;
         el('line', { x1: sxL + sxW - 9, y1: yOf(gTFS + h), x2: sxL + sxW, y2: yOf(gTFS + h),
           stroke: above ? '#c7d2fe' : '#a5b4fc', 'stroke-width': 1.4, opacity: above ? 1 : 0.85 }, svg);
@@ -2444,7 +2446,9 @@ function renderStairView() {
   const climbEveryM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
   for (let n = 1; n <= railTopStar; n++) {
     const y = yOf(gTFS + (n - 1) * STAR_PITCH_M);
-    const railed = n > 1 && climbEveryM > 0;
+    // Every star carries one, the first included — that bottom ledger ties the
+    // tower's feet rather than railing anything.
+    const railed = climbEveryM > 0;
     // The stars above the top landing are the tower's handrail — four of them,
     // a full 2m, which is more than the deck below may carry.
     const above = n > topStar;

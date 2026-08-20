@@ -150,9 +150,10 @@ when nothing hits it. Turning a size off narrows what is reachable sharply: with
 2.0 m treads a stair lands on even metres only, and with only 1.5 m on multiples of 1.5 m.
 The warnings name the sizes actually ticked, so they change with the panel.
 
-The climb ledgers on the outside of the stair follow the same numbering: one at every star
-**above** the base, so a 3.5 m climb running star 1 to star 8 takes seven. Star 1 is at
-ground level and needs no rail.
+The climb ledgers on the outside of the stair follow the same numbering: one at **every**
+star from the first, and on for a further 2 m of handrail above the top landing. A 3.5 m
+climb runs star 1 to star 8 as stair and star 8 to star 12 as handrail, so it takes twelve
+ledgers — the count is stars, not the gaps between them.
 
 ### AT-PAC Ringlock
 
@@ -352,16 +353,19 @@ the frame rules described above.
     2.0 m, and stacks the tower's own standards to match. A working platform may only
     carry 1 m of guardrail, but you step off that platform onto the stairs, so the stair
     side needs rail above waist height there too — four more ledgers, independent of the
-    run's *Top Guardrail* setting. A 3.5 m climb therefore runs star 1 → 8 as stair and
-    star 8 → 12 as handrail: eleven ledgers, one at every star above the base.
+    run's *Top Guardrail* setting. The run starts at the **first** star, not the one above
+    it: that bottom ledger ties the tower's feet together rather than railing anything, so
+    the count is stars and not the gaps between them. A 3.5 m climb runs star 1 → 8 as
+    stair and star 8 → 12 as handrail, and takes **twelve** ledgers.
   - The bay the stair attaches to **loses its full-length guardrails and mid-rails**. That
     face was the outside of the run, but a piggybacked stair makes it the inside of the
     stairway and the way onto the treads, so an 8ft rail across it would fence the stair
     off. It takes `stair.openRails` short ledgers of `stair.openRailMM` per boarded lift
     instead — three 6ft (1780 mm) on Kwikstage — running into an intermediate standard,
     leaving the rest of the bay open so you can step through onto the tread. That
-    standard is a short one: 2.0 m (`railAboveLandingM`), stood on the deck rather than
-    run up from the ground, which is what gives it the four stars the rails hook into.
+    standard is a short one: 2.0 m (`railAboveLandingM`), clipped straight onto the base
+    ledger of the deck you are standing on rather than run up from the ground, which is
+    what gives it the four stars the rails hook into — so it bills no jack or sole board.
     One per boarded lift, since each lift has its own opening onto the stairs. The
     deck-level ledger carrying the boards is untouched; only the guardrails above it
     change.
