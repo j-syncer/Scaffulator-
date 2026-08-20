@@ -203,6 +203,13 @@
     <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Available Standards</h3>
     <div id="std-list" class="space-y-2"></div>
   </div>
+
+  <!-- Stair tread inventory — only for systems that pick a flight mix -->
+  <div id="tread-panel" class="hidden bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Available Stair Treads</h3>
+    <div id="tread-list" class="space-y-2"></div>
+    <p class="text-[9px] text-slate-600 mt-2 leading-tight">Turn a size off and the flight mix is solved from what is left. Some climbs then stop being reachable.</p>
+  </div>
 </aside>
 
 <!-- ══ CENTER: Visuals + Gear List ══ -->
@@ -231,6 +238,17 @@
     <!-- The section scales itself to fit, so this only scrolls for very tall jobs. -->
     <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-3" style="max-height:70vh;">
       <div id="elevation-view"></div>
+    </div>
+  </div>
+
+  <!-- Stair Tower — only rendered when the current run carries one -->
+  <div id="stair-panel" class="hidden no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Stair Tower — Side View</h3>
+      <span id="stair-view-label" class="mono text-xs text-indigo-300"></span>
+    </div>
+    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-3" style="max-height:70vh;">
+      <div id="stair-view"></div>
     </div>
   </div>
 
@@ -429,6 +447,10 @@ const SYSTEMS = {
       climbRailEveryM: 0.5,
       openRailMM: 1780,
       openRails: 3,
+      // Prefabricated stair units, by the rise each one climbs. Both are on by
+      // default; the Available Stair Treads panel turns either off for a yard
+      // that only carries one.
+      treadRises: [1.5, 2.0],
     },
     // Kwikstage tops out at a 3.0m (6-Star) standard — there is no 4.0m.
     stdSizes: [3.0, 2.5, 2.0, 1.5, 1.0, 0.5],
@@ -487,6 +509,7 @@ const SYSTEMS = {
       climbRailEveryM: 0.5,
       openRailMM: 1800,
       openRails: 3,
+      treadRises: [1.5, 2.0],
     },
     stdSizes: [3.0, 2.0, 1.5, 1.0, 0.5],
     stdClr: { '3.0': '#0284c7', '2.0': '#ca8a04', 1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c' },
@@ -793,15 +816,6 @@ function getRingLevels(starSpan) {
   }
   return levels.sort((a, b) => a - b);
 }
-function calcTreads(starSpan) {
-  for (let n20 = Math.floor(starSpan / 2); n20 >= 0; n20--) {
-    const rem = parseFloat((starSpan - n20 * 2).toFixed(3));
-    const n15r = rem / 1.5;
-    if (Math.abs(n15r - Math.round(n15r)) < 0.01) return { t15: Math.round(n15r), t20: n20 };
-  }
-  const t20 = Math.floor(starSpan / 2);
-  return { t15: Math.ceil((starSpan - t20 * 2) / 1.5), t20 };
-}
 /* ------------------------------------------------------------
    STARS — the rosettes up a standard, numbered the way they are
    counted on site: star 1 is the one at the foot of the column,
@@ -813,6 +827,37 @@ const STAR_PITCH_M = 0.5;
 function starAt(heightAboveBaseM) {
   return Math.round(heightAboveBaseM / STAR_PITCH_M) + 1;
 }
+// Splits a climb into flights, using only the tread sizes on hand.
+//
+// Every flight rise is a whole number of stars, so the whole thing is solved in
+// star steps rather than metres: a 1.5m unit is 3 steps and a 2.0m unit is 4.
+// The DP finds the FEWEST flights that hit the climb exactly, and where nothing
+// hits it exactly it takes the smallest total that still clears the deck — a
+// stair finishing above the boards is at least visible, one finishing below
+// them is a trip into thin air. `exact` says which happened.
+function solveFlights(starSpan, risesM) {
+  const target = Math.round(starSpan / STAR_PITCH_M);
+  const steps = [...new Set(risesM.map((r) => Math.round(r / STAR_PITCH_M)))]
+    .filter((n) => n > 0)
+    .sort((a, b) => b - a);
+  if (target <= 0 || steps.length === 0) return { risesM: [], exact: target <= 0 };
+  const ceiling = target + steps[0];
+  const best = new Array(ceiling + 1).fill(null);
+  best[0] = [];
+  for (let t = 1; t <= ceiling; t++) {
+    for (const st of steps) {
+      const prev = t - st >= 0 ? best[t - st] : null;
+      if (prev && (!best[t] || prev.length + 1 < best[t].length)) best[t] = [...prev, st];
+    }
+  }
+  // Shortest flights at the bottom, so a mixed stair reads 1.5m first.
+  const toRises = (units) => units.sort((a, b) => a - b).map((u) => u * STAR_PITCH_M);
+  if (best[target]) return { risesM: toRises(best[target]), exact: true };
+  for (let t = target + 1; t <= ceiling; t++) {
+    if (best[t]) return { risesM: toRises(best[t]), exact: false };
+  }
+  return { risesM: [steps[0] * STAR_PITCH_M], exact: false };
+}
 // Where each stair flight starts and finishes, in stars.
 //
 // A flight rises in whole star steps and both its ends land on a star, so a
@@ -822,31 +867,31 @@ function starAt(heightAboveBaseM) {
 // rosette, side by side — so 1.5m then 2.0m runs star 1 → 4 → 8: eight stars
 // in total, not nine.
 //
-// Shorter flights go in at the bottom, so a mixed stair reads 1.5m first.
-//
-// `reachable` is false when the climb cannot be made from the flight rises the
-// system stocks at all. With only 1.5m and 2.0m units that is 0.5m, 1.0m and
-// 2.5m — no combination lands on them — and the mix returned overshoots the
-// deck rather than falling short of it.
-function stairFlightPlan(starSpan) {
-  const { t15, t20 } = calcTreads(starSpan);
-  const rises = [...Array(t15).fill(1.5), ...Array(t20).fill(2.0)];
+// `reachable` is false when the climb cannot be made from the tread sizes on
+// hand at all. With both 1.5m and 2.0m available that is 0.5m, 1.0m and 2.5m;
+// turn one of them off and far more climbs fall out of reach.
+function stairFlightPlan(starSpan, risesM = enabledTreadRises()) {
+  const solved = solveFlights(starSpan, risesM);
   const flights = [];
   let h = 0;
-  for (const rise of rises) {
+  for (const rise of solved.risesM) {
     const top = parseFloat((h + rise).toFixed(3));
     flights.push({ rise, fromStar: starAt(h), toStar: starAt(top), baseM: h, topM: top });
     h = top;
   }
-  return { flights, t15, t20, totalRiseM: h, reachable: Math.abs(h - starSpan) < 0.01 };
+  return {
+    flights,
+    totalRiseM: h,
+    reachable: solved.exact && Math.abs(h - starSpan) < 0.01,
+  };
 }
 // The two climbs nearest a given one that a stair can actually land on, for
 // telling the user what to change when theirs cannot be reached.
 const STAIR_SEARCH_MAX_M = 12;
-function nearestStairClimbs(climbM) {
+function nearestStairClimbs(climbM, risesM = enabledTreadRises()) {
   const reachable = [];
   for (let h = STAR_PITCH_M; h <= STAIR_SEARCH_MAX_M; h = parseFloat((h + STAR_PITCH_M).toFixed(2))) {
-    if (stairFlightPlan(h).reachable) reachable.push(h);
+    if (stairFlightPlan(h, risesM).reachable) reachable.push(h);
   }
   return reachable
     .sort((a, b) => Math.abs(a - climbM) - Math.abs(b - climbM))
@@ -858,6 +903,21 @@ function nearestStairClimbs(climbM) {
    ============================================================ */
 function getEnabledSizes() {
   return [...document.querySelectorAll('.std-chk:checked')].map((el) => parseFloat(el.value));
+}
+// Every tread size the active system stocks, ticked or not.
+function allTreadRises(sys = SYS) {
+  return (sys.stair && sys.stair.treadRises) || [];
+}
+// The tread sizes on hand, from the Available Stair Treads panel. Falls back to
+// everything the system stocks when the panel is not on screen — the panel
+// describes the system currently selected, so a run on any other system reads
+// its own full range instead.
+function enabledTreadRises(sys = SYS) {
+  const boxes = [...document.querySelectorAll('.tread-chk:checked')].map((el) => parseFloat(el.value));
+  const all = allTreadRises(sys);
+  if (boxes.length === 0) return all;
+  const kept = all.filter((r) => boxes.includes(r));
+  return kept.length > 0 ? kept : all;
 }
 // Splits a climb into stair flights. Systems with a stairTower spec climb in
 // full-lift flights (2.0m) with any remainder taken by half-lift flights.
@@ -958,11 +1018,11 @@ function nearestBayMM(targetMM) {
 }
 // Entry point for one run's takeoff. Activates that run's system, then hands
 // off to whichever model that system uses.
-function calcRunGear(run, enabled) {
+function calcRunGear(run, enabled, treads) {
   useSystem(run.settings.system);
-  return SYS.model === 'frame' ? calcFrameGear(run) : calcModularGear(run, enabled);
+  return SYS.model === 'frame' ? calcFrameGear(run) : calcModularGear(run, enabled, treads);
 }
-function calcModularGear(run, enabled) {
+function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   const bayItems = run.bays.filter((b) => b.type === 'bay');
   if (bayItems.length === 0) return {};
   const { width, lifts, handrail, hopup, clip } = run.settings;
@@ -1080,24 +1140,20 @@ function calcModularGear(run, enabled) {
   } else if (hasStair) {
     const stairNomH = nomH + 1.0;
     const stairStack = calcStdStack(stairNomH, enabled);
-    const { t15, t20 } = calcTreads(starSpan);
-    const totalTreads = t15 + t20;
+    const flights = stairFlightPlan(starSpan, treads).flights;
+    const totalTreads = flights.length;
     for (const [k, v] of Object.entries(stairStack)) add(k, v * 2);
     add('Base Jack (Screw Jack)', 2);
     add('Sole Board', 2);
     add(`Step Down Bracket (${stepDown})`, 2);
     add(`${SYS.plank} (${nearestBayMM(1220)}mm)`, 1);
-    if (t20 > 0) add('Stair Tread (2.0m)', t20);
-    if (t15 > 0) add('Stair Tread (1.5m)', t15);
-    if (t20 > 0) {
-      add('Stair Handrail Top (2.0m)', 1);
-      if (t20 > 1) add('Stair Handrail Intermediate (2.0m)', t20 - 1);
-    }
-    if (t15 > 0) {
-      if (t20 === 0) add('Stair Handrail Top (1.5m)', 1);
-      const intermed15 = t20 === 0 ? Math.max(0, t15 - 1) : t15;
-      if (intermed15 > 0) add('Stair Handrail Intermediate (1.5m)', intermed15);
-    }
+    // One prefabricated unit per flight, at that flight's rise, and a handrail
+    // to match: the topmost flight takes the top rail, the rest intermediates.
+    flights.forEach((f, i) => {
+      const size = f.rise.toFixed(1);
+      add(`Stair Tread (${size}m)`, 1);
+      add(`Stair Handrail ${i === flights.length - 1 ? 'Top' : 'Intermediate'} (${size}m)`, 1);
+    });
     // Fall protection up the outside of the stair. A stair rises continuously,
     // so unlike a deck it cannot be railed only at lift level — the outside
     // standards take a ledger at every star for the whole climb, at the stair
@@ -1235,13 +1291,15 @@ function calcFrameGear(run) {
 function calcTotalGear() {
   const enabledForUI = getEnabledSizes();
   const uiSystem = currentRun().settings.system;
+  const treadsForUI = enabledTreadRises(SYSTEMS[uiSystem]);
   const bySystem = {};
   for (const run of runs) {
     const sysId = SYSTEMS[run.settings.system] ? run.settings.system : 'kwikstage';
     // The standards checkboxes describe the system on screen. Runs on any other
     // system fall back to every size that system offers.
     const enabled = sysId === uiSystem ? enabledForUI : SYSTEMS[sysId].stdSizes || [];
-    const g = calcRunGear(run, enabled);
+    const treads = sysId === uiSystem ? treadsForUI : allTreadRises(SYSTEMS[sysId]);
+    const g = calcRunGear(run, enabled, treads);
     if (Object.keys(g).length === 0) continue;
     const bucket = (bySystem[sysId] = bySystem[sysId] || {});
     for (const [k, v] of Object.entries(g)) bucket[k] = (bucket[k] || 0) + v;
@@ -1323,8 +1381,16 @@ function stairPlanSummary(starSpan) {
     .map((f) => `${f.rise.toFixed(1)}m ★${f.fromStar}→${f.toStar}`)
     .join(', ');
   if (plan.reachable) return `Stair ${legs}`;
-  const near = nearestStairClimbs(starSpan).map((h) => h.toFixed(1)).join('m or ');
-  return `⚠ Stair cannot land on a ${starSpan}m climb — 1.5m and 2.0m flights make ${plan.totalRiseM.toFixed(1)}m. Try a ${near}m climb.`;
+  return `⚠ ${stairUnreachableText(starSpan)}`;
+}
+// Why a climb has no stair, naming the tread sizes actually on hand — the
+// answer changes when a size is turned off in Available Stair Treads.
+function stairUnreachableText(climb) {
+  const rises = enabledTreadRises();
+  const plan = stairFlightPlan(climb, rises);
+  const have = rises.map((r) => `${r.toFixed(1)}m`).join(' and ');
+  const near = nearestStairClimbs(climb, rises).map((h) => h.toFixed(1)).join('m or ');
+  return `Stair cannot land on a ${climb}m climb — ${have} flights make ${plan.totalRiseM.toFixed(1)}m. Try a ${near}m climb.`;
 }
 // Which bays this system will take a stair tower off, as labels for messages.
 function stairBayLabels(sys = SYS) {
@@ -1371,13 +1437,7 @@ function addStair() {
   // finishes above it.
   if (!SYS.stairTower) {
     const climb = calcPhysics(runTargetHeight(run)).starSpan;
-    const plan = stairFlightPlan(climb);
-    if (climb > 0 && !plan.reachable) {
-      const near = nearestStairClimbs(climb).map((h) => h.toFixed(1)).join('m or ');
-      toast(
-        `No stair lands on a ${climb}m climb — 1.5m and 2.0m flights make ${plan.totalRiseM.toFixed(1)}m. Try a ${near}m climb.`
-      );
-    }
+    if (climb > 0 && !stairFlightPlan(climb).reachable) toast(stairUnreachableText(climb));
   }
   render();
 }
@@ -1425,6 +1485,7 @@ function loadSettings(run) {
   buildFrameHeightOpts();
   buildStairOpts();
   buildStandardsList();
+  buildTreadList();
   applySystemChrome();
   const walkSel = document.getElementById('stairWalkway');
   if (walkSel && SYS.stairTower) {
@@ -1600,6 +1661,30 @@ function buildStandardsList() {
       .join('');
   }
 }
+// Stair tread sizes on hand. Only systems that solve a flight mix get the
+// panel — the AT-PAC tower's stringers come as a fixed pair per flight.
+function buildTreadList() {
+  const panel = document.getElementById('tread-panel');
+  const list = document.getElementById('tread-list');
+  const rises = SYS.stairTower ? [] : allTreadRises();
+  if (panel) panel.classList.toggle('hidden', rises.length === 0);
+  if (!list || rises.length === 0) return;
+  list.innerHTML = rises
+    .map((r) => {
+      const steps = Math.round(r / STAR_PITCH_M);
+      return `<label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="tread-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="${r}" checked onchange="treadsChanged()"><span class="text-xs text-slate-300">${r.toFixed(1)}m tread — climbs ${steps} stars, sits on ${steps + 1}</span></label>`;
+    })
+    .join('');
+}
+// At least one size has to stay on, or there is nothing to build a stair from.
+function treadsChanged() {
+  const boxes = [...document.querySelectorAll('.tread-chk')];
+  if (boxes.length > 0 && boxes.every((b) => !b.checked)) {
+    boxes[0].checked = true;
+    toast('At least one stair tread size has to stay available.');
+  }
+  render();
+}
 // Shows or hides the controls that only make sense for the modular model,
 // and surfaces the provisional-data warning.
 function applySystemChrome() {
@@ -1638,6 +1723,7 @@ function systemChanged() {
   buildFrameHeightOpts();
   buildStairOpts();
   buildStandardsList();
+  buildTreadList();
   applySystemChrome();
   loadSettings(run);
   if (hadBays) toast(`Switched to ${SYS.name} — current run cleared (bays differ per system).`, false);
@@ -1785,6 +1871,7 @@ function toast(msg, isErr = true) {
 function render() {
   renderPlan();
   renderElevation();
+  renderStairView();
   renderGearList();
   renderMetrics();
   updateCounters();
@@ -1975,7 +2062,7 @@ function renderPlan() {
 
 /* ---------------- SECTION — looking along the run ---------------- */
 // Shared frame: axis, ground, and the label gutter on the right.
-function sectionCanvas(container, totalH, widthM, label) {
+function sectionCanvas(container, totalH, widthM, label, opts = {}) {
   const V = Math.min(60, Math.max(12, 430 / Math.max(totalH, 0.5)));
   const PAD_T = 18, PAD_B = 26, AXIS = 44, GUTTER = 96;
   const drawW = Math.max(widthM * SEC_PX_PER_M_H, 60);
@@ -1990,9 +2077,11 @@ function sectionCanvas(container, totalH, widthM, label) {
   el('line', { x1: 6, y1: yOf(0), x2: W - 8, y2: yOf(0), stroke: '#475569', 'stroke-width': 2 }, svg);
   el('rect', { x: 6, y: yOf(0), width: W - 14, height: Math.min(PAD_B - 4, 14),
     fill: 'url(#sec-ground)', opacity: 0.5 }, svg);
-  // Height axis: pick a tick spacing that stays readable.
+  // Height axis: pick a tick spacing that stays readable. A view that measures
+  // in stars rather than metres — the stair tower — turns this off and labels
+  // the axis itself.
   const step = totalH <= 8 ? 1 : totalH <= 20 ? 2 : totalH <= 45 ? 5 : 10;
-  for (let m = 0; m <= totalH + 0.001; m += step) {
+  for (let m = 0; opts.ticks !== false && m <= totalH + 0.001; m += step) {
     const y = yOf(m);
     el('line', { x1: AXIS - 6, y1: y, x2: W - 8, y2: y, stroke: '#1e293b', 'stroke-width': 1 }, svg);
     el('line', { x1: AXIS - 10, y1: y, x2: AXIS - 6, y2: y, stroke: '#475569', 'stroke-width': 1.5 }, svg);
@@ -2252,6 +2341,134 @@ function renderFrameElevation(c, run) {
     });
   }
   dimension(svg, iX, oX, yOf(0) + 10, `${Math.round(deckM * 1000)}mm`);
+}
+/* ---------------- STAIR TOWER — side view of the flights ---------------- */
+// A scaffold stair tower switchbacks inside one bay footprint: each flight
+// climbs the length of the bay, you turn on the landing and the next flight
+// climbs back the other way. Seen from the side that reads as a zigzag, which
+// is what this draws — flights sized and coloured by their rise, landing on
+// numbered stars, with the guard ledgers that get billed up the outside.
+const TREAD_CLR = { 1.5: '#f472b6', 2.0: '#818cf8', 1.0: '#34d399', 2.5: '#fbbf24' };
+// Steps drawn per flight. The units are prefabricated and billed whole, so this
+// is the drawing's own assumption, not a quantity: about a 200mm rise per step,
+// the same figure the Ringlock tower is modelled at, which keeps every flight
+// inside AS 1657's 130-225mm rise band.
+const STEP_RISE_M = 0.2;
+function renderStairView() {
+  const panel = document.getElementById('stair-panel');
+  const c = document.getElementById('stair-view');
+  const label = document.getElementById('stair-view-label');
+  const run = currentRun();
+  useSystem(run.settings.system);
+  const stairBay = run.bays.find(
+    (b) => b.type === 'bay' && b.stair && canCarryStair(SYS, b.value)
+  );
+  const targetH = runTargetHeight(run);
+  if (!panel) return;
+  if (!stairBay || !targetH || targetH <= 0 || SYS.model === 'frame') {
+    panel.classList.add('hidden');
+    if (c) c.innerHTML = '';
+    if (label) label.textContent = '';
+    return;
+  }
+  panel.classList.remove('hidden');
+
+  const { starSpan, gTFS } = calcPhysics(targetH);
+  const bayM = SYS.bays[stairBay.value].mm / 1000;
+  const topStar = starAt(starSpan);
+  // The AT-PAC tower climbs between its landings; every other system solves a
+  // flight mix from the tread sizes on hand.
+  const plan = SYS.stairTower
+    ? towerFlights(starSpan)
+    : stairFlightPlan(starSpan, enabledTreadRises());
+  const totalH = gTFS + starSpan + 1.0 + 0.3;
+  const { svg, yOf, x0, V } = sectionCanvas(c, totalH, bayM, null, { ticks: false });
+  const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
+  const xL = xOf(0);
+  const xR = xOf(bayM);
+
+  if (label) {
+    const mix = {};
+    plan.flights.forEach((f) => {
+      const k = f.rise.toFixed(1);
+      mix[k] = (mix[k] || 0) + 1;
+    });
+    const mixText = Object.entries(mix).map(([r, n]) => `${n} × ${r}m`).join(' + ') || 'none';
+    label.textContent = plan.reachable
+      ? `${SYS.bays[stairBay.value].label} bay · ${starSpan}m climb ★1–${topStar} · ${mixText}`
+      : `⚠ ${starSpan}m climb unreachable — ${mixText} makes ${plan.totalRiseM.toFixed(1)}m`;
+  }
+
+  // The axis is stars, not metres — that is the unit a stair is set out in.
+  // Every star above the base also carries a guard ledger across the outside,
+  // which is what the takeoff bills, so the gridline and the member are the
+  // same line. Star 1 is at ground level and gets no rail, so it stays faint.
+  const climbEveryM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
+  for (let n = 1; n <= topStar; n++) {
+    const y = yOf(gTFS + (n - 1) * STAR_PITCH_M);
+    const railed = n > 1 && climbEveryM > 0;
+    el('line', { x1: xL, y1: y, x2: xR, y2: y,
+      stroke: railed ? '#334155' : '#1b2534', 'stroke-width': railed ? 1.2 : 1 }, svg);
+    el('line', { x1: x0 - 10, y1: y, x2: x0 - 6, y2: y, stroke: '#475569', 'stroke-width': 1.2 }, svg);
+    txt(svg, x0 - 14, y, `★${n}`,
+      { size: 8, anchor: 'end', fill: n === 1 || n === topStar ? '#c7d2fe' : '#64748b' });
+  }
+
+  // Flights. Odd ones climb back the other way, which is the switchback.
+  plan.flights.forEach((f, i) => {
+    const leftToRight = i % 2 === 0;
+    const xa = leftToRight ? xL : xR;
+    const xb = leftToRight ? xR : xL;
+    const ya = yOf(gTFS + f.baseM);
+    const yb = yOf(gTFS + f.topM);
+    const clr = TREAD_CLR[f.rise] || '#818cf8';
+    // Stringer.
+    el('line', { x1: xa, y1: ya, x2: xb, y2: yb, stroke: clr, 'stroke-width': 3,
+      'stroke-linecap': 'round' }, svg);
+    // Step profile along it.
+    const steps = Math.max(2, Math.round(f.rise / STEP_RISE_M));
+    for (let n = 1; n <= steps; n++) {
+      const t0 = (n - 1) / steps;
+      const t1 = n / steps;
+      const px0 = xa + (xb - xa) * t0;
+      const px1 = xa + (xb - xa) * t1;
+      const py1 = ya + (yb - ya) * t1;
+      // Tread, then the riser up to it.
+      el('line', { x1: px0, y1: py1, x2: px1, y2: py1, stroke: clr, 'stroke-width': 1.4, opacity: 0.9 }, svg);
+      el('line', { x1: px0, y1: ya + (yb - ya) * t0, x2: px0, y2: py1, stroke: clr,
+        'stroke-width': 1, opacity: 0.5 }, svg);
+    }
+    // Landing at the top of the flight, and the star it lands on.
+    el('line', { x1: xL, y1: yb, x2: xR, y2: yb, stroke: '#c7d2fe', 'stroke-width': 2.5 }, svg);
+    txt(svg, xR + 10, yb, `landing +${(gTFS + f.topM).toFixed(2)}m`,
+      { size: 8, anchor: 'start', fill: '#94a3b8' });
+    txt(svg, xR + 10, (ya + yb) / 2, `${f.rise.toFixed(1)}m ★${f.fromStar}→${f.toStar}`,
+      { size: 8, anchor: 'start', fill: clr, weight: 700 });
+  });
+
+  // The two tower standards, with a star at every rosette and numbers up one
+  // side so the flights can be read against them.
+  const enabled = getEnabledSizes();
+  const stack = calcStdStack(starSpan + 0.5 + 1.0, enabled);
+  drawFoundation(svg, yOf, xL, gTFS, '#818cf8');
+  drawFoundation(svg, yOf, xR, gTFS, '#818cf8');
+  drawStandards(svg, yOf, xL, stack, gTFS);
+  drawStandards(svg, yOf, xR, stack, gTFS);
+  dimension(svg, xL, xR, yOf(0) + 10, `${SYS.bays[stairBay.value].mm}mm`);
+}
+// The AT-PAC tower climbs between its own landings rather than from a tread
+// mix, so its flights are derived from the ring levels instead.
+function towerFlights(starSpan) {
+  const st = SYS.stairTower;
+  const rises = calcStairFlights(starSpan, st).rises;
+  const flights = [];
+  let h = 0;
+  for (const rise of rises) {
+    const top = parseFloat((h + rise).toFixed(3));
+    flights.push({ rise, fromStar: starAt(h), toStar: starAt(top), baseM: h, topM: top });
+    h = top;
+  }
+  return { flights, totalRiseM: h, reachable: Math.abs(h - starSpan) < 0.01 };
 }
 function renderGearList() {
   const tbody = document.getElementById('gear-table');

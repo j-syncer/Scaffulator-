@@ -125,8 +125,9 @@ hook onto the same rosette, side by side — so the stars do not simply add up. 
 flight under a 2.0 m flight runs star 1 → 4 → 8: eight stars in total, not nine. Shorter
 flights go in at the bottom.
 
-`stairFlightPlan()` returns that breakdown, and the section view draws it: each landing
-is tagged with the star it lands on, and the zone header reads `STAIR ★1–8`.
+`stairFlightPlan()` returns that breakdown. The section view tags each landing with the
+star it lands on and its zone header reads `STAIR ★1–8`; the **Stair Tower — Side View**
+panel draws the tower itself (see *The three views*).
 
 | Climb | Stars | Flights |
 | --- | --- | --- |
@@ -140,6 +141,14 @@ is tagged with the star it lands on, and the zone header reads `STAIR ★1–8`.
 0.5 m, 1.0 m and 2.5 m are not in the table because no mix of 1.5 m and 2.0 m flights
 lands on them. `stairFlightPlan()` flags those as unreachable and `nearestStairClimbs()`
 names the two nearest climbs that do work.
+
+Which sizes are on hand is a choice. `stair.treadRises` lists what a system stocks and the
+**Available Stair Treads** panel ticks the ones actually in the yard — both on by default.
+`solveFlights()` solves the climb in star steps rather than metres and takes the fewest
+flights that hit it exactly, falling back to the smallest total that still clears the deck
+when nothing hits it. Turning a size off narrows what is reachable sharply: with only
+2.0 m treads a stair lands on even metres only, and with only 1.5 m on multiples of 1.5 m.
+The warnings name the sizes actually ticked, so they change with the panel.
 
 The climb ledgers on the outside of the stair follow the same numbering: one at every star
 **above** the base, so a 3.5 m climb running star 1 to star 8 takes seven. Star 1 is at
@@ -235,30 +244,43 @@ labelled sections:
 - **State** — `runs`, an array of `{ bays, settings }`. Each run holds an ordered list of
   bay / gap / break items plus its own configuration, including which system it uses.
 - **Geometry** — jack extension and standard stacking (`calcPhysics`, `calcStdStack`),
-  ledger ring levels (`getRingLevels`), stair tread mix (`calcTreads`), and frame stacking
+  ledger ring levels (`getRingLevels`), stair flight mix (`solveFlights`,
+  `stairFlightPlan`), and frame stacking
   (`calcFramePhysics`).
 - **Bill of quantities** — `calcRunGear` dispatches one run to `calcModularGear` or
   `calcFrameGear`; `calcTotalGear` buckets every run by system and applies the optional
   spares uplift; `calcWeightKg` weighs one bucket and `calcTotalWeightKg` sums them.
 - **UI builders** — `buildBayButtons`, `buildWidthOpts`, `buildPiggybackOpts`,
-  `buildHopupOpts`, `buildStandardsList`, `buildFrameHeightOpts` and `applySystemChrome`
+  `buildHopupOpts`, `buildStandardsList`, `buildTreadList`, `buildFrameHeightOpts` and `applySystemChrome`
   regenerate the controls whenever the system changes. Nothing about a system's sizes is
   hardcoded in the HTML — the selects ship empty and are filled from the registry.
 - **User actions** — the handlers wired to the buttons and selects.
 - **Drawing** — both views are SVG on a real millimetre scale. `renderPlan` is a true
   top-down view of the run; `renderElevation` (and `renderFrameElevation`) draw a section
-  looking along the run. `sectionCanvas` sets up the height axis, ground and label gutter;
+  looking along the run; `renderStairView` draws the stair tower from the side. `sectionCanvas` sets up the height axis, ground and label gutter;
   `drawStandards`, `drawDeck`, `drawFoundation` and `dimension` are the shared parts.
 - **Render** — `renderGearList`, `renderMetrics`.
 
 `render()` recomputes everything from `runs` on every change; there is no incremental
 update path, so state changes only need to mutate `runs` and call `render()`.
 
-## The two views
+## The three views
 
 **Plan view** looks down on the run, drawn to one scale (`PLAN_PX_PER_M`). Bays are tinted
 by size and dimensioned underneath, standards appear as circles at every position on both
 edges of the deck, and hop-up and piggyback are bands outboard of the deck.
+
+**Stair Tower — Side View** appears only when the current run carries a stair, and looks
+at the side of the tower. A scaffold stair switchbacks inside one bay footprint — each
+flight climbs the length of the bay, you turn on the landing and the next climbs back the
+other way — so from the side it reads as a zigzag, which is what it draws. Flights are
+coloured and labelled by rise (`1.5m ★1→4`), landings carry their real height, and the
+vertical axis is numbered in **stars rather than metres**, because that is the unit a
+stair is set out in. Every star above the base doubles as the guard ledger drawn across
+the tower, so the gridline and the billed member are the same line. The step profile along
+each stringer is the drawing's own assumption — about a 200 mm rise per step, the figure
+the Ringlock tower is modelled at, which keeps every flight inside AS 1657's 130–225 mm
+band — not a billed quantity: the units are prefabricated and billed whole.
 
 **Section** looks along the run, showing deck width, lift heights, standards, guardrails,
 hop-up, piggyback and the stair tower. Standards carry a star at every 0.5 m **including
@@ -304,11 +326,12 @@ the frame rules described above.
   simply the last bay, and refuses if the run has none. Loading a project clears any stair
   sitting on a bay that cannot carry one. Systems with no `stair` block — Ally Frame —
   hide the button rather than offering one that bills nothing.
-- **Stair flights** come in 1.5 m and 2.0 m rises and `calcTreads` picks the mix that
-  lands on the deck. See *Stars and stair flights* below for how they sit on the rosettes.
-  Three climbs — 0.5 m, 1.0 m and 2.5 m — have no combination of the two that reaches
-  them; the calculator says so when the stair is attached and keeps saying so in the
-  section caption, rather than quietly billing a stair that finishes above the deck.
+- **Stair flights** come in the rises listed in `stair.treadRises` — 1.5 m and 2.0 m — and
+  the *Available Stair Treads* panel turns either off for a yard that only carries one.
+  `solveFlights()` then picks the fewest flights that land on the deck from whatever is
+  left. See *Stars and stair flights* below. Some climbs have no combination that reaches
+  them at all; the calculator says so when the stair is attached and keeps saying so in
+  the section caption, rather than quietly billing a stair that finishes above the deck.
 - **Stair access rules** change two things in the takeoff, both in `stair`:
   - `climbRailEveryM` puts a ledger on the stair's outside standards at **every 0.5 m
     star for the whole climb**, at the stair bay's length. A stair rises continuously, so
