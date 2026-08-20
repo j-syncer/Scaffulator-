@@ -447,6 +447,12 @@ const SYSTEMS = {
       climbRailEveryM: 0.5,
       openRailMM: 1780,
       openRails: 3,
+      // A stair tower always carries 2.0m of standard above its top landing,
+      // whatever the run's own guardrail is set to. You step off the top deck
+      // onto the stairs, so the stair side needs a rail above waist height the
+      // whole way — and the 2.0m gives the four stars an intermediate standard
+      // needs to hook into.
+      railAboveLandingM: 2.0,
       // Prefabricated stair units, by the rise each one climbs. Both are on by
       // default; the Available Stair Treads panel turns either off for a yard
       // that only carries one.
@@ -509,6 +515,7 @@ const SYSTEMS = {
       climbRailEveryM: 0.5,
       openRailMM: 1800,
       openRails: 3,
+      railAboveLandingM: 2.0,
       treadRises: [1.5, 2.0],
     },
     stdSizes: [3.0, 2.0, 1.5, 1.0, 0.5],
@@ -638,6 +645,7 @@ const SYSTEMS = {
       climbRailEveryM: 0,
       openRailMM: 1570,
       openRails: 3,
+      railAboveLandingM: 2.0,
     },
     stairTower: {
       legs: 10,
@@ -961,7 +969,7 @@ function addStairTowerGear(add, st, ctx) {
 
   // The tower itself is ordinary system scaffold: legs to handrail height on a
   // jack, collar and soleboard, framed with ledgers at every landing.
-  const towerStack = calcStdStack(nomH + 1.0, enabled);
+  const towerStack = calcStdStack(nomH + stairRailAboveM(), enabled);
   for (const [k, v] of Object.entries(towerStack)) add(k, v * st.legs);
   add(partName('baseJack', 'Base Jack (Screw Jack)'), st.legs);
   add(partName('soleBoard', 'Sole Board'), st.legs);
@@ -1089,12 +1097,12 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
       // to an intermediate standard, leaving the rest of the bay open to step
       // through onto the tread.
       add(`${ledgerPart} (${SYS.stair.openRailMM}mm)`, SYS.stair.openRails * boardedLifts);
-      // The intermediate standard those rails hook into: one column to
-      // guardrail height, on its own jack and sole board like any other leg.
-      for (const [k, v] of Object.entries(outerStack)) add(k, v);
-      add(partName('baseJack', 'Base Jack (Screw Jack)'), 1);
-      add(partName('soleBoard', 'Sole Board'), 1);
-      if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, 1);
+      // The intermediate standard those rails hook into is a short one — 2m,
+      // stood on the deck rather than run up from the ground, which is what
+      // gives it the four stars the rails need. One per boarded lift, since
+      // each lift has its own opening onto the stairs.
+      const postStack = calcStdStack(stairRailAboveM(), enabled);
+      for (const [k, v] of Object.entries(postStack)) add(k, v * boardedLifts);
     } else {
       n += midRailsPB + guardRailsPB;
     }
@@ -1138,8 +1146,10 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
       walkway: run.settings.stairWalkway,
     });
   } else if (hasStair) {
-    const stairNomH = nomH + 1.0;
-    const stairStack = calcStdStack(stairNomH, enabled);
+    // The tower's own standards run the full 2m above the top landing, not the
+    // run's guardrail height.
+    const railAboveM = stairRailAboveM();
+    const stairStack = calcStdStack(nomH + railAboveM, enabled);
     const flights = stairFlightPlan(starSpan, treads).flights;
     const totalTreads = flights.length;
     for (const [k, v] of Object.entries(stairStack)) add(k, v * 2);
@@ -1156,14 +1166,20 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
     });
     // Fall protection up the outside of the stair. A stair rises continuously,
     // so unlike a deck it cannot be railed only at lift level — the outside
-    // standards take a ledger at every star for the whole climb, at the stair
-    // bay's own length. Stars are counted from 1 at the foot of the column, so
-    // a 3.5m climb runs star 1 to star 8 and takes 7 ledgers: one at each star
-    // above the base. Star 1 sits at ground level and needs no rail.
+    // standards take a ledger at every star, at the stair bay's own length.
+    //
+    // And it does not stop at the top landing. You step off the working deck
+    // onto the stairs, so the stair side needs rail above waist height there
+    // too: the ledgers carry on for the full 2m above the landing, four more
+    // of them, whatever the run's own guardrail is set to.
+    //
+    // Stars are counted from 1 at the foot of the column, so a 3.5m climb runs
+    // star 1 to star 8, then rails to star 12: 11 ledgers, one at every star
+    // above the base. Star 1 is at ground level and needs no rail.
     const stairBayMM = SYS.bays[stairBayKey] ? SYS.bays[stairBayKey].mm : nearestBayMM(2390);
     const everyM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
     if (everyM > 0) {
-      add(`Ledger (${stairBayMM}mm)`, Math.round(starSpan / everyM));
+      add(`Ledger (${stairBayMM}mm)`, Math.round((starSpan + railAboveM) / everyM));
     }
     // Transoms carrying the treads, one pair per tread plus the top landing.
     // The tower's own walkway is about 1.2m wide, which is not the run's deck
@@ -1371,6 +1387,13 @@ function addBreak() {
   runs.push({ bays: [], settings: { ...cur.settings } });
   loadSettings(currentRun());
   render();
+}
+// How far a stair tower's standards run above its top landing. A working
+// platform may only carry 1m of guardrail, but the stair side always takes the
+// full 2m so there is a rail above waist height as you step onto the treads.
+function stairRailAboveM(sys = SYS) {
+  const v = sys.stair && sys.stair.railAboveLandingM;
+  return Number.isFinite(v) ? v : 1.0;
 }
 // One line describing how a climb breaks into flights, in stars.
 // "Stair 1.5m ★1→4, 2.0m ★4→8" — and says so plainly when the climb cannot be
@@ -2125,7 +2148,10 @@ function renderElevation() {
   const stairWM = hasStair ? 0.85 : 0;
   const pbX0 = deckM + hopM + pbGapM;
   const stairX0 = pbX0 + pbM + stairGapM;
-  const totalH = gTFS + starSpan + guardrailM + 0.4;
+  // A stair tower rails 2m above its top landing whatever the deck's guardrail
+  // is, so the canvas has to clear the taller of the two.
+  const topRailM = hasStair ? Math.max(guardrailM, stairRailAboveM()) : guardrailM;
+  const totalH = gTFS + starSpan + topRailM + 0.4;
   const totalW = stairX0 + stairWM;
   const { svg, yOf, x0, V, scalesDiffer } = sectionCanvas(c, totalH, totalW, null);
   // Boards drawn about 140mm thick, but never so thick at a squashed vertical
@@ -2216,9 +2242,13 @@ function renderElevation() {
     // star. Drawn on the outer edge, which is the open side you would fall off.
     const climbEveryM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
     if (climbEveryM > 0) {
-      for (let h = climbEveryM; h <= starSpan + 0.001; h += climbEveryM) {
+      // Carries on above the top landing: the stair side keeps its rail for
+      // the full 2m even where the run's own deck only has 1m of guardrail.
+      const railTopM = starSpan + stairRailAboveM();
+      for (let h = climbEveryM; h <= railTopM + 0.001; h += climbEveryM) {
+        const above = h > starSpan + 0.001;
         el('line', { x1: sxL + sxW - 9, y1: yOf(gTFS + h), x2: sxL + sxW, y2: yOf(gTFS + h),
-          stroke: '#a5b4fc', 'stroke-width': 1.4, opacity: 0.85 }, svg);
+          stroke: above ? '#c7d2fe' : '#a5b4fc', 'stroke-width': 1.4, opacity: above ? 1 : 0.85 }, svg);
       }
     }
     txt(svg, sxL + sxW / 2, yOf(gTFS + starSpan) - 9,
@@ -2381,7 +2411,10 @@ function renderStairView() {
   const plan = SYS.stairTower
     ? towerFlights(starSpan)
     : stairFlightPlan(starSpan, enabledTreadRises());
-  const totalH = gTFS + starSpan + 1.0 + 0.3;
+  const railAboveM = stairRailAboveM();
+  const railTopM = starSpan + railAboveM;
+  const railTopStar = starAt(railTopM);
+  const totalH = gTFS + railTopM + 0.3;
   const { svg, yOf, x0, V } = sectionCanvas(c, totalH, bayM, null, { ticks: false });
   const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
   const xL = xOf(0);
@@ -2394,8 +2427,12 @@ function renderStairView() {
       mix[k] = (mix[k] || 0) + 1;
     });
     const mixText = Object.entries(mix).map(([r, n]) => `${n} × ${r}m`).join(' + ') || 'none';
+    // Every flight reverses, so the flight count decides which end you walk on
+    // at the bottom for the top landing to come out at the end you want.
+    const n = plan.flights.length;
+    const ends = n % 2 === 0 ? 'enters and exits the same end' : 'enters the opposite end to its exit';
     label.textContent = plan.reachable
-      ? `${SYS.bays[stairBay.value].label} bay · ${starSpan}m climb ★1–${topStar} · ${mixText}`
+      ? `${SYS.bays[stairBay.value].label} bay · ${starSpan}m climb ★1–${topStar} · ${mixText} · ${n} flights, ${ends}`
       : `⚠ ${starSpan}m climb unreachable — ${mixText} makes ${plan.totalRiseM.toFixed(1)}m`;
   }
 
@@ -2404,15 +2441,22 @@ function renderStairView() {
   // which is what the takeoff bills, so the gridline and the member are the
   // same line. Star 1 is at ground level and gets no rail, so it stays faint.
   const climbEveryM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
-  for (let n = 1; n <= topStar; n++) {
+  for (let n = 1; n <= railTopStar; n++) {
     const y = yOf(gTFS + (n - 1) * STAR_PITCH_M);
     const railed = n > 1 && climbEveryM > 0;
+    // The stars above the top landing are the tower's handrail — four of them,
+    // a full 2m, which is more than the deck below may carry.
+    const above = n > topStar;
     el('line', { x1: xL, y1: y, x2: xR, y2: y,
-      stroke: railed ? '#334155' : '#1b2534', 'stroke-width': railed ? 1.2 : 1 }, svg);
+      stroke: railed ? (above ? '#4c566e' : '#334155') : '#1b2534',
+      'stroke-width': railed ? (above ? 1.6 : 1.2) : 1 }, svg);
     el('line', { x1: x0 - 10, y1: y, x2: x0 - 6, y2: y, stroke: '#475569', 'stroke-width': 1.2 }, svg);
     txt(svg, x0 - 14, y, `★${n}`,
       { size: 8, anchor: 'end', fill: n === 1 || n === topStar ? '#c7d2fe' : '#64748b' });
   }
+  txt(svg, (xL + xR) / 2, yOf(gTFS + railTopM) - 8,
+    `${railAboveM.toFixed(1)}m handrail · ★${topStar}–${railTopStar}`,
+    { size: 8, fill: '#94a3b8', weight: 700 });
 
   // Flights. Odd ones climb back the other way, which is the switchback.
   plan.flights.forEach((f, i) => {
@@ -2449,7 +2493,7 @@ function renderStairView() {
   // The two tower standards, with a star at every rosette and numbers up one
   // side so the flights can be read against them.
   const enabled = getEnabledSizes();
-  const stack = calcStdStack(starSpan + 0.5 + 1.0, enabled);
+  const stack = calcStdStack(railTopM, enabled);
   drawFoundation(svg, yOf, xL, gTFS, '#818cf8');
   drawFoundation(svg, yOf, xR, gTFS, '#818cf8');
   drawStandards(svg, yOf, xL, stack, gTFS);

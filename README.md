@@ -276,7 +276,10 @@ flight climbs the length of the bay, you turn on the landing and the next climbs
 other way — so from the side it reads as a zigzag, which is what it draws. Flights are
 coloured and labelled by rise (`1.5m ★1→4`), landings carry their real height, and the
 vertical axis is numbered in **stars rather than metres**, because that is the unit a
-stair is set out in. Every star above the base doubles as the guard ledger drawn across
+stair is set out in. The stars above the top landing are the tower's 2 m of handrail,
+drawn heavier and captioned. Every flight reverses direction, so the caption also says
+whether the tower enters and exits at the same end — even flight counts — or opposite
+ends, which is what decides where you walk on at the bottom. Every star above the base doubles as the guard ledger drawn across
 the tower, so the gridline and the billed member are the same line. The step profile along
 each stringer is the drawing's own assumption — about a 200 mm rise per step, the figure
 the Ringlock tower is modelled at, which keeps every flight inside AS 1657's 130–225 mm
@@ -338,13 +341,23 @@ the frame rules described above.
     unlike a deck it cannot be railed only at lift level — a 4 m stair is 8 stars and
     takes 8 ledgers. Ringlock sets this to 0 because its 10-leg tower already carries
     ledgers at every landing.
+  - `railAboveLandingM` carries those ledgers on **above the top landing**, for a full
+    2.0 m, and stacks the tower's own standards to match. A working platform may only
+    carry 1 m of guardrail, but you step off that platform onto the stairs, so the stair
+    side needs rail above waist height there too — four more ledgers, independent of the
+    run's *Top Guardrail* setting. A 3.5 m climb therefore runs star 1 → 8 as stair and
+    star 8 → 12 as handrail: eleven ledgers, one at every star above the base.
   - The bay the stair attaches to **loses its full-length guardrails and mid-rails**. That
     face was the outside of the run, but a piggybacked stair makes it the inside of the
     stairway and the way onto the treads, so an 8ft rail across it would fence the stair
     off. It takes `stair.openRails` short ledgers of `stair.openRailMM` per boarded lift
-    instead — three 6ft (1780 mm) on Kwikstage — running into an intermediate standard
-    that is billed with its own jack and sole board. The deck-level ledger carrying the
-    boards is untouched; only the guardrails above it change.
+    instead — three 6ft (1780 mm) on Kwikstage — running into an intermediate standard,
+    leaving the rest of the bay open so you can step through onto the tread. That
+    standard is a short one: 2.0 m (`railAboveLandingM`), stood on the deck rather than
+    run up from the ground, which is what gives it the four stars the rails hook into.
+    One per boarded lift, since each lift has its own opening onto the stairs. The
+    deck-level ledger carrying the boards is untouched; only the guardrails above it
+    change.
 - **Deck width** is chosen by board count — see *Deck widths and board counts* below. The
   *Side Hop-up* and *Piggyback Bay* dropdowns are generated from the same system data, so
   they only ever offer brackets and transoms that system actually stocks.
