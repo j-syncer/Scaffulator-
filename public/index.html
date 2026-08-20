@@ -200,7 +200,7 @@
 
   <!-- Standard Inventory — generated from the active system -->
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 modular-only">
-    <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Available Standards</h3>
+    <h3 id="std-heading" class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Available Standards</h3>
     <div id="std-list" class="space-y-2"></div>
   </div>
 
@@ -405,13 +405,20 @@ const SYSTEMS = {
   kwikstage: {
     id: 'kwikstage',
     name: 'Kwikstage',
+    node: 'star',
     blurb: 'Steel modular — standards, ledgers & transoms',
     model: 'modular',
     // The one finished system: not beta, not provisional.
     beta: false,
     provisional: false,
     plank: 'Steel Plank',
+    // jackMinM/jackMaxM are the jack's standing height wound down and wound out.
+    // The span between them is one node pitch, which is what lets any height be
+    // reached. Catalogue gives the AT-PAC screwjack as 0.60m (06.01.060.00);
+    // the wound-down figure is a working assumption — correct it here and every
+    // height re-solves against it.
     geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+      jackMinM: 0.1, jackMaxM: 0.6,
       plankMM: KWIKSTAGE_PLANK_MM },
     bays: {
       '3m': { mm: 3000, label: '3.00m (3m)', clr: '#f472b6' },
@@ -501,12 +508,19 @@ const SYSTEMS = {
   kwikally: {
     id: 'kwikally',
     name: 'Kwikally',
+    node: 'star',
     blurb: 'Aluminium modular — metric bays, own geometry',
     model: 'modular',
     beta: true,
     provisional: true,
     plank: 'Alloy Plank',
+    // jackMinM/jackMaxM are the jack's standing height wound down and wound out.
+    // The span between them is one node pitch, which is what lets any height be
+    // reached. Catalogue gives the AT-PAC screwjack as 0.60m (06.01.060.00);
+    // the wound-down figure is a working assumption — correct it here and every
+    // height re-solves against it.
     geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+      jackMinM: 0.1, jackMaxM: 0.6,
       plankMM: KWIKSTAGE_PLANK_MM },
     bays: {
       '3000': { mm: 3000, label: '3.00m', clr: '#f472b6' },
@@ -562,6 +576,8 @@ const SYSTEMS = {
   ringlock: {
     id: 'ringlock',
     name: 'AT-PAC Ringlock',
+    // A welded circular rosette with eight connection points, not a star.
+    node: 'rosette',
     blurb: 'Steel modular — rosette node, 0.5m increments',
     model: 'modular',
     // Catalogue figures are real; the takeoff model around them is still
@@ -592,6 +608,7 @@ const SYSTEMS = {
     // The screwjack itself (06.01.060.00) adjusts over 0.60m, and jack extension
     // here is always under 0.5m by construction, so it stays inside that.
     geom: { baseOffsetM: 0.301, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+      jackMinM: 0.1, jackMaxM: 0.6,
       plankMM: RINGLOCK_PLANK_MM },
     bays: {
       3050: { mm: 3050, label: '3.05m', clr: '#f472b6' },
@@ -809,18 +826,45 @@ let runs = [{ bays: [], settings: { ...DEFAULT_SETTINGS } }];
 /* ============================================================
    GEOMETRY — jack extension, standard stacking, ring levels, treads
    ============================================================ */
+// Resolve a requested top-deck height into a buildable base and column.
+//
+// Your feet end up on the height you asked for, exactly. What has to give is
+// the split between the standard column, which only comes in 0.5m node steps,
+// and the jack, which is continuously adjustable but only over its own travel.
+// So the column is the TALLEST one whose leftover lands inside the jack's real
+// range — tallest because that is the most nodes, and the most platforms.
+//
+// The jack's travel is deliberately one node pitch wide (a 600mm screwjack
+// against a 500mm node pitch), which is exactly what makes every height
+// reachable with one answer and no gaps.
+//
+// This used to floor the column and hand the jack whatever was left, so a
+// height that divided evenly asked the jack to stand at 0mm — which is not a
+// thing you can build.
 function calcPhysics(targetH) {
+  const g = SYS.geom;
+  const jackMin = Number.isFinite(g.jackMinM) ? g.jackMinM : 0;
+  const jackMax = Number.isFinite(g.jackMaxM) ? g.jackMaxM : jackMin + STAR_PITCH_M;
   if (!targetH || targetH <= 0)
-    return { starSpan: 0, jackExt: 0, gTFS: 0, stepDown: 'Single', nomH: 0 };
-  const starSpan = Math.floor((targetH - SYS.geom.baseOffsetM) / 0.5) * 0.5;
-  const jackExt = targetH - SYS.geom.baseOffsetM - starSpan;
-  const gTFS = SYS.geom.baseOffsetM + jackExt;
+    return { starSpan: 0, jackExt: 0, gTFS: 0, stepDown: 'Single', nomH: 0, jackOK: true,
+             jackMin, jackMax };
+  // What the jack and the column together have to make up, above whatever sits
+  // between the jack head and the first node (the base collar on Ringlock).
+  const above = targetH - g.baseOffsetM;
+  let starSpan = Math.floor((above - jackMin) / STAR_PITCH_M + 1e-9) * STAR_PITCH_M;
+  starSpan = Math.max(0, parseFloat(starSpan.toFixed(3)));
+  const jackExt = parseFloat((above - starSpan).toFixed(3));
+  const gTFS = parseFloat((g.baseOffsetM + jackExt).toFixed(3));
   return {
     starSpan,
     jackExt,
     gTFS,
+    // False only when the height is too low for the jack to stand in at all.
+    jackOK: jackExt >= jackMin - 1e-9 && jackExt <= jackMax + 1e-9,
+    jackMin,
+    jackMax,
     stepDown: gTFS > 0.4 ? 'Double' : 'Single',
-    nomH: starSpan + 0.5,
+    nomH: parseFloat((starSpan + STAR_PITCH_M).toFixed(3)),
   };
 }
 function calcStdStack(nomH, enabled) {
@@ -890,6 +934,21 @@ function boardableLifts(ringLevels) {
    1 to star 9.
    ------------------------------------------------------------ */
 const STAR_PITCH_M = 0.5;
+// What the connection node is called and drawn as, per system. Kwikstage uses a
+// pressed star and a wedge; Ringlock uses a circular rosette welded to the
+// standard. Same 0.5m pitch, different part — so the wording and the graphic
+// follow the system rather than defaulting to Kwikstage's.
+const NODES = {
+  star: { name: 'Star', plural: 'stars', glyph: '★', shape: 'star' },
+  rosette: { name: 'Rosette', plural: 'rosettes', glyph: '◎', shape: 'ring' },
+};
+function nodeSpec(sys = SYS) {
+  return NODES[(sys && sys.node) || 'star'];
+}
+// "◎7" / "★7" — a node reference in the active system's own terms.
+function nodeRef(n, sys = SYS) {
+  return `${nodeSpec(sys).glyph}${n}`;
+}
 function starAt(heightAboveBaseM) {
   return Math.round(heightAboveBaseM / STAR_PITCH_M) + 1;
 }
@@ -1537,12 +1596,12 @@ function stairRailAboveM(sys = SYS) {
   return Number.isFinite(v) ? v : 1.0;
 }
 // One line describing how a climb breaks into flights, in stars.
-// "Stair 1.5m ★1→4, 2.0m ★4→8" — and says so plainly when the climb cannot be
+// "Stair 1.5m N1→4, 2.0m N4→8", N being the system's node glyph — and says so plainly when the climb cannot be
 // made from the flight rises available.
 function stairPlanSummary(starSpan) {
   const plan = stairFlightPlan(starSpan);
   const legs = plan.flights
-    .map((f) => `${f.rise.toFixed(1)}m ★${f.fromStar}→${f.toStar}`)
+    .map((f) => `${f.rise.toFixed(1)}m ${nodeRef(f.fromStar)}→${f.toStar}`)
     .join(', ');
   if (plan.reachable) return `Stair ${legs}`;
   return `⚠ ${stairUnreachableText(starSpan)}`;
@@ -1804,10 +1863,14 @@ function buildFrameHeightOpts() {
     .join('');
 }
 function buildStandardsList() {
+  const heading = document.getElementById('std-heading');
+  if (heading) heading.textContent = `Available Standards (${nodeSpec().plural})`;
   const list = document.getElementById('std-list');
   const legend = document.getElementById('std-legend');
   const sizes = SYS.stdSizes || [];
-  const stars = (m) => `${Math.round(m / 0.5)}-Star`;
+  // "6-Star" on Kwikstage, "6-Ring" on Ringlock — the node's own name.
+  const nd = nodeSpec();
+  const stars = (m) => `${Math.round(m / STAR_PITCH_M)}-${nd.shape === 'ring' ? 'Ring' : 'Star'}`;
   if (list) {
     list.innerHTML = sizes
       .map((m) => {
@@ -1836,7 +1899,8 @@ function buildTreadList() {
   list.innerHTML = rises
     .map((r) => {
       const steps = Math.round(r / STAR_PITCH_M);
-      return `<label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="tread-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="${r}" checked onchange="treadsChanged()"><span class="text-xs text-slate-300">${r.toFixed(1)}m tread — climbs ${steps} stars, sits on ${steps + 1}</span></label>`;
+      const nd = nodeSpec();
+      return `<label class="flex items-center gap-2.5 cursor-pointer"><input type="checkbox" class="tread-chk form-checkbox h-3.5 w-3.5 text-amber-400 rounded" value="${r}" checked onchange="treadsChanged()"><span class="text-xs text-slate-300">${r.toFixed(1)}m tread — climbs ${steps} ${nd.plural}, sits on ${steps + 1}</span></label>`;
     })
     .join('');
 }
@@ -2312,7 +2376,7 @@ function renderElevation() {
   const iX = xOf(0), oX = xOf(deckM);
   if (label) {
     label.textContent =
-      `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m (★1–${starAt(starSpan)}) · Step-down ${stepDown}` +
+      `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m (${nodeRef(1)}–${starAt(starSpan)}) · Step-down ${stepDown}` +
       (hasStair && !SYS.stairTower ? ` · ${stairPlanSummary(starSpan)}` : '') +
       (scalesDiffer ? ' · width exaggerated' : '');
   }
@@ -2330,7 +2394,7 @@ function renderElevation() {
     // The plan already knows which rings carry boards; base and dummy lifts are
     // simply the ones that do not.
     if (lvl.role === 'base' || lvl.role === 'dummy') {
-      txt(svg, labelX, y, `${lvl.role === 'base' ? 'Base lift' : 'Dummy lift'} · ★${lvl.star}`,
+      txt(svg, labelX, y, `${lvl.role === 'base' ? 'Base lift' : 'Dummy lift'} · ${nodeRef(lvl.star)}`,
         { size: 9, anchor: 'start', fill: '#64748b', weight: 500 });
     }
   });
@@ -2340,7 +2404,7 @@ function renderElevation() {
     const top = i === boarded.length - 1;
     drawDeck(svg, iX, y, oX - iX, wSpec.planks, '#475569', '#cbd5e1', boardPx);
     if (hopM > 0) drawDeck(svg, oX, y, hopM * SEC_PX_PER_M_H, sideBoards, '#475569', '#cbd5e1', boardPx);
-    txt(svg, labelX, y, `${top ? `Top deck +${targetH}m` : `Lift ${i + 1}`} · ★${starAt(lv)}`,
+    txt(svg, labelX, y, `${top ? `Top deck +${targetH}m` : `Lift ${i + 1}`} · ${nodeRef(starAt(lv))}`,
       { size: 9, anchor: 'start', fill: top ? '#fbbf24' : '#94a3b8', weight: top ? 700 : 500 });
     const rails = guardrailM === 2 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
     (top ? rails : [0.5, 1.0]).forEach((rh) => {
@@ -2391,7 +2455,7 @@ function renderElevation() {
       // The last landing is the top of the climb, which the header above the
       // zone already names — labelling it too would print over that header.
       if (i < steps.length - 1 && f.toStar) {
-        txt(svg, sxL + sxW / 2, y - 6, `★${f.toStar}`, { size: 7, fill: '#c7d2fe', weight: 700 });
+        txt(svg, sxL + sxW / 2, y - 6, nodeRef(f.toStar), { size: 7, fill: '#c7d2fe', weight: 700 });
       }
     });
     // The fall-protection ledgers up the outside of the stair, one at every
@@ -2408,7 +2472,7 @@ function renderElevation() {
       }
     }
     txt(svg, sxL + sxW / 2, yOf(gTFS + starSpan) - 9,
-      SYS.stairTower ? `STAIR ×${steps.length}` : `STAIR ★1–${starAt(starSpan)}`,
+      SYS.stairTower ? `STAIR ×${steps.length}` : `STAIR ${nodeRef(1)}–${starAt(starSpan)}`,
       { size: 7, fill: '#c7d2fe', weight: 800 });
   }
   // Deck width dimension across the base.
@@ -2422,9 +2486,15 @@ function drawFoundation(svg, yOf, x, gTFS, color = '#94a3b8') {
 }
 // One rosette, drawn as the flange it is rather than a notch in the tube.
 function drawRosette(svg, x, y, V) {
-  const h = Math.max(1.2, Math.min(2.6, V * 0.06));
-  el('rect', { x: x - 6, y: y - h / 2, width: 12, height: h,
-    fill: '#0d1117', stroke: '#94a3b8', 'stroke-width': 0.5, rx: 0.6 }, svg);
+  // Ringlock's node is a circular rosette disc; Kwikstage's is a pressed star
+  // plate. From the side both read as a flange on the tube, so the rosette is
+  // drawn a little deeper with fully rounded ends and the star square-cornered.
+  const ring = nodeSpec().shape === 'ring';
+  const h = Math.max(ring ? 1.6 : 1.2, Math.min(ring ? 3.2 : 2.6, V * (ring ? 0.075 : 0.06)));
+  const w = ring ? 13 : 12;
+  el('rect', { x: x - w / 2, y: y - h / 2, width: w, height: h,
+    fill: '#0d1117', stroke: '#94a3b8', 'stroke-width': 0.5,
+    rx: ring ? h / 2 : 0.6 }, svg);
 }
 // A standard's rings sit at 500mm centres. Below the lowest one — the star the
 // transom goes into — there is 190mm of tube down to the base of the standard:
@@ -2619,7 +2689,7 @@ function renderStairView() {
     const n = plan.flights.length;
     const ends = n % 2 === 0 ? 'walk on at the access end' : 'walk on at the far end';
     label.textContent = plan.reachable
-      ? `${SYS.bays[stairBay.value].label} bay · ${starSpan}m climb ★1–${topStar} · ${mixText} · ${n} flights — ${ends}`
+      ? `${SYS.bays[stairBay.value].label} bay · ${starSpan}m climb ${nodeRef(1)}–${topStar} · ${mixText} · ${n} flights — ${ends}`
       : `⚠ ${starSpan}m climb unreachable — ${mixText} makes ${plan.totalRiseM.toFixed(1)}m`;
   }
 
@@ -2640,11 +2710,11 @@ function renderStairView() {
       stroke: railed ? (above ? '#4c566e' : '#334155') : '#1b2534',
       'stroke-width': railed ? (above ? 1.6 : 1.2) : 1 }, svg);
     el('line', { x1: x0 - 10, y1: y, x2: x0 - 6, y2: y, stroke: '#475569', 'stroke-width': 1.2 }, svg);
-    txt(svg, x0 - 14, y, `★${n}`,
+    txt(svg, x0 - 14, y, nodeRef(n),
       { size: 8, anchor: 'end', fill: n === 1 || n === topStar ? '#c7d2fe' : '#64748b' });
   }
   txt(svg, (xL + xR) / 2, yOf(gTFS + railTopM) - 8,
-    `${railAboveM.toFixed(1)}m handrail · ★${topStar}–${railTopStar}`,
+    `${railAboveM.toFixed(1)}m handrail · ${nodeRef(topStar)}–${railTopStar}`,
     { size: 8, fill: '#94a3b8', weight: 700 });
 
   // Face bracing, drawn first so the stair reads over it. One diagonal per lift
@@ -2714,7 +2784,7 @@ function renderStairView() {
     el('line', { x1: xL, y1: yb, x2: xR, y2: yb, stroke: '#c7d2fe', 'stroke-width': 2.5 }, svg);
     txt(svg, xR + 10, yb, `landing +${(gTFS + f.topM).toFixed(2)}m${toAccess ? ' · step off' : ''}`,
       { size: 8, anchor: 'start', fill: toAccess ? '#c7d2fe' : '#64748b' });
-    txt(svg, xR + 10, (ya + yb) / 2, `${f.rise.toFixed(1)}m ★${f.fromStar}→${f.toStar}`,
+    txt(svg, xR + 10, (ya + yb) / 2, `${f.rise.toFixed(1)}m ${nodeRef(f.fromStar)}→${f.toStar}`,
       { size: 8, anchor: 'start', fill: clr, weight: 700 });
   });
   // Mark the two ends: where the access opening has to be, and where you walk
@@ -2842,8 +2912,14 @@ function renderHeightNote() {
   const plan = liftPlan(run);
   const jackMM = Math.round(plan.jackExt * 1000);
   const carries = `carries ${plan.boardable} platform${plan.boardable === 1 ? '' : 's'}`;
+  if (!plan.jackOK) {
+    note.textContent =
+      `Too low to stand a jack in — ${plan.targetH}m needs at least ` +
+      `${parseFloat((SYS.geom.baseOffsetM + plan.jackMin).toFixed(3))}m to the deck.`;
+    return;
+  }
   note.textContent =
-    `Top deck lands on ★${plan.topStar} · jack ${jackMM}mm · ${carries}` +
+    `Top deck lands on ${nodeRef(plan.topStar)} · jack ${jackMM}mm · ${carries}` +
     (plan.shortfall > 0
       ? ` · ${plan.requestedLifts} needs ≥ ${minHeightForPlatforms(plan.requestedLifts)}m`
       : '');

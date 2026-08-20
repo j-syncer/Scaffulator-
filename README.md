@@ -108,6 +108,36 @@ boards fit. The ladder skips 10 and 11 for the same reason. If you want a five-b
 platform on Ringlock, the honest options are a 1.52 m bay decked out in full at six, or
 five boards plus an Infill Plank.
 
+### Nodes: stars and rosettes
+
+The two systems connect differently and the app says so. Kwikstage uses a pressed **star**
+plate and a wedge; AT-PAC Ringlock uses a circular **rosette** welded to the standard, with
+eight connection points. Same 0.5 m pitch, different part — so `SYS.node` picks the wording
+and the graphic, and nothing defaults to Kwikstage's. Kwikstage reads `★7` and `6-Star`;
+Ringlock reads `◎7` and `6-Ring`. In the section the rosette is drawn as a deeper,
+fully-rounded disc against the star's square-cornered plate.
+
+### Resolving a height: the column and the jack
+
+You enter the height of the top working platform and your feet end up on exactly that
+height. What gives is the split between the **standard column**, which only comes in 0.5 m
+node steps, and the **jack**, which is continuously adjustable but only over its own travel.
+
+`calcPhysics` picks the **tallest** column whose leftover lands inside the jack's range —
+tallest because that is the most nodes, and so the most platforms. The jack's travel is one
+node pitch wide (`jackMinM` to `jackMaxM`, a 600 mm screwjack against a 500 mm pitch), which
+is exactly what makes every height reachable with one answer and no gaps. Below the jack's
+minimum standing height the deck is simply too low, and the app says so rather than
+inventing a base.
+
+This used to floor the column and hand the jack whatever was left over, so a height that
+divided evenly asked the jack to stand at **0 mm** — not something you can build. Roughly a
+fifth of heights change column as a result: exactly those where the old jack came out under
+100 mm.
+
+The catalogue gives the AT-PAC screwjack as 0.60 m (06.01.060.00). The wound-down figure is
+a working assumption in `geom.jackMinM`; correct it and every height re-solves against it.
+
 ### The lift plan
 
 Everything vertical comes from two inputs: the height of the **top working platform**, and
