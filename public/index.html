@@ -586,7 +586,12 @@ const SYSTEMS = {
       toeClip: 'Toe Board Retaining Clamp',
       toeBoard: 'Interlocking Toeboard',
     },
-    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+    // baseOffsetM is the Starter/Base Collar: 0.301m tall (01.27.000.00), sitting
+    // on the screwjack and carrying the first rosette. So ground-to-first-star
+    // is the jack extension plus the collar, which is what calcPhysics computes.
+    // The screwjack itself (06.01.060.00) adjusts over 0.60m, and jack extension
+    // here is always under 0.5m by construction, so it stays inside that.
+    geom: { baseOffsetM: 0.301, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
       plankMM: RINGLOCK_PLANK_MM },
     bays: {
       3050: { mm: 3050, label: '3.05m', clr: '#f472b6' },
