@@ -39,12 +39,20 @@ The calculator supports four systems, chosen per run from the **Scaffold System*
 dropdown. Each is one entry in the `SYSTEMS` registry at the top of the engine, holding
 its own geometry, bay lengths, deck widths, component names and weights.
 
-| System | Model | Data |
-| --- | --- | --- |
-| Kwikstage | `modular` | Confirmed |
-| AT-PAC Ringlock | `modular` | From AT-PAC AUS catalogue v5.6 |
-| Kwikally | `modular` | **Provisional** |
-| Ally Frame | `frame` | **Provisional** |
+| System | Model | Status | Data |
+| --- | --- | --- | --- |
+| Kwikstage | `modular` | Ready | Confirmed |
+| AT-PAC Ringlock | `modular` | **Beta** | From AT-PAC AUS catalogue v5.6 |
+| Kwikally | `modular` | **Beta** | **Provisional** |
+| Ally Frame | `frame` | **Beta** | **Provisional** |
+
+**Kwikstage is the only finished system.** Everything else is beta: tagged in the system
+dropdown, banner-warned in the sidebar, and badged in the gear list. Two independent flags
+drive that, because they mean different things — `beta` says the takeoff model is still
+being built out, `provisional` says the dimensions and weights are estimates. AT-PAC
+Ringlock is beta but not provisional: its component figures come straight from the
+catalogue, it is the modelling around them that is unfinished. Clearing a flag in the
+registry is all it takes to promote a system.
 
 ### Component naming
 
@@ -160,16 +168,23 @@ Runs may use different systems in one job. Quantities are bucketed per system, b
 same component name (`Ledger (3000mm)`) means different weights in different systems, and
 the manifest prints a section per system with its own subtotal.
 
-### Provisional data
+### Beta and provisional data
 
-`provisional: true` marks a system whose dimensions and weights are estimates awaiting
-supplier confirmation. While such a system is selected the UI shows an orange warning
-panel, the manifest stamps that section `PROVISIONAL DATA`, and the footnote says so.
+`beta: true` marks a system whose takeoff model is still being built out. `provisional:
+true` marks one whose dimensions and weights are estimates awaiting supplier confirmation.
+Either raises the orange warning panel, tags the system in the dropdown, badges its
+section of the manifest (`BETA`, `PROVISIONAL DATA`, or both) and changes the footnote.
 
-**Kwikally and Ally Frame are both provisional.** Their bay lengths, deck widths, frame
-heights and every weight are placeholders derived from typical aluminium practice, not
-from a supplier spec sheet. Correct them in the `SYSTEMS` entry and flip `provisional` to
-`false` once verified — nothing else needs to change.
+**Kwikstage is the only system that carries neither flag.**
+
+**AT-PAC Ringlock is beta but not provisional.** Its lengths and weights are the
+catalogue's own; what is unfinished is the modelling around them — the stair tower
+framing, the bracing rules and the stair access geometry are still being worked through.
+
+**Kwikally and Ally Frame are beta and provisional.** Their bay lengths, deck widths,
+frame heights and every weight are placeholders derived from typical aluminium practice,
+not from a supplier spec sheet. Correct them in the `SYSTEMS` entry and clear the flags
+once verified — nothing else needs to change.
 
 ## Engine layout
 
@@ -246,6 +261,25 @@ the frame rules described above.
   column if that does not land on a 2.0 m multiple.
 - **Bracing** is one dogleg pair per 4 m of height, and one face brace per 4 bays per
   bracing level.
+- **Stair towers** piggyback off one bay length only, declared per system in `stair.bays`:
+  the 8ft (2390 mm) bay on Kwikstage, the 2.13 m bay on Ringlock (its stringers are built
+  for it) and Kwikally's 2.50 m. *Attach Stair Tower* goes on the last eligible bay, not
+  simply the last bay, and refuses if the run has none. Loading a project clears any stair
+  sitting on a bay that cannot carry one. Systems with no `stair` block — Ally Frame —
+  hide the button rather than offering one that bills nothing.
+- **Stair access rules** change two things in the takeoff, both in `stair`:
+  - `climbRailEveryM` puts a ledger on the stair's outside standards at **every 0.5 m
+    star for the whole climb**, at the stair bay's length. A stair rises continuously, so
+    unlike a deck it cannot be railed only at lift level — a 4 m stair is 8 stars and
+    takes 8 ledgers. Ringlock sets this to 0 because its 10-leg tower already carries
+    ledgers at every landing.
+  - The bay the stair attaches to **loses its full-length guardrails and mid-rails**. That
+    face was the outside of the run, but a piggybacked stair makes it the inside of the
+    stairway and the way onto the treads, so an 8ft rail across it would fence the stair
+    off. It takes `stair.openRails` short ledgers of `stair.openRailMM` per boarded lift
+    instead — three 6ft (1780 mm) on Kwikstage — running into an intermediate standard
+    that is billed with its own jack and sole board. The deck-level ledger carrying the
+    boards is untouched; only the guardrails above it change.
 - **Deck width** is chosen by board count — see *Deck widths and board counts* below. The
   *Side Hop-up* and *Piggyback Bay* dropdowns are generated from the same system data, so
   they only ever offer brackets and transoms that system actually stocks.

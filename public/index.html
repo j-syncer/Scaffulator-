@@ -74,9 +74,9 @@
     <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Scaffold System</h3>
     <select id="system" class="form-select w-full" onchange="systemChanged()"></select>
     <p id="system-blurb" class="text-[9px] text-slate-600 mt-1 leading-tight"></p>
-    <div id="provisional-banner" class="hidden mt-2 rounded-lg border border-orange-500/40 bg-orange-500/10 px-2.5 py-2">
-      <p class="text-[10px] font-bold text-orange-300 uppercase tracking-wide">Provisional data</p>
-      <p class="text-[9px] text-orange-200/80 leading-tight mt-0.5">Dimensions and weights for this system are estimates awaiting supplier confirmation. Do not order from these figures without checking them.</p>
+    <div id="beta-banner" class="hidden mt-2 rounded-lg border border-orange-500/40 bg-orange-500/10 px-2.5 py-2">
+      <p class="text-[10px] font-bold text-orange-300 uppercase tracking-wide">Beta — work in progress</p>
+      <p id="beta-banner-text" class="text-[9px] text-orange-200/80 leading-tight mt-0.5"></p>
     </div>
   </div>
 
@@ -144,9 +144,9 @@
   <!-- Stair / Gap / Break -->
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 space-y-3">
     <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400">Stairs, Gaps & Breaks</h3>
-    <button onclick="addStair()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-xs font-bold py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-all">
+    <button id="stair-btn" onclick="addStair()" class="w-full bg-indigo-600 hover:bg-indigo-500 active:scale-[0.98] text-white text-xs font-bold py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-all">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
-      Attach Stair Tower to Last Bay
+      Attach Stair Tower
     </button>
     <p id="stair-note" class="text-[9px] text-indigo-400/70 leading-tight text-center -mt-1"></p>
     <div id="stair-walkway-row" class="hidden">
@@ -320,11 +320,22 @@
      model:'frame'    stacked frames + braces + platforms
                       (Ally Frame). Uses calcFrameGear().
 
-   provisional:true marks a system whose dimensions and weights
-   are estimates awaiting confirmation against supplier data. The
-   UI shows a warning banner and the manifest is stamped
-   PROVISIONAL while such a system is selected. Correct the
-   numbers here and the banner is the only other thing to change.
+   Two independent flags mark how finished a system is:
+
+     beta:true         the system is still being built out — its
+                       takeoff model is not yet trusted for
+                       ordering. Kwikstage is the only system
+                       that is not in beta.
+     provisional:true  its dimensions and weights are estimates
+                       awaiting confirmation against supplier
+                       data. AT-PAC Ringlock is beta but NOT
+                       provisional: its figures come straight
+                       from the catalogue, it is the modelling
+                       around them that is still in progress.
+
+   Either flag raises the banner, tags the system in the
+   dropdown and stamps the manifest. Clear the flag here and
+   nothing else needs changing.
    ============================================================ */
 /* ============================================================
    DECK WIDTH — how many boards fit across a bay
@@ -378,6 +389,8 @@ const SYSTEMS = {
     name: 'Kwikstage',
     blurb: 'Steel modular — standards, ledgers & transoms',
     model: 'modular',
+    // The one finished system: not beta, not provisional.
+    beta: false,
     provisional: false,
     plank: 'Steel Plank',
     geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
@@ -394,6 +407,29 @@ const SYSTEMS = {
     // 510mm takes 2, 710mm takes 3, 1220mm takes 5.
     widths: deckWidths([510, 710, 1220], { plankMM: KWIKSTAGE_PLANK_MM, span: 'captive' }),
     defaultWidth: '0.71',
+    // A stair tower piggybacks off the 8ft (2390mm) bay and no other — the
+    // stringers and the tower footprint are built for that bay length.
+    //
+    // Two access rules come with it:
+    //
+    //  * The stair's outside standards carry a ledger at EVERY 0.5m star for
+    //    the full climb, not just at the lifts. A stair rises continuously,
+    //    so a rail only at deck level leaves you walking beside an open drop.
+    //
+    //  * The bay facing the stair loses its full-length guardrails. That face
+    //    was the outside of the run, but the moment a stair piggybacks onto
+    //    it, it becomes the inside of the stairway and it is how you get onto
+    //    the treads — an 8ft rail across it would fence the stair off. It
+    //    takes a part-width rail instead: three 6ft (1780mm) ledgers into an
+    //    intermediate standard, leaving the rest of the bay open so you can
+    //    step onto the tread. The deck-level ledger carrying the boards
+    //    stays; it is only the guardrails above it that change.
+    stair: {
+      bays: ['8ft'],
+      climbRailEveryM: 0.5,
+      openRailMM: 1780,
+      openRails: 3,
+    },
     // Kwikstage tops out at a 3.0m (6-Star) standard — there is no 4.0m.
     stdSizes: [3.0, 2.5, 2.0, 1.5, 1.0, 0.5],
     stdClr: {
@@ -426,6 +462,7 @@ const SYSTEMS = {
     name: 'Kwikally',
     blurb: 'Aluminium modular — metric bays, own geometry',
     model: 'modular',
+    beta: true,
     provisional: true,
     plank: 'Alloy Plank',
     geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
@@ -443,6 +480,14 @@ const SYSTEMS = {
       1.2: { planks: 4, transomMM: 1200, label: '4-Board — 1200mm' },
     },
     defaultWidth: '0.9',
+    // Provisional, like the rest of Kwikally: its 2.50m bay is the nearest
+    // thing it has to the 8ft bay a stair tower needs.
+    stair: {
+      bays: ['2500'],
+      climbRailEveryM: 0.5,
+      openRailMM: 1800,
+      openRails: 3,
+    },
     stdSizes: [3.0, 2.0, 1.5, 1.0, 0.5],
     stdClr: { '3.0': '#0284c7', '2.0': '#ca8a04', 1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c' },
     weights: {
@@ -470,6 +515,9 @@ const SYSTEMS = {
     name: 'AT-PAC Ringlock',
     blurb: 'Steel modular — rosette node, 0.5m increments',
     model: 'modular',
+    // Catalogue figures are real; the takeoff model around them is still
+    // being built out, so the system ships as beta but not provisional.
+    beta: true,
     provisional: false,
     // Weights and lengths taken from the AT-PAC AUS Product Catalogue v5.6
     // (AP-AUS-001-V5-P6, 2023). Items marked below are not in that catalogue.
@@ -557,6 +605,17 @@ const SYSTEMS = {
     // bays) and five cross ledgers (three at the main positions, two tying the
     // intermediates) at every landing, and a landing decked across its width.
     // Correct these to match your standard tower drawing.
+    // The 10-leg tower's stringers are made for the 2.13m bay, so that is the
+    // only bay it attaches to. The open-face rule is the same as Kwikstage's:
+    // an 1820mm rail into an intermediate standard leaves ~310mm of the 2.13m
+    // bay open for the step onto the tread. The tower's own framing already
+    // carries ledgers at every landing, so it takes no extra climb rails.
+    stair: {
+      bays: ['2130'],
+      climbRailEveryM: 0,
+      openRailMM: 1570,
+      openRails: 3,
+    },
     stairTower: {
       legs: 10,
       flightM: 2.0,
@@ -626,6 +685,7 @@ const SYSTEMS = {
     name: 'Ally Frame',
     blurb: 'Aluminium frames, braces & platforms',
     model: 'frame',
+    beta: true,
     provisional: true,
     geom: { baseOffsetM: 0.15, posMM: 40 },
     // Frame heights that can be stacked to reach the deck height.
@@ -826,6 +886,16 @@ function runTargetHeight(run) {
   const h = parseFloat(run.settings.height);
   return Number.isFinite(h) && h > 0 ? h : lifts * step;
 }
+// Closest available transom length in the active system, for members sized to
+// something other than the run's own deck width (e.g. the stair tower walkway).
+function nearestWidthMM(targetMM) {
+  const sizes = Object.values(SYS.widths).map((w) => w.transomMM).filter(Boolean);
+  if (sizes.length === 0) return targetMM;
+  return sizes.reduce(
+    (best, mm) => (Math.abs(mm - targetMM) < Math.abs(best - targetMM) ? mm : best),
+    sizes[0]
+  );
+}
 // Closest available bay length in the active system, for components the
 // modular takeoff pins to a fixed size (e.g. the stair landing plank).
 function nearestBayMM(targetMM) {
@@ -864,9 +934,17 @@ function calcModularGear(run, enabled) {
   const numPos = numBays + 1;
   const byType = {};
   let hasStair = false;
+  let stairBayKey = null;
   for (const item of bayItems) {
     byType[item.value] = (byType[item.value] || 0) + 1;
-    if (item.stair) hasStair = true;
+    // A stair only counts where that bay length can actually carry one. The
+    // UI and the project loader both enforce this too; honouring it here as
+    // well means a hand-edited state cannot bill a tower off a bay the
+    // stringers do not fit.
+    if (item.stair && canCarryStair(SYS, item.value)) {
+      hasStair = true;
+      stairBayKey = item.value;
+    }
   }
   const g = {};
   const add = (k, n) => {
@@ -883,9 +961,33 @@ function calcModularGear(run, enabled) {
   for (const [k, v] of Object.entries(outerStack)) add(k, v * numPos);
   const guardRailsPB = handrail === '2' ? 4 : 2;
   const midRailsPB = 2 * Math.max(0, boardedLifts - 1);
-  const ledgersPB = 2 * numRings + midRailsPB + guardRailsPB;
-  for (const [type, count] of Object.entries(byType)) {
-    add(`${partName('ledger', 'Ledger')} (${SYS.bays[type].mm}mm)`, count * ledgersPB);
+  const ledgerPart = partName('ledger', 'Ledger');
+  // Counted bay by bay rather than by bay type, because a bay carrying a stair
+  // tower is railed differently from the rest of the run.
+  for (const item of bayItems) {
+    const mm = SYS.bays[item.value].mm;
+    // Every bay gets a ledger each side at every ring, whatever else it does —
+    // that is what the boards land on.
+    let n = 2 * numRings;
+    if (item.stair && canCarryStair(SYS, item.value)) {
+      // Guardrails and mid-rails all sit on the outer face. On this bay that
+      // face is now the inside of the stairway and the way onto the treads, so
+      // none of them go on — a full-length rail here would fence off the
+      // stair. In their place, a part-width rail at every lift you can stand
+      // on: SYS.stair.openRails short ledgers running from the main standard
+      // to an intermediate standard, leaving the rest of the bay open to step
+      // through onto the tread.
+      add(`${ledgerPart} (${SYS.stair.openRailMM}mm)`, SYS.stair.openRails * boardedLifts);
+      // The intermediate standard those rails hook into: one column to
+      // guardrail height, on its own jack and sole board like any other leg.
+      for (const [k, v] of Object.entries(outerStack)) add(k, v);
+      add(partName('baseJack', 'Base Jack (Screw Jack)'), 1);
+      add(partName('soleBoard', 'Sole Board'), 1);
+      if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, 1);
+    } else {
+      n += midRailsPB + guardRailsPB;
+    }
+    add(`${ledgerPart} (${mm}mm)`, n);
   }
   add(`${partName('transom', 'Transom')} (${wSpec.transomMM}mm)`, numPos * numRings);
   // Kwikstage decks its kickboard as an extra plank; a system with a dedicated
@@ -945,10 +1047,19 @@ function calcModularGear(run, enabled) {
       const intermed15 = t20 === 0 ? Math.max(0, t15 - 1) : t15;
       if (intermed15 > 0) add('Stair Handrail Intermediate (1.5m)', intermed15);
     }
-    add('Ledger (1780mm)', totalTreads * 3);
-    add('Transom (1220mm)', (totalTreads + 1) * 2);
-    add('Ledger (1780mm)', boardedLifts * 3);
-    add('Standard (2.0m)', boardedLifts);
+    // Fall protection up the outside of the stair. A stair rises continuously,
+    // so unlike a deck it cannot be railed only at lift level — the outside
+    // standards take a ledger at every 0.5m star for the whole climb, at the
+    // stair bay's own length. A 4m stair is 8 stars, so 8 ledgers.
+    const stairBayMM = SYS.bays[stairBayKey] ? SYS.bays[stairBayKey].mm : nearestBayMM(2390);
+    const everyM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
+    if (everyM > 0) {
+      add(`Ledger (${stairBayMM}mm)`, Math.round(starSpan / everyM));
+    }
+    // Transoms carrying the treads, one pair per tread plus the top landing.
+    // The tower's own walkway is about 1.2m wide, which is not the run's deck
+    // width, so it takes the system's nearest transom rather than wSpec.
+    add(`Transom (${nearestWidthMM(1220)}mm)`, (totalTreads + 1) * 2);
   }
   for (const item of run.bays) {
     if (item.type !== 'break') continue;
@@ -1105,10 +1216,25 @@ function calcTotalWeightKg(bySystem = calcTotalGear()) {
   return Object.entries(bySystem)
     .reduce((sum, [sysId, gear]) => sum + calcWeightKg(gear, SYSTEMS[sysId]), 0);
 }
-// True when any run uses a system whose data is still provisional.
+// How a system is tagged everywhere it is named. Kwikstage is the only system
+// that carries no tag at all.
+function systemTag(sy) {
+  if (!sy) return '';
+  if (sy.beta && sy.provisional) return ' (beta — provisional data)';
+  if (sy.beta) return ' (beta)';
+  if (sy.provisional) return ' (provisional data)';
+  return '';
+}
+// True when any run uses a system that is still beta or provisional.
 function jobHasProvisional() {
-  return runs.some((r) => SYSTEMS[r.settings.system]?.provisional
-                          && r.bays.some((b) => b.type === 'bay'));
+  return runs.some((r) => {
+    const sy = SYSTEMS[r.settings.system];
+    return (sy?.beta || sy?.provisional) && r.bays.some((b) => b.type === 'bay');
+  });
+}
+// The systems that are finished, for the wording of the caveat line.
+function readySystemNames() {
+  return Object.values(SYSTEMS).filter((sy) => !sy.beta && !sy.provisional).map((sy) => sy.name);
 }
 /* ============================================================
    USER ACTIONS — bays, gaps, breaks, stairs, settings, save/load
@@ -1135,19 +1261,46 @@ function addBreak() {
   loadSettings(currentRun());
   render();
 }
+// Which bays this system will take a stair tower off, as labels for messages.
+function stairBayLabels(sys = SYS) {
+  const keys = (sys.stair && sys.stair.bays) || [];
+  return keys.filter((k) => sys.bays[k]).map((k) => sys.bays[k].label);
+}
+function canCarryStair(sys, bayKey) {
+  return !!(sys.stair && (sys.stair.bays || []).includes(bayKey));
+}
 function addStair() {
   const run = currentRun();
-  const last = [...run.bays].reverse().find((b) => b.type === 'bay');
-  if (!last) {
+  useSystem(run.settings.system);
+  if (!SYS.stair) {
+    toast(`${SYS.name} has no stair tower modelled.`);
+    return;
+  }
+  const bays = run.bays.filter((b) => b.type === 'bay');
+  if (bays.length === 0) {
     toast('Add at least one bay before attaching a stair tower.');
     return;
   }
-  if (last.stair) {
-    toast('That bay already has a stair tower attached.');
+  // A stair tower piggybacks off one bay length only, so it goes on the last
+  // eligible bay rather than simply the last bay.
+  const target = [...bays].reverse().find((b) => canCarryStair(SYS, b.value) && !b.stair);
+  if (!target) {
+    const already = bays.some((b) => b.stair && canCarryStair(SYS, b.value));
+    toast(
+      already
+        ? 'Every eligible bay in this run already has a stair tower.'
+        : `A stair tower only goes off a ${stairBayLabels().join(' or ')} bay — add one first.`
+    );
     return;
   }
-  last.stair = true;
-  toast('Stair tower attached!', false);
+  target.stair = true;
+  const last = bays[bays.length - 1];
+  toast(
+    target === last
+      ? 'Stair tower attached!'
+      : `Stair tower attached to the last ${SYS.bays[target.value].label} bay.`,
+    false
+  );
   render();
 }
 function undoLast() {
@@ -1227,7 +1380,7 @@ function buildSystemOpts() {
   const sel = document.getElementById('system');
   if (!sel || sel.options.length > 0) return;
   sel.innerHTML = Object.values(SYSTEMS)
-    .map((sy) => `<option value="${sy.id}">${sy.name}${sy.provisional ? ' (provisional)' : ''}</option>`)
+    .map((sy) => `<option value="${sy.id}">${sy.name}${systemTag(sy)}</option>`)
     .join('');
 }
 function buildBayButtons() {
@@ -1313,12 +1466,22 @@ function buildStairOpts() {
   const row = document.getElementById('stair-walkway-row');
   const sel = document.getElementById('stairWalkway');
   const note = document.getElementById('stair-note');
+  const btn = document.getElementById('stair-btn');
   const st = SYS.stairTower;
   if (row) row.classList.toggle('hidden', !st);
+  // Systems with no stair modelled must not offer the button — it would look
+  // like it worked and bill nothing.
+  if (btn) btn.classList.toggle('hidden', !SYS.stair);
   if (note) {
-    note.textContent = st
-      ? `Auto-calculates ${st.legs}-leg tower: stringers, ${st.risersPerFlight - 1} treads per ${st.flightM.toFixed(1)}m flight, handrails, landings & legs.`
-      : 'Auto-calculates 1.5m/2.0m tread mix, handrails, step-down brackets & stair standards.';
+    const where = SYS.stair
+      ? ` Goes off a ${stairBayLabels().join(' or ')} bay only; that bay's outer guardrails become a part-width rail into an intermediate standard.`
+      : '';
+    note.textContent =
+      (!SYS.stair
+        ? `No stair tower is modelled for ${SYS.name}.`
+        : st
+        ? `Auto-calculates ${st.legs}-leg tower: stringers, ${st.risersPerFlight - 1} treads per ${st.flightM.toFixed(1)}m flight, handrails, landings & legs.`
+        : 'Auto-calculates 1.5m/2.0m tread mix, handrails, step-down brackets, stair standards & a ledger at every star up the outside.') + where;
   }
   if (!st || !sel) return;
   sel.innerHTML = Object.entries(st.walkways)
@@ -1366,8 +1529,15 @@ function applySystemChrome() {
   document.querySelectorAll('.modular-only').forEach((el) => el.classList.toggle('hidden', isFrame));
   const clipRow = document.getElementById('clip-row');
   if (clipRow) clipRow.classList.toggle('hidden', !!(SYS.parts && SYS.parts.toeClip));
-  const banner = document.getElementById('provisional-banner');
-  if (banner) banner.classList.toggle('hidden', !SYS.provisional);
+  const banner = document.getElementById('beta-banner');
+  if (banner) banner.classList.toggle('hidden', !(SYS.beta || SYS.provisional));
+  const bannerText = document.getElementById('beta-banner-text');
+  if (bannerText) {
+    const ready = readySystemNames().join(' and ') || 'no system';
+    bannerText.textContent = SYS.provisional
+      ? `${SYS.name} is in beta and its dimensions and weights are estimates awaiting supplier confirmation. Only ${ready} is finished — do not order from these figures without checking them.`
+      : `${SYS.name} is in beta. Its component figures come from the supplier catalogue, but the takeoff model around them is still being built out. Only ${ready} is finished — check the quantities before ordering.`;
+  }
   const blurb = document.getElementById('system-blurb');
   if (blurb) blurb.textContent = SYS.blurb + (SYS.source ? ` · weights from ${SYS.source}` : '');
 }
@@ -1482,6 +1652,10 @@ function sanitiseRuns(data) {
         if (b.type === 'gap') return Number.isFinite(b.value) && b.value > 0;
         return b.type === 'break';
       });
+      // A stair only survives the load if that bay can actually carry one.
+      for (const b of bays) {
+        if (b.type === 'bay' && b.stair && !canCarryStair(sys, b.value)) b.stair = false;
+      }
       return { bays, settings };
     })
     .filter(Boolean);
@@ -1866,6 +2040,15 @@ function renderElevation() {
       el('line', { x1: sxL + 3, y1: yOf(sh), x2: sxL + sxW - 3, y2: yOf(sh),
         stroke: '#818cf8', 'stroke-width': 2.5 }, svg);
     });
+    // The fall-protection ledgers up the outside of the stair, one at every
+    // star. Drawn on the outer edge, which is the open side you would fall off.
+    const climbEveryM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
+    if (climbEveryM > 0) {
+      for (let h = climbEveryM; h <= starSpan + 0.001; h += climbEveryM) {
+        el('line', { x1: sxL + sxW - 9, y1: yOf(gTFS + h), x2: sxL + sxW, y2: yOf(gTFS + h),
+          stroke: '#a5b4fc', 'stroke-width': 1.4, opacity: 0.85 }, svg);
+      }
+    }
     txt(svg, sxL + sxW / 2, yOf(gTFS + starSpan) - 9,
       SYS.stairTower ? `STAIR ×${steps.length}` : 'STAIR', { size: 7, fill: '#c7d2fe', weight: 800 });
   }
@@ -2019,8 +2202,11 @@ function renderGearList() {
   let html = '';
   for (const [sysId, gear] of Object.entries(bySystem)) {
   const sys = SYSTEMS[sysId];
-  if (multi || sys.provisional) {
-    html += `<tr><th colspan="3" style="background:#1e2a3a;padding:10px 14px;font-size:12px;font-weight:800;letter-spacing:.05em;color:#e2e8f0;border-top:3px solid #f59e0b;text-align:left;">${sys.name}${sys.provisional ? ' <span style="color:#fb923c;font-size:10px;font-weight:700;">PROVISIONAL DATA</span>' : ''}</th></tr>`;
+  if (multi || sys.beta || sys.provisional) {
+    const badge = [sys.beta ? 'BETA' : '', sys.provisional ? 'PROVISIONAL DATA' : '']
+      .filter(Boolean)
+      .join(' · ');
+    html += `<tr><th colspan="3" style="background:#1e2a3a;padding:10px 14px;font-size:12px;font-weight:800;letter-spacing:.05em;color:#e2e8f0;border-top:3px solid #f59e0b;text-align:left;">${sys.name}${badge ? ` <span style="color:#fb923c;font-size:10px;font-weight:700;">${badge}</span>` : ''}</th></tr>`;
   }
   for (const cat of CATS) {
     const items = Object.entries(gear)
@@ -2054,7 +2240,7 @@ function renderGearList() {
   note.textContent =
     `${validRuns} run(s) calculated — ${sysNames}. Spares ${sparesOn ? 'included (+5% on consumables)' : 'not included'}.` +
     (jobHasProvisional()
-      ? ' Kwikally and Ally Frame dimensions and weights are provisional estimates — confirm against supplier data before ordering.'
+      ? ` This job uses systems still in beta — only ${readySystemNames().join(' and ')} is finished. Kwikally and Ally Frame dimensions and weights are provisional estimates on top of that. Confirm everything against supplier data before ordering.`
       : ' Verify all quantities on-site prior to ordering.');
 }
 function renderMetrics() {
