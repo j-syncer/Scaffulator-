@@ -102,7 +102,7 @@
     <div>
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Top Deck Height (m)</label>
       <input type="number" id="height" class="form-input w-full mono" placeholder="e.g. 3.7" step="0.1" min="0" onchange="settingsChanged(); updateLiftOpts()">
-      <p class="text-[9px] text-slate-600 mt-1">Base jack extension auto-calculates to reach height cleanly.</p>
+      <p id="height-note" class="text-[9px] text-slate-600 mt-1 leading-tight">Base jack extension auto-calculates to reach height cleanly.</p>
     </div>
     <div class="grid grid-cols-2 gap-2">
       <div>
@@ -964,6 +964,61 @@ function nearestStairClimbs(climbM, risesM = enabledTreadRises()) {
     .slice(0, 2)
     .sort((a, b) => a - b);
 }
+/* ------------------------------------------------------------
+   THE LIFT PLAN — one source of truth for a run's vertical set-out
+   ------------------------------------------------------------
+   Everything vertical comes from two inputs: the height of the TOP working
+   platform, and how many platforms you want under it. From those the plan
+   fixes the jack, the star the top deck lands on, every ring below it, and
+   which of those rings carry boards.
+
+   It exists because the takeoff, both drawings, the metrics panel and the
+   lifts dropdown each used to re-derive this from calcPhysics + getRingLevels
+   + their own clamp, and they drifted. That drift is what shorted the tie
+   bars: the takeoff counted levels as ceil(starSpan / 2) while the decks were
+   actually placed off boardedLifts. One function, read by all of them, is the
+   fix — a rule can now only be wrong in one place.
+   ------------------------------------------------------------ */
+function liftPlan(run) {
+  const targetH = runTargetHeight(run);
+  const phy = calcPhysics(targetH);
+  const levelsM = getRingLevels(phy.starSpan);
+  const boardable = boardableLifts(levelsM);
+  const requested = Math.max(1, parseInt(run.settings.lifts) || 1);
+  // Boards can only go where a ring exists. Asking for more platforms than the
+  // height carries is answered by the height, not by billing decks that cannot
+  // physically be there.
+  const boarded = Math.max(1, Math.min(requested, boardable));
+  const firstWorking = levelsM.length - boarded;
+  const levels = levelsM.map((m, i) => ({
+    m,
+    star: starAt(m),
+    heightM: parseFloat((phy.gTFS + m).toFixed(3)),
+    role:
+      i >= firstWorking
+        ? i === levelsM.length - 1 ? 'top' : 'working'
+        : m < 0.001 ? 'base' : 'dummy',
+  }));
+  return {
+    ...phy,
+    targetH,
+    levels,
+    working: levels.filter((l) => l.role === 'working' || l.role === 'top'),
+    topStar: starAt(phy.starSpan),
+    boardedLifts: boarded,
+    boardable,
+    requestedLifts: requested,
+    // How many platforms were asked for but cannot be carried.
+    shortfall: Math.max(0, requested - boardable),
+  };
+}
+// The lowest top-deck height that carries n working platforms. Rings run down
+// from the deck at ringM, so n of them need (n-1) full drops plus one more
+// star of column, on top of the base collar.
+function minHeightForPlatforms(n) {
+  const ring = SYS.geom.ringM || 2.0;
+  return parseFloat((SYS.geom.baseOffsetM + (n - 1) * ring + STAR_PITCH_M).toFixed(3));
+}
 /* ============================================================
    BILL OF QUANTITIES — per-run and total gear takeoff
    ============================================================ */
@@ -1092,22 +1147,16 @@ function calcRunGear(run, enabled, treads) {
 function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   const bayItems = run.bays.filter((b) => b.type === 'bay');
   if (bayItems.length === 0) return {};
-  const { width, lifts, handrail, hopup, clip } = run.settings;
-  const requestedLifts = Math.max(1, parseInt(lifts) || 1);
-  const targetH = runTargetHeight(run);
-  const phy = calcPhysics(targetH);
-  const { starSpan, gTFS, stepDown, nomH } = phy;
+  const { width, handrail, hopup, clip } = run.settings;
+  const plan = liftPlan(run);
+  const { starSpan, gTFS, stepDown, nomH, boardedLifts } = plan;
+  const ringLevels = plan.levels.map((l) => l.m);
+  const numRings = ringLevels.length;
   const guardrailM = handrail === '2' ? 2.0 : 1.0;
   const wSpec = SYS.widths[width] || Object.values(SYS.widths)[0];
   const hopStr = hopup || '0';
   const hasKB = !hopStr.includes('_NK');
   const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
-  const ringLevels = getRingLevels(starSpan);
-  const numRings = ringLevels.length;
-  // A lift can only be boarded where a ledger ring exists. Without this clamp a
-  // lift count left over from a taller job bills planks, clips and brackets for
-  // decks the scaffold cannot physically carry.
-  const boardedLifts = Math.max(1, Math.min(requestedLifts, boardableLifts(ringLevels)));
   const numBays = bayItems.length;
   const numPos = numBays + 1;
   const byType = {};
@@ -1864,14 +1913,21 @@ function updateLiftOpts() {
   const maxLifts =
     SYS.model === 'frame'
       ? calcFramePhysics(targetH, parseFloat(run.settings.frameH) || 2).frameLevels
-      : boardableLifts(getRingLevels(calcPhysics(targetH).starSpan));
+      : liftPlan(run).boardable;
   for (const opt of sel.options) opt.disabled = parseInt(opt.value) > maxLifts;
   // Snapping back matters: a stale lift count silently bills decks that cannot
-  // exist, so the selection is corrected rather than left invalid.
-  if (parseInt(sel.value) > maxLifts) {
+  // exist, so the selection is corrected rather than left invalid. Answer with
+  // the height that WOULD carry the ask, rather than only refusing it.
+  const asked = parseInt(sel.value);
+  if (asked > maxLifts) {
     sel.value = String(Math.max(1, maxLifts));
     run.settings.lifts = sel.value;
-    toast(`Height only allows ${maxLifts} boarded lift(s) — lifts reduced to match.`);
+    const need = SYS.model === 'frame' ? null : minHeightForPlatforms(asked);
+    toast(
+      need
+        ? `${targetH}m carries ${maxLifts} platform(s) — ${asked} needs a top deck of at least ${need}m.`
+        : `Height only allows ${maxLifts} boarded lift(s) — lifts reduced to match.`
+    );
   }
 }
 function autoFill() {
@@ -1989,6 +2045,7 @@ function render() {
   renderStairView();
   renderGearList();
   renderMetrics();
+  renderHeightNote();
   updateCounters();
   updateSummary();
 }
@@ -2220,8 +2277,8 @@ function renderElevation() {
     if (label) label.textContent = '';
     return;
   }
-  const phy = calcPhysics(targetH);
-  const { starSpan, jackExt, gTFS, stepDown, nomH } = phy;
+  const plan = liftPlan(run);
+  const { starSpan, jackExt, gTFS, stepDown, nomH, boardedLifts } = plan;
   const guardrailM = handrail === '2' ? 2.0 : 1.0;
   const hopStr = hopup || '0';
   const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
@@ -2231,8 +2288,7 @@ function renderElevation() {
   const pbStr = run.settings.piggyback || '0';
   const pbM = pbStr !== '0' ? ((SYS.widths[pbStr] || {}).transomMM || 0) / 1000 : 0;
   const enabled = getEnabledSizes();
-  const ringLevels = getRingLevels(starSpan);
-  const boardedLifts = Math.max(1, Math.min(Math.max(1, parseInt(run.settings.lifts) || 1), boardableLifts(ringLevels)));
+  const ringLevels = plan.levels.map((l) => l.m);
   const hasStair = run.bays.some((b) => b.type === 'bay' && b.stair && canCarryStair(SYS, b.value));
   // Everything is placed along one metre axis: deck, hop-up, piggyback, stair.
   // The label gutter then starts beyond all of it, so nothing can collide.
@@ -2265,18 +2321,16 @@ function renderElevation() {
   drawFoundation(svg, yOf, iX, gTFS);
   drawFoundation(svg, yOf, oX, gTFS);
   // Ledger rings between the two standard lines.
-  const boarded = ringLevels.slice(-boardedLifts);
-  const lowestBoarded = boarded[0];
-  ringLevels.forEach((lv, i) => {
-    const y = yOf(gTFS + lv);
-    const top = i === ringLevels.length - 1;
+  const boarded = plan.working.map((l) => l.m);
+  plan.levels.forEach((lvl, i) => {
+    const y = yOf(gTFS + lvl.m);
+    const top = i === plan.levels.length - 1;
     el('line', { x1: iX, y1: y, x2: oX, y2: y, stroke: top ? '#64748b' : '#3f4c5f',
       'stroke-width': top ? 2.5 : 1.5 }, svg);
-    // Rings under the lowest boarded lift carry no boards. The one at star 1
-    // is the base lift; anything between it and the boards is a dummy lift,
-    // there only to keep the three-star rule.
-    if (lv < lowestBoarded - 0.001) {
-      txt(svg, labelX, y, `${lv < 0.001 ? 'Base lift' : 'Dummy lift'} · ★${starAt(lv)}`,
+    // The plan already knows which rings carry boards; base and dummy lifts are
+    // simply the ones that do not.
+    if (lvl.role === 'base' || lvl.role === 'dummy') {
+      txt(svg, labelX, y, `${lvl.role === 'base' ? 'Base lift' : 'Dummy lift'} · ★${lvl.star}`,
         { size: 9, anchor: 'start', fill: '#64748b', weight: 500 });
     }
   });
@@ -2772,6 +2826,28 @@ function renderGearList() {
       ? ` This job uses systems still in beta — only ${readySystemNames().join(' and ')} is finished. Kwikally and Ally Frame dimensions and weights are provisional estimates on top of that. Confirm everything against supplier data before ordering.`
       : ' Verify all quantities on-site prior to ordering.');
 }
+// Says what the entered height actually resolves to: the star the top deck
+// lands on, what the jack has to make up, and how many platforms it carries.
+// The two inputs that drive everything, answered back in the terms they were
+// asked in.
+function renderHeightNote() {
+  const note = document.getElementById('height-note');
+  if (!note) return;
+  const run = currentRun();
+  useSystem(run.settings.system);
+  if (SYS.model === 'frame' || !parseFloat(run.settings.height)) {
+    note.textContent = 'Base jack extension auto-calculates to reach height cleanly.';
+    return;
+  }
+  const plan = liftPlan(run);
+  const jackMM = Math.round(plan.jackExt * 1000);
+  const carries = `carries ${plan.boardable} platform${plan.boardable === 1 ? '' : 's'}`;
+  note.textContent =
+    `Top deck lands on ★${plan.topStar} · jack ${jackMM}mm · ${carries}` +
+    (plan.shortfall > 0
+      ? ` · ${plan.requestedLifts} needs ≥ ${minHeightForPlatforms(plan.requestedLifts)}m`
+      : '');
+}
 function renderMetrics() {
   const s = (id, v) => {
     const el = document.getElementById(id);
@@ -2800,9 +2876,9 @@ function renderMetrics() {
       jacks.push(Math.round(fp.gTFS * 1000));
       levels = fp.frameLevels;
     } else {
-      const phy = calcPhysics(targetH);
-      jacks.push(Math.round(phy.gTFS * 1000));
-      levels = getRingLevels(phy.starSpan).length;
+      const plan = liftPlan(run);
+      jacks.push(Math.round(plan.gTFS * 1000));
+      levels = plan.levels.length;
     }
     totalRings += levels * bays.length;
     totalBays += bays.length;

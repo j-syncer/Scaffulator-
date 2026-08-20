@@ -108,6 +108,32 @@ boards fit. The ladder skips 10 and 11 for the same reason. If you want a five-b
 platform on Ringlock, the honest options are a 1.52 m bay decked out in full at six, or
 five boards plus an Infill Plank.
 
+### The lift plan
+
+Everything vertical comes from two inputs: the height of the **top working platform**, and
+**how many platforms** you want under it. `liftPlan(run)` turns those into the whole
+set-out — the jack extension, the star the top deck lands on, every ring below it, and
+which of those rings carry boards — and returns it as one object:
+
+```
+liftPlan → { targetH, gTFS, jackExt, starSpan, nomH, stepDown, topStar,
+             levels: [{ m, star, heightM, role }],   // role: base | dummy | working | top
+             working, boardedLifts, boardable, requestedLifts, shortfall }
+```
+
+The takeoff, the section view, the metrics panel and the *Boarded Lifts* dropdown all read
+that one object. **They used to re-derive it** — each calling `calcPhysics` and
+`getRingLevels` with its own clamp — and they drifted apart. That drift is what shorted the
+tie bars: the takeoff counted levels as `ceil(starSpan / 2)` while the decks were actually
+placed off `boardedLifts`. One function read by all of them means a rule can now only be
+wrong in one place.
+
+Asking for more platforms than the height carries is answered by the height rather than
+silently clamped: `minHeightForPlatforms(n)` gives the lowest top deck that carries `n`,
+and both the dropdown and the note under the height input say so. The note also reports
+what the entered height actually resolves to — `Top deck lands on ★10 · jack 0mm · carries
+3 platforms` — so the two driving inputs are answered back in the terms they were asked in.
+
 ### Rings, lifts and the dummy lift
 
 A **ring** is a rectangle of ledgers and transoms. The rule on site is that nothing ever
