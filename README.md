@@ -108,6 +108,42 @@ boards fit. The ladder skips 10 and 11 for the same reason. If you want a five-b
 platform on Ringlock, the honest options are a 1.52 m bay decked out in full at six, or
 five boards plus an Infill Plank.
 
+### Rings, lifts and the dummy lift
+
+A **ring** is a rectangle of ledgers and transoms. The rule on site is that nothing ever
+sits more than a **three-star gap** from the next ring — three stars in between, so 2.0 m,
+a ring on every fourth star — and every working deck has that full 2.0 m of clearance
+above the one below it.
+
+That means the levels are set from the **top down**, not from the ground up. The top
+working platform is where it is; the deck below is 2.0 m under it, and so on. Whatever is
+left over lands at the bottom, next to the **base lift** — the first ring, on star 1,
+which carries no boards.
+
+Ten stars to the top deck works out as:
+
+| | Star | Height above base |
+| --- | --- | --- |
+| Top deck | ★10 | 4.5 m |
+| Lift 2 | ★6 | 2.5 m |
+| Lift 1 | ★2 | 0.5 m |
+| Base lift | ★1 | 0 m |
+
+A **dummy lift** is any ring below the lowest boarded lift that is not the base lift: a
+full ring of ledgers and transoms with no boards, there only to keep the three-star rule.
+It needs no special case — ask for two working levels on that ten-star column and ★2
+simply stops being boarded and becomes one. The section view names them, with their stars.
+
+`getRingLevels()` counts down from the climb in `geom.ringM` steps and puts the base lift
+at 0, so every gap is at most 2.0 m by construction. `boardableLifts()` is the ring count
+less the base lift, and the *Boarded Lifts* dropdown clamps to it.
+
+**This used to build upward from the ground** and push a stray ring in at the top wherever
+the climb was not a whole number of 2.0 m lifts. A 4.5 m climb came out with rings on
+★1 ★5 ★9 ★10 — so asking for two working decks put them on ★9 and ★10, half a metre
+apart. Anything ending on an odd half-metre was affected: 5.0 m gave 1.0 m of clearance,
+5.5 m gave 1.5 m.
+
 ### Stars and stair flights
 
 Stars are numbered the way they are counted on site: **star 1 is the rosette at the foot
@@ -327,8 +363,9 @@ the frame rules described above.
   extension is always under 0.5 m.
 - **Step-down bracket** is Double when ground-to-first-standard exceeds 0.4 m, otherwise
   Single.
-- **Ledger rings** sit at 2.0 m spacing, with an extra ring at the top of the standard
-  column if that does not land on a 2.0 m multiple.
+- **Ledger rings and the dummy lift** — see *Rings, lifts and the dummy lift* below. Rings
+  are set from the top deck **downwards** at 2.0 m, so no two rings are more than a
+  three-star gap apart and every working deck has its full 2.0 m of clearance.
 - **Bracing** is one dogleg pair per 4 m of height, and one face brace per 4 bays per
   bracing level.
 - **Stair towers** piggyback off one bay length only, declared per system in `stair.bays`:

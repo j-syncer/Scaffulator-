@@ -830,15 +830,45 @@ function calcStdStack(nomH, enabled) {
     result['Standard (0.5m)'] = (result['Standard (0.5m)'] || 0) + Math.ceil(rem / 0.5);
   return result;
 }
+/* ------------------------------------------------------------
+   RINGS AND THE DUMMY LIFT
+   ------------------------------------------------------------
+   A ring is a rectangle of ledgers and transoms. The rule on
+   site is that nothing ever sits more than a three-star gap
+   from the next ring — three stars in between, so 2.0m, a ring
+   on every fourth star — and every working deck has to have
+   that full 2.0m of clearance above the one below it.
+
+   Which means the levels are set from the TOP DOWN, not from
+   the ground up. The top working platform is where it is; the
+   deck below it is 2.0m under that, and so on down. Whatever
+   is left over lands at the bottom, next to the base lift —
+   the first ring at star 1, which carries no boards.
+
+   Ten stars to the top deck works out as the platforms on
+   stars 10, 6 and 2, with the base lift on star 1.
+
+   Rings below the boarded lifts are DUMMY LIFTS: a full ring
+   of ledgers and transoms with no boards on it, there only to
+   keep the three-star rule. They fall out of this for free —
+   any ring under the lowest boarded lift is one.
+
+   Building up from the ground instead, as this used to, left a
+   stray ring jammed under the top deck: a 4.5m climb came out
+   with two working decks 0.5m apart.
+   ------------------------------------------------------------ */
 function getRingLevels(starSpan) {
+  if (!starSpan || starSpan <= 0) return [0];
   const levels = [];
-  for (let h = 0; h <= starSpan + 0.001; h = parseFloat((h + 2.0).toFixed(2))) {
+  for (let h = starSpan; h > 0.001; h = parseFloat((h - SYS.geom.ringM).toFixed(3))) {
     levels.push(h);
   }
-  if (starSpan > 0 && !levels.some((l) => Math.abs(l - starSpan) < 0.01)) {
-    levels.push(starSpan);
-  }
+  levels.push(0); // the base lift, star 1
   return levels.sort((a, b) => a - b);
+}
+// Rings that can carry boards — everything above the base lift.
+function boardableLifts(ringLevels) {
+  return Math.max(1, ringLevels.length - 1);
 }
 /* ------------------------------------------------------------
    STARS — the rosettes up a standard, numbered the way they are
@@ -1065,7 +1095,7 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   // A lift can only be boarded where a ledger ring exists. Without this clamp a
   // lift count left over from a taller job bills planks, clips and brackets for
   // decks the scaffold cannot physically carry.
-  const boardedLifts = Math.max(1, Math.min(requestedLifts, numRings));
+  const boardedLifts = Math.max(1, Math.min(requestedLifts, boardableLifts(ringLevels)));
   const numBays = bayItems.length;
   const numPos = numBays + 1;
   const byType = {};
@@ -1803,7 +1833,7 @@ function updateLiftOpts() {
   const maxLifts =
     SYS.model === 'frame'
       ? calcFramePhysics(targetH, parseFloat(run.settings.frameH) || 2).frameLevels
-      : getRingLevels(calcPhysics(targetH).starSpan).length;
+      : boardableLifts(getRingLevels(calcPhysics(targetH).starSpan));
   for (const opt of sel.options) opt.disabled = parseInt(opt.value) > maxLifts;
   // Snapping back matters: a stale lift count silently bills decks that cannot
   // exist, so the selection is corrected rather than left invalid.
@@ -2171,7 +2201,7 @@ function renderElevation() {
   const pbM = pbStr !== '0' ? ((SYS.widths[pbStr] || {}).transomMM || 0) / 1000 : 0;
   const enabled = getEnabledSizes();
   const ringLevels = getRingLevels(starSpan);
-  const boardedLifts = Math.max(1, Math.min(Math.max(1, parseInt(run.settings.lifts) || 1), ringLevels.length));
+  const boardedLifts = Math.max(1, Math.min(Math.max(1, parseInt(run.settings.lifts) || 1), boardableLifts(ringLevels)));
   const hasStair = run.bays.some((b) => b.type === 'bay' && b.stair && canCarryStair(SYS, b.value));
   // Everything is placed along one metre axis: deck, hop-up, piggyback, stair.
   // The label gutter then starts beyond all of it, so nothing can collide.
@@ -2185,7 +2215,8 @@ function renderElevation() {
   const topRailM = hasStair ? Math.max(guardrailM, stairRailAboveM()) : guardrailM;
   const totalH = gTFS + starSpan + topRailM + 0.4;
   const totalW = stairX0 + stairWM;
-  const { svg, yOf, x0, V, scalesDiffer } = sectionCanvas(c, totalH, totalW, null);
+  // Deck labels carry their star now, so the gutter needs to be wider.
+  const { svg, yOf, x0, V, scalesDiffer } = sectionCanvas(c, totalH, totalW, null, { gutter: 140 });
   // Boards drawn about 140mm thick, but never so thick at a squashed vertical
   // scale that a deck reaches the ring below it.
   const boardPx = Math.max(3, Math.min(7, V * 0.14));
@@ -2203,20 +2234,28 @@ function renderElevation() {
   drawFoundation(svg, yOf, iX, gTFS);
   drawFoundation(svg, yOf, oX, gTFS);
   // Ledger rings between the two standard lines.
+  const boarded = ringLevels.slice(-boardedLifts);
+  const lowestBoarded = boarded[0];
   ringLevels.forEach((lv, i) => {
     const y = yOf(gTFS + lv);
     const top = i === ringLevels.length - 1;
     el('line', { x1: iX, y1: y, x2: oX, y2: y, stroke: top ? '#64748b' : '#3f4c5f',
       'stroke-width': top ? 2.5 : 1.5 }, svg);
+    // Rings under the lowest boarded lift carry no boards. The one at star 1
+    // is the base lift; anything between it and the boards is a dummy lift,
+    // there only to keep the three-star rule.
+    if (lv < lowestBoarded - 0.001) {
+      txt(svg, labelX, y, `${lv < 0.001 ? 'Base lift' : 'Dummy lift'} · ★${starAt(lv)}`,
+        { size: 9, anchor: 'start', fill: '#64748b', weight: 500 });
+    }
   });
   // Decks.
-  const boarded = ringLevels.slice(-boardedLifts);
   boarded.forEach((lv, i) => {
     const y = yOf(gTFS + lv);
     const top = i === boarded.length - 1;
     drawDeck(svg, iX, y, oX - iX, wSpec.planks, '#475569', '#cbd5e1', boardPx);
     if (hopM > 0) drawDeck(svg, oX, y, hopM * SEC_PX_PER_M_H, sideBoards, '#475569', '#cbd5e1', boardPx);
-    txt(svg, labelX, y, top ? `Top deck +${targetH}m` : `Lift ${i + 1}`,
+    txt(svg, labelX, y, `${top ? `Top deck +${targetH}m` : `Lift ${i + 1}`} · ★${starAt(lv)}`,
       { size: 9, anchor: 'start', fill: top ? '#fbbf24' : '#94a3b8', weight: top ? 700 : 500 });
     const rails = guardrailM === 2 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
     (top ? rails : [0.5, 1.0]).forEach((rh) => {
