@@ -2087,7 +2087,8 @@ function renderPlan() {
 // Shared frame: axis, ground, and the label gutter on the right.
 function sectionCanvas(container, totalH, widthM, label, opts = {}) {
   const V = Math.min(60, Math.max(12, 430 / Math.max(totalH, 0.5)));
-  const PAD_T = 18, PAD_B = 26, AXIS = 44, GUTTER = 96;
+  // The stair view labels each landing, so it asks for a wider label gutter.
+  const PAD_T = 18, PAD_B = 26, AXIS = 44, GUTTER = opts.gutter || 96;
   const drawW = Math.max(widthM * SEC_PX_PER_M_H, 60);
   const W = AXIS + drawW + GUTTER;
   const H = PAD_T + totalH * V + PAD_B;
@@ -2415,7 +2416,7 @@ function renderStairView() {
   const railTopM = starSpan + railAboveM;
   const railTopStar = starAt(railTopM);
   const totalH = gTFS + railTopM + 0.3;
-  const { svg, yOf, x0, V } = sectionCanvas(c, totalH, bayM, null, { ticks: false });
+  const { svg, yOf, x0, V } = sectionCanvas(c, totalH, bayM, null, { ticks: false, gutter: 150 });
   const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
   const xL = xOf(0);
   const xR = xOf(bayM);
@@ -2430,9 +2431,9 @@ function renderStairView() {
     // Every flight reverses, so the flight count decides which end you walk on
     // at the bottom for the top landing to come out at the end you want.
     const n = plan.flights.length;
-    const ends = n % 2 === 0 ? 'enters and exits the same end' : 'enters the opposite end to its exit';
+    const ends = n % 2 === 0 ? 'walk on at the access end' : 'walk on at the far end';
     label.textContent = plan.reachable
-      ? `${SYS.bays[stairBay.value].label} bay · ${starSpan}m climb ★1–${topStar} · ${mixText} · ${n} flights, ${ends}`
+      ? `${SYS.bays[stairBay.value].label} bay · ${starSpan}m climb ★1–${topStar} · ${mixText} · ${n} flights — ${ends}`
       : `⚠ ${starSpan}m climb unreachable — ${mixText} makes ${plan.totalRiseM.toFixed(1)}m`;
   }
 
@@ -2458,11 +2459,22 @@ function renderStairView() {
     `${railAboveM.toFixed(1)}m handrail · ★${topStar}–${railTopStar}`,
     { size: 8, fill: '#94a3b8', weight: 700 });
 
-  // Flights. Odd ones climb back the other way, which is the switchback.
+  // Flights, laid out BACKWARDS from the top.
+  //
+  // The tower switchbacks inside the one bay: each flight climbs the length of
+  // the bay, you turn on the landing and the next climbs back the other way.
+  // The top landing is not free to fall wherever the mix leaves it — it has to
+  // arrive at the end where the access opening is, or you cannot step off onto
+  // the deck. So the last flight is pinned to that end and every flight below
+  // alternates down from it, which in turn fixes which end you walk on at the
+  // bottom: the same end for an even flight count, the far end for an odd one.
+  // That is the answer worth having before the gear goes on the truck.
+  const nFlights = plan.flights.length;
+  const endsAtAccess = (i) => (nFlights - 1 - i) % 2 === 0;
   plan.flights.forEach((f, i) => {
-    const leftToRight = i % 2 === 0;
-    const xa = leftToRight ? xL : xR;
-    const xb = leftToRight ? xR : xL;
+    const toAccess = endsAtAccess(i);
+    const xb = toAccess ? xR : xL;
+    const xa = toAccess ? xL : xR;
     const ya = yOf(gTFS + f.baseM);
     const yb = yOf(gTFS + f.topM);
     const clr = TREAD_CLR[f.rise] || '#818cf8';
@@ -2482,13 +2494,24 @@ function renderStairView() {
       el('line', { x1: px0, y1: ya + (yb - ya) * t0, x2: px0, y2: py1, stroke: clr,
         'stroke-width': 1, opacity: 0.5 }, svg);
     }
-    // Landing at the top of the flight, and the star it lands on.
+    // Landing at the top of the flight. A landing that arrives at the access
+    // end is one you can step off; the ones at the far end are turns only.
     el('line', { x1: xL, y1: yb, x2: xR, y2: yb, stroke: '#c7d2fe', 'stroke-width': 2.5 }, svg);
-    txt(svg, xR + 10, yb, `landing +${(gTFS + f.topM).toFixed(2)}m`,
-      { size: 8, anchor: 'start', fill: '#94a3b8' });
+    txt(svg, xR + 10, yb, `landing +${(gTFS + f.topM).toFixed(2)}m${toAccess ? ' · step off' : ''}`,
+      { size: 8, anchor: 'start', fill: toAccess ? '#c7d2fe' : '#64748b' });
     txt(svg, xR + 10, (ya + yb) / 2, `${f.rise.toFixed(1)}m ★${f.fromStar}→${f.toStar}`,
       { size: 8, anchor: 'start', fill: clr, weight: 700 });
   });
+  // Mark the two ends: where the access opening has to be, and where you walk
+  // on at ground level.
+  if (nFlights > 0) {
+    const yTop = yOf(gTFS + starSpan);
+    txt(svg, xR - 4, yTop - 10, 'ACCESS ▸', { size: 8, anchor: 'end', fill: '#fbbf24', weight: 800 });
+    // Below the star-1 line rather than above it, where the bottom stringer is.
+    const enterRight = !endsAtAccess(0);
+    txt(svg, enterRight ? xR - 4 : xL + 4, yOf(gTFS) + 11, '▸ WALK ON',
+      { size: 8, anchor: enterRight ? 'end' : 'start', fill: '#34d399', weight: 800 });
+  }
 
   // The two tower standards, with a star at every rosette and numbers up one
   // side so the flights can be read against them.

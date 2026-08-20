@@ -277,9 +277,16 @@ other way — so from the side it reads as a zigzag, which is what it draws. Fli
 coloured and labelled by rise (`1.5m ★1→4`), landings carry their real height, and the
 vertical axis is numbered in **stars rather than metres**, because that is the unit a
 stair is set out in. The stars above the top landing are the tower's 2 m of handrail,
-drawn heavier and captioned. Every flight reverses direction, so the caption also says
-whether the tower enters and exits at the same end — even flight counts — or opposite
-ends, which is what decides where you walk on at the bottom. Every star above the base doubles as the guard ledger drawn across
+drawn heavier and captioned.
+
+The flights are laid out **backwards from the top**. The top landing is not free to fall
+wherever the mix leaves it — it has to arrive at the end where the access opening is, or
+you cannot step off onto the deck. So the last flight is pinned to that end (marked
+`ACCESS`) and every flight below alternates down from it, which in turn fixes which end
+you walk on at ground level (marked `WALK ON`): **the same end for an even flight count,
+the far end for an odd one**. Landings that arrive at the access end are tagged *step
+off*; the ones at the far end are turns only. Working that out by hand is easy with two
+flights and not with twenty, which is most of the reason to solve the mix at all. Every star above the base doubles as the guard ledger drawn across
 the tower, so the gridline and the billed member are the same line. The step profile along
 each stringer is the drawing's own assumption — about a 200 mm rise per step, the figure
 the Ringlock tower is modelled at, which keeps every flight inside AS 1657's 130–225 mm
