@@ -1192,10 +1192,14 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   // it is as long as the bay, because it is as long as the board that drops
   // into it.
   //
-  // This used to bill them only for hop-ups of two boards or more, and count
-  // levels off the height rather than off the boarded lifts, so a one-board
-  // hop-up came out with no tie bars at all.
-  if (sideBoards > 0) {
+  // A ONE-BOARD hop-up is the exception and takes no tie bar at all: the
+  // bracket carries an end flange that holds its single board on, so there is
+  // nothing to tie to. Two boards and up need the bar.
+  //
+  // The level count used to come off the height rather than off the boarded
+  // lifts, which went short whenever a run carried more boarded lifts than
+  // that arithmetic allowed for.
+  if (sideBoards >= 2) {
     const tiePart = partName('tieBar', 'Tie Bar');
     for (const [type, count] of Object.entries(byType)) {
       add(`${tiePart} (${SYS.bays[type].mm}mm)`, count * boardedLifts);

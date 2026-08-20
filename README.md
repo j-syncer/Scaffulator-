@@ -431,7 +431,8 @@ the frame rules described above.
   do **not** share tie bars: each bay's tie bar sits centred on that bay, so it is one per
   bay per **working** level (dummy lifts get none), and it is as long as the bay, because
   it is as long as the board that drops into it. Three 8ft bays with three working levels
-  is twelve brackets and nine 2390 mm tie bars.
+  is twelve brackets and nine 2390 mm tie bars. A **one-board** hop-up is the exception
+  and takes no tie bar: its bracket carries an end flange that holds the single board on.
 - **Standards** are stacked greedily from the largest enabled size down, so unchecking
   sizes in *Available Standards* changes the mix. The sizes on offer come from the
   system's own `stdSizes`: AT-PAC Ringlock runs 0.5 m to 4.0 m (1-Star to 8-Star), while
