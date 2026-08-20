@@ -2280,10 +2280,10 @@ function renderElevation() {
           { size: 7, fill: '#5eead4', weight: 800 });
       }
     });
-    drawStandards(svg, yOf, pX + pbM * SEC_PX_PER_M_H, outerStack, gTFS, 0.85);
+    drawStandards(svg, yOf, pX + pbM * SEC_PX_PER_M_H, outerStack, gTFS, 0.85, V);
   }
-  drawStandards(svg, yOf, iX, innerStack, gTFS);
-  drawStandards(svg, yOf, oX, outerStack, gTFS);
+  drawStandards(svg, yOf, iX, innerStack, gTFS, 1, V);
+  drawStandards(svg, yOf, oX, outerStack, gTFS, 1, V);
   // Stair tower, drawn as a labelled zone rather than overlapping geometry.
   if (hasStair) {
     const sxL = xOf(stairX0);
@@ -2335,8 +2335,25 @@ function drawFoundation(svg, yOf, x, gTFS, color = '#94a3b8') {
   el('line', { x1: x, y1: yOf(0) - 3, x2: x, y2: yOf(gTFS), stroke: color, 'stroke-width': 3.5,
     'stroke-linecap': 'round', opacity: 0.75 }, svg);
 }
-// Colour-coded standard stack with star marks every 0.5m.
-function drawStandards(svg, yOf, x, stack, startYm, opacity = 1) {
+// One rosette, drawn as the flange it is rather than a notch in the tube.
+function drawRosette(svg, x, y, V) {
+  const h = Math.max(1.2, Math.min(2.6, V * 0.06));
+  el('rect', { x: x - 6, y: y - h / 2, width: 12, height: h,
+    fill: '#0d1117', stroke: '#94a3b8', 'stroke-width': 0.5, rx: 0.6 }, svg);
+}
+// Colour-coded standard stack with a rosette at every 0.5m.
+//
+// A standard's rosettes run from 0.5m above its foot to its very TOP — a 2.0m
+// standard is a 4-Star with rings at 0.5, 1.0, 1.5 and 2.0 — so the top ring
+// sits at the head of the tube with only the spigot poking above it, and the
+// next standard stacked on carries the same 0.5m ladder upward. The node at
+// the foot of the whole column — the base collar on Ringlock — is drawn once,
+// because that is where the base lift's ring lands.
+//
+// Drawing it the other way round, with rings from the foot of each standard,
+// left a full half-metre of bare tube above the topmost ring: every column
+// looked half a standard taller than it is.
+function drawStandards(svg, yOf, x, stack, startYm, opacity = 1, V = 40) {
   let cur = startYm;
   const keys = Object.keys(stack).sort(
     (a, b) => parseFloat(b.match(/[\d.]+/)[0]) - parseFloat(a.match(/[\d.]+/)[0])
@@ -2348,18 +2365,17 @@ function drawStandards(svg, yOf, x, stack, startYm, opacity = 1) {
       const yTop = yOf(cur + sM), yBot = yOf(cur);
       el('rect', { x: x - 3.5, y: yTop, width: 7, height: Math.max(yBot - yTop, 1),
         fill: color, opacity, rx: 1.5, stroke: '#0d1117', 'stroke-width': 0.8 }, svg);
-      // Rosettes sit every 0.5m from the foot of the standard — a 2.0m
-      // standard is a 4-Star, with a star at its base and none at its head.
-      // Marking from st = 0 rather than st = 0.5 therefore puts a star at
-      // every joint and at the base collar as well, so the column reads as
-      // one unbroken 0.5m ladder. Without it the joints came out blank and a
-      // deck landing on one looked like it floated between two stars.
-      for (let st = 0; st < sM - 0.001; st += 0.5) {
-        el('line', { x1: x - 5.5, y1: yOf(cur + st), x2: x + 5.5, y2: yOf(cur + st),
-          stroke: '#0d1117', 'stroke-width': 1.2, opacity: 0.9 }, svg);
-      }
       cur += sM;
     }
+  }
+  // The spigot above the head of the column — a stub, not another lift.
+  const nib = Math.max(2.5, Math.min(7, V * 0.15));
+  const headY = yOf(cur);
+  el('rect', { x: x - 2, y: headY - nib, width: 4, height: nib,
+    fill: '#94a3b8', opacity: opacity * 0.8, rx: 1 }, svg);
+  // Rosettes last, so they read over every joint in the stack.
+  for (let h = startYm; h <= cur + 0.001; h = parseFloat((h + STAR_PITCH_M).toFixed(3))) {
+    drawRosette(svg, x, yOf(h), V);
   }
 }
 // A deck: slab plus plank divisions so the board count reads at a glance.
@@ -2552,7 +2568,11 @@ function renderStairView() {
         stroke: '#475569', 'stroke-width': 2, opacity: 0.8,
       }, svg);
     }
-    txt(svg, xR + 10, yOf(gTFS) + 11, `${levels * (st.faceBracesPerLift || 2)} × ${st.faceBrace}`,
+    // One diagonal is drawn per lift because a side view only sees one face;
+    // the count covers every braced face, so it says so.
+    const faces = st.faceBracesPerLift || 2;
+    txt(svg, xR + 10, yOf(gTFS) + 11,
+      `${levels * faces} × ${st.faceBrace} (${levels} lifts × ${faces} faces)`,
       { size: 7, anchor: 'start', fill: '#64748b' });
   }
 
@@ -2616,8 +2636,8 @@ function renderStairView() {
   const stack = calcStdStack(railTopM, enabled);
   drawFoundation(svg, yOf, xL, gTFS, '#818cf8');
   drawFoundation(svg, yOf, xR, gTFS, '#818cf8');
-  drawStandards(svg, yOf, xL, stack, gTFS);
-  drawStandards(svg, yOf, xR, stack, gTFS);
+  drawStandards(svg, yOf, xL, stack, gTFS, 1, V);
+  drawStandards(svg, yOf, xR, stack, gTFS, 1, V);
   dimension(svg, xL, xR, yOf(0) + 10, `${SYS.bays[stairBay.value].mm}mm`);
 }
 // The AT-PAC tower climbs between its own landings rather than from a tread

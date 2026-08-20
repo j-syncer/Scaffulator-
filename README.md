@@ -330,9 +330,15 @@ the Ringlock tower is modelled at, which keeps every flight inside AS 1657's 130
 band — not a billed quantity: the units are prefabricated and billed whole.
 
 **Section** looks along the run, showing deck width, lift heights, standards, guardrails,
-hop-up, piggyback and the stair tower. Standards carry a star at every 0.5 m **including
-their joints and their base**, because that is where the rosettes actually are — a 2.0 m
-standard is a 4-Star, with a ring at its foot and none at its head. Ledger rings, decks
+hop-up, piggyback and the stair tower. Standards carry a rosette at every 0.5 m, drawn as
+the flange it is rather than a notch in the tube. A standard's rosettes run from 0.5 m
+above its foot to its very **top** — a 2.0 m standard is a 4-Star with rings at 0.5, 1.0,
+1.5 and 2.0 — so the top ring sits at the head of the tube with only a short spigot stub
+above it, and the next standard stacked on carries the same ladder upward. The node at the
+foot of the column is drawn once, because that is where the base lift's ring lands.
+(Drawing it the other way round, with rings from the foot of each standard, left half a
+metre of bare tube above the topmost ring and made every column look half a standard
+taller than it is.) Ledger rings, decks
 and guardrails all land on 0.5 m multiples, so every one of them lines up with a star, and
 each deck is drawn resting **on** its ring: the ring line, the star and the underside of
 the boards are one line. Height is drawn to a scale that adapts so a 40 m
