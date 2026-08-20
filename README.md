@@ -55,6 +55,51 @@ per standard position (Ringlock starts each leg on one), and `toeBoard` bills a 
 toe board per bay per lift instead of Kwikstage's convention of decking the kickboard as an
 extra plank.
 
+### Deck widths and board counts
+
+How wide a bay is, is the same question as how many boards land across it, so the *Deck
+Width* dropdown is labelled by board count and the counts are **derived, not typed in**.
+`deckWidths()` in the engine takes the transverse-member lengths a system stocks plus the
+plank width it decks with, and returns the widths map. Two carrying styles are modelled:
+
+- `span: 'clear'` — the member is a ledger running standard to standard, so the boards
+  only get the space **between** the two tubes: `floor((length - 48.3 mm) / plank)`.
+  Ringlock works this way.
+- `span: 'captive'` — the transom is an inverted-T that carries the boards inside its own
+  length, so the whole nominal length decks: `floor(length / plank)`. Kwikstage works this
+  way, which is why its 710 mm transom is a 3-board and its 1220 mm is a 5-board.
+
+Adding a width is therefore one number in the length list plus a `weights` entry for that
+transom length — the dropdown option, its label and its plank count all follow.
+
+**AT-PAC Ringlock** decks with the 0.24 m Steel Plank O-Type, and every length in the
+Ledger O-Type range (01.03.xxx) is a usable bay width:
+
+| Ledger | Clear between standards | Boards | Spare |
+| --- | --- | --- | --- |
+| 600 mm | 551 mm | 2 | 71 mm |
+| 650 mm | 601 mm | 2 | 121 mm |
+| 840 mm | 791 mm | 3 | 71 mm |
+| 880 mm | 831 mm | 3 | 111 mm |
+| 1065 mm | 1016 mm | 4 | 56 mm |
+| 1150 mm | 1101 mm | 4 | 141 mm |
+| 1520 mm | 1471 mm | 6 | 31 mm |
+| 1570 mm | 1521 mm | 6 | 81 mm |
+| 1820 mm | 1771 mm | 7 | 91 mm |
+| 2130 mm | 2081 mm | 8 | 161 mm |
+| 2430 mm | 2381 mm | 9 | 221 mm |
+| 3050 mm | 3001 mm | 12 | 121 mm |
+
+The 0.24 m step is confirmed by the catalogue's own parts: the Ledger to Plank Transom is
+sold as 1-Plank 0.24 m, 2-Plank 0.48 m and 3-Plank 0.72 m, and the Side Bracket range
+steps 0.31 / 0.60 / 0.84 / 1.065 m for 1, 2, 3 and 4 boards.
+
+**There is no 5-board Ringlock width.** Five boards need 1200 mm of clear deck, so about a
+1250 mm ledger, and AT-PAC's range steps 1.15 m straight to 1.52 m — by which point six
+boards fit. The ladder skips 10 and 11 for the same reason. If you want a five-board
+platform on Ringlock, the honest options are a 1.52 m bay decked out in full at six, or
+five boards plus an Infill Plank.
+
 ### AT-PAC Ringlock
 
 Lengths and weights come from the AT-PAC AUS Product Catalogue v5.6 (AP-AUS-001-V5-P6,
@@ -143,9 +188,10 @@ labelled sections:
 - **Bill of quantities** — `calcRunGear` dispatches one run to `calcModularGear` or
   `calcFrameGear`; `calcTotalGear` buckets every run by system and applies the optional
   spares uplift; `calcWeightKg` weighs one bucket and `calcTotalWeightKg` sums them.
-- **UI builders** — `buildBayButtons`, `buildWidthOpts`, `buildStandardsList`,
-  `buildFrameHeightOpts` and `applySystemChrome` regenerate the controls whenever the
-  system changes.
+- **UI builders** — `buildBayButtons`, `buildWidthOpts`, `buildPiggybackOpts`,
+  `buildHopupOpts`, `buildStandardsList`, `buildFrameHeightOpts` and `applySystemChrome`
+  regenerate the controls whenever the system changes. Nothing about a system's sizes is
+  hardcoded in the HTML — the selects ship empty and are filled from the registry.
 - **User actions** — the handlers wired to the buttons and selects.
 - **Drawing** — both views are SVG on a real millimetre scale. `renderPlan` is a true
   top-down view of the run; `renderElevation` (and `renderFrameElevation`) draw a section
@@ -163,7 +209,12 @@ by size and dimensioned underneath, standards appear as circles at every positio
 edges of the deck, and hop-up and piggyback are bands outboard of the deck.
 
 **Section** looks along the run, showing deck width, lift heights, standards, guardrails,
-hop-up, piggyback and the stair tower. Height is drawn to a scale that adapts so a 40 m
+hop-up, piggyback and the stair tower. Standards carry a star at every 0.5 m **including
+their joints and their base**, because that is where the rosettes actually are — a 2.0 m
+standard is a 4-Star, with a ring at its foot and none at its head. Ledger rings, decks
+and guardrails all land on 0.5 m multiples, so every one of them lines up with a star, and
+each deck is drawn resting **on** its ring: the ring line, the star and the underside of
+the boards are one line. Height is drawn to a scale that adapts so a 40 m
 job still fits on screen, while width uses a fixed larger scale (`SEC_PX_PER_M_H`) so
 detail stays readable. When those two scales diverge far enough to matter the label says
 `width exaggerated`. Every element is placed along one metre axis and the labels sit in a
@@ -195,12 +246,17 @@ the frame rules described above.
   column if that does not land on a 2.0 m multiple.
 - **Bracing** is one dogleg pair per 4 m of height, and one face brace per 4 bays per
   bracing level.
+- **Deck width** is chosen by board count — see *Deck widths and board counts* below. The
+  *Side Hop-up* and *Piggyback Bay* dropdowns are generated from the same system data, so
+  they only ever offer brackets and transoms that system actually stocks.
 - **Tie bars** are only added for 2-board and 3-board hop-ups, at one per bay per 2 m.
-- **Standards** run 0.5 m to 4.0 m (1-Star to 8-Star) and are stacked greedily from the
-  largest enabled size down, so unchecking sizes in *Available Standards* changes the mix.
-  Weights are linear at 5 kg per metre, so the mix changes the piece count but not the
-  tonnage. Adding a size means adding it to that system's `stdSizes`, `stdClr` and
-  `weights` — the checkbox list and legend generate themselves.
+- **Standards** are stacked greedily from the largest enabled size down, so unchecking
+  sizes in *Available Standards* changes the mix. The sizes on offer come from the
+  system's own `stdSizes`: AT-PAC Ringlock runs 0.5 m to 4.0 m (1-Star to 8-Star), while
+  Kwikstage stops at 3.0 m — it has no 4.0 m standard. Kwikstage weights are linear at
+  5 kg per metre, so the mix changes the piece count but not the tonnage. Adding a size
+  means adding it to that system's `stdSizes`, `stdClr` and `weights` — the checkbox list
+  and legend generate themselves.
 - **Spares** (when enabled) add 5% to base jacks, sole boards, clips, couplers and tubes
   only — not to structural members.
 - **Strip time** assumes 4 m² per scaffolder per hour. **RONIN strip time** assumes

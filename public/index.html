@@ -90,8 +90,9 @@
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 space-y-3">
     <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400">Run Configuration</h3>
     <div>
-      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Deck Width</label>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Deck Width (Boards Across)</label>
       <select id="width" class="form-select w-full" onchange="settingsChanged()"></select>
+      <p id="width-note" class="text-[9px] text-slate-600 mt-1 leading-tight"></p>
     </div>
     <div id="frame-height-row" class="hidden">
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Frame Height</label>
@@ -120,16 +121,8 @@
     <div class="grid grid-cols-2 gap-2 modular-only">
       <div>
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Side Hop-up</label>
-        <select id="hopup" class="form-select w-full" onchange="settingsChanged()">
-          <optgroup label="With Kickboard">
-            <option value="0">None</option><option value="1B">1-Board</option>
-            <option value="2B">2-Board</option><option value="3B">3-Board</option>
-          </optgroup>
-          <optgroup label="No Kickboard">
-            <option value="0_NK">None (No KB)</option><option value="1B_NK">1-Board (No KB)</option>
-            <option value="2B_NK">2-Board (No KB)</option><option value="3B_NK">3-Board (No KB)</option>
-          </optgroup>
-        </select>
+        <!-- Options are generated per system by buildHopupOpts(). -->
+        <select id="hopup" class="form-select w-full" onchange="settingsChanged()"></select>
       </div>
       <div id="clip-row">
         <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">KB Clip Type</label>
@@ -142,12 +135,8 @@
     <!-- Piggyback -->
     <div class="border-t border-[#2d3f55] pt-3 modular-only">
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Piggyback Bay <span class="text-teal-400">(Outside)</span></label>
-      <select id="piggyback" class="form-select w-full" onchange="settingsChanged()">
-        <option value="0">None</option>
-        <option value="0.51">2-Plank — 510mm</option>
-        <option value="0.71">3-Plank — 710mm</option>
-        <option value="1.22">5-Plank — 1220mm</option>
-      </select>
+      <!-- Options are generated per system by buildPiggybackOpts(). -->
+      <select id="piggyback" class="form-select w-full" onchange="settingsChanged()"></select>
       <p class="text-[9px] text-slate-600 mt-1 leading-tight">Shares outer standards as inner legs. Adds new outer row, transoms &amp; planks only.</p>
     </div>
   </div>
@@ -337,6 +326,52 @@
    PROVISIONAL while such a system is selected. Correct the
    numbers here and the banner is the only other thing to change.
    ============================================================ */
+/* ============================================================
+   DECK WIDTH — how many boards fit across a bay
+   ------------------------------------------------------------
+   A bay's width is set by its transverse member, and how many
+   boards land on that member depends on how it carries them:
+
+     span:'clear'    the member is a ledger running standard to
+                     standard, so the boards only get the space
+                     between the two tubes. Ringlock works this
+                     way — its transverse member is a Ledger
+                     O-Type — so the usable width is the ledger
+                     length less one standard diameter.
+     span:'captive'  the transom is an inverted-T section that
+                     carries the boards inside its own length,
+                     so the whole nominal length decks. This is
+                     the Kwikstage transom.
+
+   Board counts are therefore derived, never typed in: list the
+   member lengths a system stocks and the plank width it decks
+   with, and the ladder of 2-board, 3-board, 4-board … widths
+   falls out of the arithmetic. Add a length to the list and the
+   dropdown option, its label and its plank count all follow.
+   ============================================================ */
+const STANDARD_OD_MM = 48.3; // 48.3mm OD tube — the standard itself
+function deckWidths(lengthsMM, { plankMM, span = 'clear', postMM = STANDARD_OD_MM }) {
+  const out = {};
+  for (const mm of lengthsMM) {
+    const clearMM = span === 'captive' ? mm : mm - postMM;
+    const planks = Math.floor(clearMM / plankMM + 1e-9);
+    if (planks < 1) continue;
+    out[Number((mm / 1000).toFixed(3))] = {
+      planks,
+      transomMM: mm,
+      clearMM: Math.round(clearMM),
+      // What is left over once the boards are down. A wide remainder is a
+      // real gap on the deck, not a rounding artefact — AT-PAC sells an
+      // Infill Plank for exactly this.
+      spareMM: Math.round(clearMM - planks * plankMM),
+      label: `${planks}-Board — ${mm}mm`,
+    };
+  }
+  return out;
+}
+// Plank widths the systems deck with.
+const KWIKSTAGE_PLANK_MM = 225; // AS/NZS steel/timber scaffold plank
+const RINGLOCK_PLANK_MM = 240; // AT-PAC Steel Plank O-Type 0.24m
 const SYSTEMS = {
   kwikstage: {
     id: 'kwikstage',
@@ -345,7 +380,8 @@ const SYSTEMS = {
     model: 'modular',
     provisional: false,
     plank: 'Steel Plank',
-    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2 },
+    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+      plankMM: KWIKSTAGE_PLANK_MM },
     bays: {
       '3m': { mm: 3000, label: '3.00m (3m)', clr: '#f472b6' },
       '8ft': { mm: 2390, label: '2.39m (8ft)', clr: '#38bdf8' },
@@ -353,18 +389,19 @@ const SYSTEMS = {
       '4ft': { mm: 1220, label: '1.22m (4ft)', clr: '#fbbf24' },
       700: { mm: 710, label: '0.71m (700)', clr: '#a78bfa' },
     },
-    widths: {
-      0.51: { planks: 2, transomMM: 510, label: '2-Plank — 510mm' },
-      0.71: { planks: 3, transomMM: 710, label: '3-Plank — 710mm' },
-      1.22: { planks: 5, transomMM: 1220, label: '5-Plank — 1220mm' },
-    },
-    stdSizes: [4.0, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5],
+    // Kwikstage transoms are quoted by board count and carry the boards
+    // captive inside the inverted-T, so the nominal length decks in full:
+    // 510mm takes 2, 710mm takes 3, 1220mm takes 5.
+    widths: deckWidths([510, 710, 1220], { plankMM: KWIKSTAGE_PLANK_MM, span: 'captive' }),
+    defaultWidth: '0.71',
+    // Kwikstage tops out at a 3.0m (6-Star) standard — there is no 4.0m.
+    stdSizes: [3.0, 2.5, 2.0, 1.5, 1.0, 0.5],
     stdClr: {
-      '4.0': '#ea580c', '3.0': '#0284c7', 2.5: '#059669', '2.0': '#ca8a04',
+      '3.0': '#0284c7', 2.5: '#059669', '2.0': '#ca8a04',
       1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c',
     },
     weights: {
-      'Standard (4.0m)': 20, 'Standard (3.0m)': 15, 'Standard (2.5m)': 12.5,
+      'Standard (3.0m)': 15, 'Standard (2.5m)': 12.5,
       'Standard (2.0m)': 10, 'Standard (1.5m)': 7.5, 'Standard (1.0m)': 5,
       'Standard (0.5m)': 2.5,
       'Ledger (3000mm)': 11.5, 'Ledger (2390mm)': 9.5, 'Ledger (1780mm)': 7.5,
@@ -391,7 +428,8 @@ const SYSTEMS = {
     model: 'modular',
     provisional: true,
     plank: 'Alloy Plank',
-    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2 },
+    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+      plankMM: KWIKSTAGE_PLANK_MM },
     bays: {
       '3000': { mm: 3000, label: '3.00m', clr: '#f472b6' },
       '2500': { mm: 2500, label: '2.50m', clr: '#38bdf8' },
@@ -400,10 +438,11 @@ const SYSTEMS = {
       750: { mm: 750, label: '0.75m', clr: '#a78bfa' },
     },
     widths: {
-      0.6: { planks: 2, transomMM: 600, label: '2-Plank — 600mm' },
-      0.9: { planks: 3, transomMM: 900, label: '3-Plank — 900mm' },
-      1.2: { planks: 4, transomMM: 1200, label: '4-Plank — 1200mm' },
+      0.6: { planks: 2, transomMM: 600, label: '2-Board — 600mm' },
+      0.9: { planks: 3, transomMM: 900, label: '3-Board — 900mm' },
+      1.2: { planks: 4, transomMM: 1200, label: '4-Board — 1200mm' },
     },
+    defaultWidth: '0.9',
     stdSizes: [3.0, 2.0, 1.5, 1.0, 0.5],
     stdClr: { '3.0': '#0284c7', '2.0': '#ca8a04', 1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c' },
     weights: {
@@ -450,7 +489,8 @@ const SYSTEMS = {
       toeClip: 'Toe Board Retaining Clamp',
       toeBoard: 'Interlocking Toeboard',
     },
-    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2 },
+    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+      plankMM: RINGLOCK_PLANK_MM },
     bays: {
       3050: { mm: 3050, label: '3.05m', clr: '#f472b6' },
       2430: { mm: 2430, label: '2.43m', clr: '#38bdf8' },
@@ -459,11 +499,36 @@ const SYSTEMS = {
       1570: { mm: 1570, label: '1.57m', clr: '#a78bfa' },
       1065: { mm: 1065, label: '1.07m', clr: '#fb923c' },
     },
-    widths: {
-      0.6: { planks: 2, transomMM: 600, label: '2-Plank — 600mm' },
-      0.88: { planks: 3, transomMM: 880, label: '3-Plank — 880mm' },
-      1.065: { planks: 4, transomMM: 1065, label: '4-Plank — 1065mm' },
-    },
+    // Bay width is a Ledger O-Type run across between two standards, so every
+    // length in the catalogue's Ledger O-Type range (01.03.xxx) is a bay width
+    // you can actually build. The boards get the clear space between the two
+    // 48.3mm standards, and each AT-PAC Steel Plank O-Type is 0.24m wide, so
+    // the board count is floor((length - 48.3) / 240):
+    //
+    //     600  →  551mm clear  →  2 boards (480mm, 71mm spare)
+    //     650  →  601mm clear  →  2 boards
+    //     840  →  791mm clear  →  3 boards (720mm, 71mm spare)
+    //     880  →  831mm clear  →  3 boards
+    //    1065  → 1016mm clear  →  4 boards (960mm, 56mm spare)
+    //    1150  → 1101mm clear  →  4 boards
+    //    1520  → 1471mm clear  →  6 boards (1440mm, 31mm spare)
+    //    1570  → 1521mm clear  →  6 boards
+    //    1820  → 1771mm clear  →  7 boards
+    //    2130  → 2081mm clear  →  8 boards
+    //    2430  → 2381mm clear  →  9 boards
+    //    3050  → 3001mm clear  → 12 boards
+    //
+    // The catalogue's own components confirm the 0.24m step: the Ledger to
+    // Plank Transom is sold as 1-Plank 0.24m, 2-Plank 0.48m and 3-Plank 0.72m,
+    // and the Side Bracket range steps 0.31 / 0.60 / 0.84 / 1.065m for 1, 2, 3
+    // and 4 boards. Note the ladder skips 5: five boards need 1200mm of clear
+    // deck (a ~1250mm ledger) and AT-PAC jumps 1.15m → 1.52m, so 1.52m/1.57m
+    // already carry six. It skips 10 and 11 for the same reason.
+    widths: deckWidths(
+      [600, 650, 840, 880, 1065, 1150, 1520, 1570, 1820, 2130, 2430, 3050],
+      { plankMM: RINGLOCK_PLANK_MM }
+    ),
+    defaultWidth: '1.065',
     stdSizes: [4.0, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5],
     stdClr: {
       '4.0': '#ea580c', '3.0': '#0284c7', 2.5: '#059669', '2.0': '#ca8a04',
@@ -514,8 +579,10 @@ const SYSTEMS = {
       // Ledger O-Type (01.03.xxx) — used along the run and across the width
       'Ledger O-Type (3050mm)': 11.59, 'Ledger O-Type (2430mm)': 9.52,
       'Ledger O-Type (2130mm)': 8.4, 'Ledger O-Type (1820mm)': 7.25,
-      'Ledger O-Type (1570mm)': 6.45, 'Ledger O-Type (1065mm)': 4.59,
-      'Ledger O-Type (880mm)': 4.0, 'Ledger O-Type (600mm)': 2.8,
+      'Ledger O-Type (1570mm)': 6.45, 'Ledger O-Type (1520mm)': 6.16,
+      'Ledger O-Type (1150mm)': 4.86, 'Ledger O-Type (1065mm)': 4.59,
+      'Ledger O-Type (880mm)': 4.0, 'Ledger O-Type (840mm)': 3.64,
+      'Ledger O-Type (650mm)': 3.07, 'Ledger O-Type (600mm)': 2.8,
       // Steel Plank O-Type 0.24m (08.02.xxx)
       'Steel Plank O-Type (3050mm)': 19.57, 'Steel Plank O-Type (2430mm)': 15.98,
       'Steel Plank O-Type (2130mm)': 14.33, 'Steel Plank O-Type (1820mm)': 12.48,
@@ -532,6 +599,7 @@ const SYSTEMS = {
       'Side Bracket (Hop-Up) (1-Board)': 4.55,
       'Side Bracket (Hop-Up) (2-Board)': 7.1,
       'Side Bracket (Hop-Up) (3-Board)': 8.2,
+      'Side Bracket (Hop-Up) (4-Board)': 10.45,
       // Bay Brace for 2.0m lift (01.06.213) — one weight for a mixed-bay job
       'Bay Brace (End)': 9.52,
       'Bay Brace (Diagonal)': 9.52,
@@ -572,6 +640,7 @@ const SYSTEMS = {
       0.7: { decks: 1, planks: 1, label: 'Single Width — 700mm' },
       1.3: { decks: 2, planks: 2, label: 'Double Width — 1300mm' },
     },
+    defaultWidth: '0.7',
     weights: {
       'Frame (2.0m x 1.3m)': 14, 'Frame (2.0m x 0.7m)': 10,
       'Frame (1.5m x 1.3m)': 11, 'Frame (1.5m x 0.7m)': 8,
@@ -638,7 +707,10 @@ function calcPhysics(targetH) {
 function calcStdStack(nomH, enabled) {
   let rem = parseFloat(nomH.toFixed(3));
   const result = {};
-  for (const s of [4.0, 3.0, 2.5, 2.0, 1.5, 1.0, 0.5].filter((x) => enabled.includes(x))) {
+  // Longest first, and only from the sizes the active system actually makes —
+  // Kwikstage stops at 3.0m, Ringlock goes to 4.0m.
+  const sizes = [...(SYS.stdSizes || [])].sort((a, b) => b - a);
+  for (const s of sizes.filter((x) => enabled.includes(x))) {
     if (rem >= s - 0.001) {
       const n = Math.floor((rem + 0.001) / s);
       if (n > 0) {
@@ -888,7 +960,7 @@ function calcModularGear(run, enabled) {
       add('Lap Board', wSpec.planks * boardedLifts);
     } else if (['1B', '2B', '3B'].includes(item.value)) {
       const n = parseInt(item.value);
-      add(`Console Bracket (${n}-Board)`, boardedLifts);
+      add(`${partName('console', 'Console Bracket')} (${n}-Board)`, boardedLifts);
       if (sideBoards > 0) add('Lap Board', sideBoards * boardedLifts);
     }
   }
@@ -1117,6 +1189,8 @@ function loadSettings(run) {
   if (sysSel) sysSel.value = SYS.id;
   buildBayButtons();
   buildWidthOpts();
+  buildPiggybackOpts();
+  buildHopupOpts();
   buildFrameHeightOpts();
   buildStairOpts();
   buildStandardsList();
@@ -1133,13 +1207,16 @@ function loadSettings(run) {
     frameSel.value = s.frameH && SYS.frameHeights[s.frameH] ? s.frameH : Object.keys(SYS.frameHeights)[0];
   }
   document.getElementById('width').value =
-    s.width && SYS.widths[s.width] ? s.width : Object.keys(SYS.widths)[0];
+    s.width && SYS.widths[s.width] ? s.width : defaultWidthKey(SYS);
   document.getElementById('height').value = s.height || '';
   document.getElementById('lifts').value = s.lifts || '1';
   document.getElementById('handrail').value = s.handrail || '1';
-  document.getElementById('hopup').value = s.hopup || '0';
   document.getElementById('clip').value = s.clip || 'Wine Glass';
-  document.getElementById('piggyback').value = s.piggyback || '0';
+  // Hop-up and piggyback sizes are system-specific, so a value carried over
+  // from another system may no longer exist. Fall back to None and write the
+  // fallback back into the run, rather than leaving the select blank.
+  s.hopup = setSelect('hopup', s.hopup || '0', '0');
+  s.piggyback = setSelect('piggyback', s.piggyback || '0', '0');
   updateLiftOpts();
 }
 /* ------------------------------------------------------------
@@ -1165,12 +1242,71 @@ function buildBayButtons() {
       </button>`)
     .join('');
 }
+// Selects `value` if the option exists, otherwise `fallback`. Returns whatever
+// the select ended up on, so callers can keep the run's settings in step.
+function setSelect(id, value, fallback) {
+  const sel = document.getElementById(id);
+  if (!sel) return value;
+  sel.value = value;
+  if (sel.value !== value) sel.value = fallback;
+  return sel.value;
+}
+// The system's own preferred bay width, falling back to the narrowest it makes.
+function defaultWidthKey(sys) {
+  return sys.defaultWidth && sys.widths[sys.defaultWidth]
+    ? sys.defaultWidth
+    : Object.keys(sys.widths)[0];
+}
+// Widths in ascending order, so the dropdown reads as a ladder of board counts.
+function widthEntries(sys = SYS) {
+  return Object.entries(sys.widths).sort(
+    (a, b) => (a[1].transomMM || parseFloat(a[0]) * 1000) - (b[1].transomMM || parseFloat(b[0]) * 1000)
+  );
+}
 function buildWidthOpts() {
   const sel = document.getElementById('width');
   if (!sel) return;
-  sel.innerHTML = Object.entries(SYS.widths)
+  sel.innerHTML = widthEntries()
     .map(([k, w]) => `<option value="${k}">${w.label}</option>`)
     .join('');
+  const note = document.getElementById('width-note');
+  if (note) {
+    const plankMM = SYS.geom.plankMM;
+    const counts = [...new Set(widthEntries().map(([, w]) => w.planks))].sort((a, b) => a - b);
+    note.textContent = plankMM
+      ? `${SYS.name} decks with ${plankMM}mm boards — available widths are ${counts.join(', ')} board.`
+      : '';
+  }
+}
+// Hop-up sizes are whatever console/side brackets the system stocks: Kwikstage
+// tops out at a 3-board bracket, AT-PAC also makes a 4-board one.
+function buildHopupOpts() {
+  const sel = document.getElementById('hopup');
+  if (!sel) return;
+  const part = partName('console', 'Console Bracket');
+  const sizes = [];
+  for (let n = 1; n <= 6; n++) {
+    if (SYS.weights[`${part} (${n}-Board)`] !== undefined) sizes.push(n);
+  }
+  const opts = (suffix) =>
+    `<option value="0${suffix}">None${suffix ? ' (No KB)' : ''}</option>` +
+    sizes
+      .map((n) => `<option value="${n}B${suffix}">${n}-Board${suffix ? ' (No KB)' : ''}</option>`)
+      .join('');
+  sel.innerHTML =
+    `<optgroup label="With Kickboard">${opts('')}</optgroup>` +
+    `<optgroup label="No Kickboard">${opts('_NK')}</optgroup>`;
+}
+// The piggyback bay is built from the same transom range as the main deck, so
+// its options have to come from the active system rather than a fixed list.
+function buildPiggybackOpts() {
+  const sel = document.getElementById('piggyback');
+  if (!sel) return;
+  sel.innerHTML =
+    '<option value="0">None</option>' +
+    widthEntries()
+      .map(([k, w]) => `<option value="${k}">${w.label}</option>`)
+      .join('');
 }
 // Walkway options exist only for systems with a modelled stair tower.
 function buildStairOpts() {
@@ -1245,10 +1381,12 @@ function systemChanged() {
   run.settings.system = next;
   useSystem(next);
   run.bays = [];
-  run.settings.width = Object.keys(SYS.widths)[0];
+  run.settings.width = defaultWidthKey(SYS);
   if (SYS.model === 'frame') run.settings.frameH = Object.keys(SYS.frameHeights)[0];
   buildBayButtons();
   buildWidthOpts();
+  buildPiggybackOpts();
+  buildHopupOpts();
   buildFrameHeightOpts();
   buildStairOpts();
   buildStandardsList();
@@ -1334,7 +1472,7 @@ function sanitiseRuns(data) {
       const src = run.settings && typeof run.settings === 'object' ? run.settings : {};
       const sys = SYSTEMS[src.system] || SYSTEMS.kwikstage;
       const settings = { ...DEFAULT_SETTINGS, ...src, system: sys.id };
-      if (!sys.widths[settings.width]) settings.width = Object.keys(sys.widths)[0];
+      if (!sys.widths[settings.width]) settings.width = defaultWidthKey(sys);
       if (sys.model === 'frame' && !(sys.frameHeights || {})[settings.frameH]) {
         settings.frameH = Object.keys(sys.frameHeights)[0];
       }
@@ -1468,7 +1606,7 @@ function renderPlan() {
     const wSpec = sys.widths[run.settings.width] || Object.values(sys.widths)[0];
     const deckMM = wSpec.transomMM || parseFloat(run.settings.width) * 1000 || 700;
     const side = parseInt((String(run.settings.hopup || '0').match(/(\d)B/) || [, 0])[1]) || 0;
-    const hopMM = sys.model === 'frame' ? 0 : side * 250;
+    const hopMM = sys.model === 'frame' ? 0 : side * (sys.geom.plankMM || KWIKSTAGE_PLANK_MM);
     const pbStr = sys.model === 'frame' ? '0' : run.settings.piggyback || '0';
     const pbMM = pbStr !== '0' ? (sys.widths[pbStr] || {}).transomMM || 0 : 0;
     const band = (deckMM + hopMM + pbMM) * S;
@@ -1632,7 +1770,7 @@ function renderElevation() {
   const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
   const wSpec = SYS.widths[width] || Object.values(SYS.widths)[0];
   const deckM = (wSpec.transomMM || 710) / 1000;
-  const hopM = sideBoards * 0.25;
+  const hopM = (sideBoards * (SYS.geom.plankMM || KWIKSTAGE_PLANK_MM)) / 1000;
   const pbStr = run.settings.piggyback || '0';
   const pbM = pbStr !== '0' ? ((SYS.widths[pbStr] || {}).transomMM || 0) / 1000 : 0;
   const enabled = getEnabledSizes();
@@ -1649,6 +1787,9 @@ function renderElevation() {
   const totalH = gTFS + starSpan + guardrailM + 0.4;
   const totalW = stairX0 + stairWM;
   const { svg, yOf, x0, V, scalesDiffer } = sectionCanvas(c, totalH, totalW, null);
+  // Boards drawn about 140mm thick, but never so thick at a squashed vertical
+  // scale that a deck reaches the ring below it.
+  const boardPx = Math.max(3, Math.min(7, V * 0.14));
   const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
   const labelX = xOf(totalW) + 10;
   const iX = xOf(0), oX = xOf(deckM);
@@ -1673,8 +1814,8 @@ function renderElevation() {
   boarded.forEach((lv, i) => {
     const y = yOf(gTFS + lv);
     const top = i === boarded.length - 1;
-    drawDeck(svg, iX, y, oX - iX, wSpec.planks);
-    if (hopM > 0) drawDeck(svg, oX, y, hopM * SEC_PX_PER_M_H, sideBoards);
+    drawDeck(svg, iX, y, oX - iX, wSpec.planks, '#475569', '#cbd5e1', boardPx);
+    if (hopM > 0) drawDeck(svg, oX, y, hopM * SEC_PX_PER_M_H, sideBoards, '#475569', '#cbd5e1', boardPx);
     txt(svg, labelX, y, top ? `Top deck +${targetH}m` : `Lift ${i + 1}`,
       { size: 9, anchor: 'start', fill: top ? '#fbbf24' : '#94a3b8', weight: top ? 700 : 500 });
     const rails = guardrailM === 2 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
@@ -1694,7 +1835,7 @@ function renderElevation() {
     });
     boarded.forEach((lv, i) => {
       const y = yOf(gTFS + lv);
-      drawDeck(svg, pX, y, pbM * SEC_PX_PER_M_H, (SYS.widths[pbStr] || {}).planks || 2, '#134e4a', '#5eead4');
+      drawDeck(svg, pX, y, pbM * SEC_PX_PER_M_H, (SYS.widths[pbStr] || {}).planks || 2, '#134e4a', '#5eead4', boardPx);
       if (i === boarded.length - 1) {
         txt(svg, pX + (pbM * SEC_PX_PER_M_H) / 2, yOf(gTFS + lv + guardrailM) - 12, 'PIGGYBACK',
           { size: 7, fill: '#5eead4', weight: 800 });
@@ -1750,22 +1891,35 @@ function drawStandards(svg, yOf, x, stack, startYm, opacity = 1) {
       const yTop = yOf(cur + sM), yBot = yOf(cur);
       el('rect', { x: x - 3.5, y: yTop, width: 7, height: Math.max(yBot - yTop, 1),
         fill: color, opacity, rx: 1.5, stroke: '#0d1117', 'stroke-width': 0.8 }, svg);
-      for (let st = 0.5; st < sM - 0.001; st += 0.5) {
-        el('line', { x1: x - 5, y1: yOf(cur + st), x2: x + 5, y2: yOf(cur + st),
-          stroke: '#0d1117', 'stroke-width': 1, opacity: 0.85 }, svg);
+      // Rosettes sit every 0.5m from the foot of the standard — a 2.0m
+      // standard is a 4-Star, with a star at its base and none at its head.
+      // Marking from st = 0 rather than st = 0.5 therefore puts a star at
+      // every joint and at the base collar as well, so the column reads as
+      // one unbroken 0.5m ladder. Without it the joints came out blank and a
+      // deck landing on one looked like it floated between two stars.
+      for (let st = 0; st < sM - 0.001; st += 0.5) {
+        el('line', { x1: x - 5.5, y1: yOf(cur + st), x2: x + 5.5, y2: yOf(cur + st),
+          stroke: '#0d1117', 'stroke-width': 1.2, opacity: 0.9 }, svg);
       }
       cur += sM;
     }
   }
 }
 // A deck: slab plus plank divisions so the board count reads at a glance.
-function drawDeck(svg, x, y, w, planks, fill = '#475569', edge = '#cbd5e1') {
+// `y` is the ledger ring the boards land on, and the slab is drawn resting on
+// it, so the top of the slab is the walking surface and the ring, the star on
+// the standard and the underside of the boards all share one line.
+// `t` is the drawn board thickness; the caller scales it with the vertical
+// scale so a tall job's decks do not swallow the lift below them.
+function drawDeck(svg, x, y, w, planks, fill = '#475569', edge = '#cbd5e1', t = 7) {
   if (w <= 0) return;
-  el('rect', { x, y: y - 7, width: w, height: 7, fill, stroke: edge, 'stroke-width': 1, rx: 1 }, svg);
-  el('line', { x1: x, y1: y - 7, x2: x + w, y2: y - 7, stroke: edge, 'stroke-width': 1.4 }, svg);
+  el('rect', { x, y: y - t, width: w, height: t, fill, stroke: edge, 'stroke-width': 1, rx: 1 }, svg);
+  el('line', { x1: x, y1: y - t, x2: x + w, y2: y - t, stroke: edge, 'stroke-width': 1.4 }, svg);
+  // The line the boards sit on, drawn over the slab so it stays visible.
+  el('line', { x1: x, y1: y, x2: x + w, y2: y, stroke: edge, 'stroke-width': 1.2, opacity: 0.9 }, svg);
   const n = Math.max(1, planks || 1);
   for (let i = 1; i < n; i++) {
-    el('line', { x1: x + (w / n) * i, y1: y - 7, x2: x + (w / n) * i, y2: y, stroke: edge, 'stroke-width': 0.8, opacity: 0.9 }, svg);
+    el('line', { x1: x + (w / n) * i, y1: y - t, x2: x + (w / n) * i, y2: y, stroke: edge, 'stroke-width': 0.8, opacity: 0.9 }, svg);
   }
 }
 function dimension(svg, x1, x2, y, text) {
@@ -1821,7 +1975,7 @@ function renderFrameElevation(c, run) {
     const lvl = frameLevels - boarded + i + 1;
     const y = yOf(gTFS + lvl * frameH);
     const top = i === boarded - 1;
-    drawDeck(svg, iX, y, oX - iX, wSpec.decks);
+    drawDeck(svg, iX, y, oX - iX, wSpec.decks, '#475569', '#cbd5e1', Math.max(3, Math.min(7, V * 0.14)));
     txt(svg, labelX, y, top ? `Top deck +${actualH.toFixed(2).replace(/0$/, '')}m` : `Lift ${i + 1}`,
       { size: 9, anchor: 'start', fill: top ? '#fbbf24' : '#94a3b8', weight: top ? 700 : 500 });
     const rails = top ? (guardrailM === 2 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0]) : [0.5, 1.0];
