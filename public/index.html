@@ -802,6 +802,57 @@ function calcTreads(starSpan) {
   const t20 = Math.floor(starSpan / 2);
   return { t15: Math.ceil((starSpan - t20 * 2) / 1.5), t20 };
 }
+/* ------------------------------------------------------------
+   STARS — the rosettes up a standard, numbered the way they are
+   counted on site: star 1 is the one at the foot of the column,
+   star 2 is 0.5m up, and so on. A height of h metres above the
+   base is therefore star h/0.5 + 1, and a 4.0m column runs star
+   1 to star 9.
+   ------------------------------------------------------------ */
+const STAR_PITCH_M = 0.5;
+function starAt(heightAboveBaseM) {
+  return Math.round(heightAboveBaseM / STAR_PITCH_M) + 1;
+}
+// Where each stair flight starts and finishes, in stars.
+//
+// A flight rises in whole star steps and both its ends land on a star, so a
+// 1.5m unit climbs three steps and sits on four stars (1 → 4), and a 2.0m unit
+// climbs four and sits on five (1 → 5). Flights stacked above one another
+// share the star at the landing between them — they hook onto the same
+// rosette, side by side — so 1.5m then 2.0m runs star 1 → 4 → 8: eight stars
+// in total, not nine.
+//
+// Shorter flights go in at the bottom, so a mixed stair reads 1.5m first.
+//
+// `reachable` is false when the climb cannot be made from the flight rises the
+// system stocks at all. With only 1.5m and 2.0m units that is 0.5m, 1.0m and
+// 2.5m — no combination lands on them — and the mix returned overshoots the
+// deck rather than falling short of it.
+function stairFlightPlan(starSpan) {
+  const { t15, t20 } = calcTreads(starSpan);
+  const rises = [...Array(t15).fill(1.5), ...Array(t20).fill(2.0)];
+  const flights = [];
+  let h = 0;
+  for (const rise of rises) {
+    const top = parseFloat((h + rise).toFixed(3));
+    flights.push({ rise, fromStar: starAt(h), toStar: starAt(top), baseM: h, topM: top });
+    h = top;
+  }
+  return { flights, t15, t20, totalRiseM: h, reachable: Math.abs(h - starSpan) < 0.01 };
+}
+// The two climbs nearest a given one that a stair can actually land on, for
+// telling the user what to change when theirs cannot be reached.
+const STAIR_SEARCH_MAX_M = 12;
+function nearestStairClimbs(climbM) {
+  const reachable = [];
+  for (let h = STAR_PITCH_M; h <= STAIR_SEARCH_MAX_M; h = parseFloat((h + STAR_PITCH_M).toFixed(2))) {
+    if (stairFlightPlan(h).reachable) reachable.push(h);
+  }
+  return reachable
+    .sort((a, b) => Math.abs(a - climbM) - Math.abs(b - climbM))
+    .slice(0, 2)
+    .sort((a, b) => a - b);
+}
 /* ============================================================
    BILL OF QUANTITIES — per-run and total gear takeoff
    ============================================================ */
@@ -1049,8 +1100,10 @@ function calcModularGear(run, enabled) {
     }
     // Fall protection up the outside of the stair. A stair rises continuously,
     // so unlike a deck it cannot be railed only at lift level — the outside
-    // standards take a ledger at every 0.5m star for the whole climb, at the
-    // stair bay's own length. A 4m stair is 8 stars, so 8 ledgers.
+    // standards take a ledger at every star for the whole climb, at the stair
+    // bay's own length. Stars are counted from 1 at the foot of the column, so
+    // a 3.5m climb runs star 1 to star 8 and takes 7 ledgers: one at each star
+    // above the base. Star 1 sits at ground level and needs no rail.
     const stairBayMM = SYS.bays[stairBayKey] ? SYS.bays[stairBayKey].mm : nearestBayMM(2390);
     const everyM = (SYS.stair && SYS.stair.climbRailEveryM) || 0;
     if (everyM > 0) {
@@ -1261,6 +1314,18 @@ function addBreak() {
   loadSettings(currentRun());
   render();
 }
+// One line describing how a climb breaks into flights, in stars.
+// "Stair 1.5m ★1→4, 2.0m ★4→8" — and says so plainly when the climb cannot be
+// made from the flight rises available.
+function stairPlanSummary(starSpan) {
+  const plan = stairFlightPlan(starSpan);
+  const legs = plan.flights
+    .map((f) => `${f.rise.toFixed(1)}m ★${f.fromStar}→${f.toStar}`)
+    .join(', ');
+  if (plan.reachable) return `Stair ${legs}`;
+  const near = nearestStairClimbs(starSpan).map((h) => h.toFixed(1)).join('m or ');
+  return `⚠ Stair cannot land on a ${starSpan}m climb — 1.5m and 2.0m flights make ${plan.totalRiseM.toFixed(1)}m. Try a ${near}m climb.`;
+}
 // Which bays this system will take a stair tower off, as labels for messages.
 function stairBayLabels(sys = SYS) {
   const keys = (sys.stair && sys.stair.bays) || [];
@@ -1301,6 +1366,19 @@ function addStair() {
       : `Stair tower attached to the last ${SYS.bays[target.value].label} bay.`,
     false
   );
+  // Only 1.5m and 2.0m flights exist, so some climbs have no combination that
+  // lands on the deck. Say so now rather than quietly billing a stair that
+  // finishes above it.
+  if (!SYS.stairTower) {
+    const climb = calcPhysics(runTargetHeight(run)).starSpan;
+    const plan = stairFlightPlan(climb);
+    if (climb > 0 && !plan.reachable) {
+      const near = nearestStairClimbs(climb).map((h) => h.toFixed(1)).join('m or ');
+      toast(
+        `No stair lands on a ${climb}m climb — 1.5m and 2.0m flights make ${plan.totalRiseM.toFixed(1)}m. Try a ${near}m climb.`
+      );
+    }
+  }
   render();
 }
 function undoLast() {
@@ -1481,7 +1559,7 @@ function buildStairOpts() {
         ? `No stair tower is modelled for ${SYS.name}.`
         : st
         ? `Auto-calculates ${st.legs}-leg tower: stringers, ${st.risersPerFlight - 1} treads per ${st.flightM.toFixed(1)}m flight, handrails, landings & legs.`
-        : 'Auto-calculates 1.5m/2.0m tread mix, handrails, step-down brackets, stair standards & a ledger at every star up the outside.') + where;
+        : 'Auto-calculates the 1.5m/2.0m flight mix (a 1.5m sits on 4 stars, a 2.0m on 5, sharing the landing star), handrails, step-down brackets, stair standards & a ledger at every star up the outside.') + where;
   }
   if (!st || !sel) return;
   sel.innerHTML = Object.entries(st.walkways)
@@ -1950,7 +2028,7 @@ function renderElevation() {
   const enabled = getEnabledSizes();
   const ringLevels = getRingLevels(starSpan);
   const boardedLifts = Math.max(1, Math.min(Math.max(1, parseInt(run.settings.lifts) || 1), ringLevels.length));
-  const hasStair = run.bays.some((b) => b.stair);
+  const hasStair = run.bays.some((b) => b.type === 'bay' && b.stair && canCarryStair(SYS, b.value));
   // Everything is placed along one metre axis: deck, hop-up, piggyback, stair.
   // The label gutter then starts beyond all of it, so nothing can collide.
   const pbGapM = pbM ? 0.18 : 0;
@@ -1969,7 +2047,8 @@ function renderElevation() {
   const iX = xOf(0), oX = xOf(deckM);
   if (label) {
     label.textContent =
-      `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m · Step-down ${stepDown}` +
+      `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m (★1–${starAt(starSpan)}) · Step-down ${stepDown}` +
+      (hasStair && !SYS.stairTower ? ` · ${stairPlanSummary(starSpan)}` : '') +
       (scalesDiffer ? ' · width exaggerated' : '');
   }
   const innerStack = calcStdStack(nomH, enabled);
@@ -2025,20 +2104,24 @@ function renderElevation() {
     const sxW = stairWM * SEC_PX_PER_M_H;
     el('rect', { x: sxL, y: yOf(gTFS + starSpan), width: sxW, height: starSpan * V,
       fill: '#3730a3', opacity: 0.25, stroke: '#6366f1', 'stroke-width': 1, rx: 3 }, svg);
-    // Landings, drawn where each flight tops out.
-    let sh = gTFS;
-    const steps = [];
-    if (SYS.stairTower) {
-      steps.push(...calcStairFlights(starSpan, SYS.stairTower).rises);
-    } else {
-      const { t15, t20 } = calcTreads(starSpan);
-      for (let i = 0; i < t20; i++) steps.push(2.0);
-      for (let i = 0; i < t15; i++) steps.push(1.5);
-    }
-    steps.forEach((rise) => {
-      sh += rise;
-      el('line', { x1: sxL + 3, y1: yOf(sh), x2: sxL + sxW - 3, y2: yOf(sh),
+    // Landings, drawn where each flight tops out and tagged with the star they
+    // land on. Consecutive flights share that star, so the top of one flight
+    // and the foot of the next carry the same number.
+    const steps = SYS.stairTower
+      ? calcStairFlights(starSpan, SYS.stairTower).rises.map((rise, i, all) => {
+          const baseM = all.slice(0, i).reduce((a, r) => a + r, 0);
+          return { rise, baseM, topM: baseM + rise, toStar: starAt(baseM + rise) };
+        })
+      : stairFlightPlan(starSpan).flights;
+    steps.forEach((f, i) => {
+      const y = yOf(gTFS + f.topM);
+      el('line', { x1: sxL + 3, y1: y, x2: sxL + sxW - 3, y2: y,
         stroke: '#818cf8', 'stroke-width': 2.5 }, svg);
+      // The last landing is the top of the climb, which the header above the
+      // zone already names — labelling it too would print over that header.
+      if (i < steps.length - 1 && f.toStar) {
+        txt(svg, sxL + sxW / 2, y - 6, `★${f.toStar}`, { size: 7, fill: '#c7d2fe', weight: 700 });
+      }
     });
     // The fall-protection ledgers up the outside of the stair, one at every
     // star. Drawn on the outer edge, which is the open side you would fall off.
@@ -2050,7 +2133,8 @@ function renderElevation() {
       }
     }
     txt(svg, sxL + sxW / 2, yOf(gTFS + starSpan) - 9,
-      SYS.stairTower ? `STAIR ×${steps.length}` : 'STAIR', { size: 7, fill: '#c7d2fe', weight: 800 });
+      SYS.stairTower ? `STAIR ×${steps.length}` : `STAIR ★1–${starAt(starSpan)}`,
+      { size: 7, fill: '#c7d2fe', weight: 800 });
   }
   // Deck width dimension across the base.
   dimension(svg, iX, oX, yOf(0) + 10, `${wSpec.transomMM}mm`);

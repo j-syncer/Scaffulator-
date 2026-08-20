@@ -108,6 +108,43 @@ boards fit. The ladder skips 10 and 11 for the same reason. If you want a five-b
 platform on Ringlock, the honest options are a 1.52 m bay decked out in full at six, or
 five boards plus an Infill Plank.
 
+### Stars and stair flights
+
+Stars are numbered the way they are counted on site: **star 1 is the rosette at the foot
+of the column**, star 2 is 0.5 m up, and so on. A height of *h* metres above the base is
+star `h / 0.5 + 1`, so a 4.0 m column runs star 1 to star 9. `starAt()` in the engine is
+that one line, and it is the only place the numbering is defined.
+
+Stair flights rise in whole star steps and land on a star at both ends:
+
+- a **1.5 m** flight climbs three steps and **sits on four stars** — star 1 → 4;
+- a **2.0 m** flight climbs four steps and **sits on five stars** — star 1 → 5.
+
+Flights stacked above one another **share the star at the landing between them** — they
+hook onto the same rosette, side by side — so the stars do not simply add up. A 1.5 m
+flight under a 2.0 m flight runs star 1 → 4 → 8: eight stars in total, not nine. Shorter
+flights go in at the bottom.
+
+`stairFlightPlan()` returns that breakdown, and the section view draws it: each landing
+is tagged with the star it lands on, and the zone header reads `STAIR ★1–8`.
+
+| Climb | Stars | Flights |
+| --- | --- | --- |
+| 1.5 m | ★1–4 | 1.5 m ★1→4 |
+| 2.0 m | ★1–5 | 2.0 m ★1→5 |
+| 3.0 m | ★1–7 | 1.5 m ★1→4 + 1.5 m ★4→7 |
+| 3.5 m | ★1–8 | 1.5 m ★1→4 + 2.0 m ★4→8 |
+| 4.0 m | ★1–9 | 2.0 m ★1→5 + 2.0 m ★5→9 |
+| 5.5 m | ★1–12 | 1.5 m ★1→4 + 2.0 m ★4→8 + 2.0 m ★8→12 |
+
+0.5 m, 1.0 m and 2.5 m are not in the table because no mix of 1.5 m and 2.0 m flights
+lands on them. `stairFlightPlan()` flags those as unreachable and `nearestStairClimbs()`
+names the two nearest climbs that do work.
+
+The climb ledgers on the outside of the stair follow the same numbering: one at every star
+**above** the base, so a 3.5 m climb running star 1 to star 8 takes seven. Star 1 is at
+ground level and needs no rail.
+
 ### AT-PAC Ringlock
 
 Lengths and weights come from the AT-PAC AUS Product Catalogue v5.6 (AP-AUS-001-V5-P6,
@@ -267,6 +304,11 @@ the frame rules described above.
   simply the last bay, and refuses if the run has none. Loading a project clears any stair
   sitting on a bay that cannot carry one. Systems with no `stair` block — Ally Frame —
   hide the button rather than offering one that bills nothing.
+- **Stair flights** come in 1.5 m and 2.0 m rises and `calcTreads` picks the mix that
+  lands on the deck. See *Stars and stair flights* below for how they sit on the rosettes.
+  Three climbs — 0.5 m, 1.0 m and 2.5 m — have no combination of the two that reaches
+  them; the calculator says so when the stair is attached and keeps saying so in the
+  section caption, rather than quietly billing a stair that finishes above the deck.
 - **Stair access rules** change two things in the takeoff, both in `stair`:
   - `climbRailEveryM` puts a ledger on the stair's outside standards at **every 0.5 m
     star for the whole climb**, at the stair bay's length. A stair rises continuously, so
