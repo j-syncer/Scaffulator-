@@ -483,7 +483,11 @@ const SYSTEMS = {
       'Base Jack (Screw Jack)': 4, 'Sole Board': 2,
       'Console Bracket (1-Board)': 3, 'Console Bracket (2-Board)': 5,
       'Console Bracket (3-Board)': 7,
-      'End Brace (Dogleg)': 8, 'Face Brace (Diagonal)': 8, 'Tie Bar': 4,
+      'End Brace (Dogleg)': 8, 'Face Brace (Diagonal)': 8,
+      // Tie bars run the length of the bay they sit in. Derived like the brace
+      // above: 48.3 x 3.0mm tube at 3.35 kg/m plus fittings.
+      'Tie Bar (3000mm)': 11, 'Tie Bar (2390mm)': 9, 'Tie Bar (1780mm)': 7,
+      'Tie Bar (1220mm)': 5, 'Tie Bar (710mm)': 3.4,
       // 48.3 x 3.0mm tube at 3.35 kg/m, plus wedged ends.
       'Face Brace (3.6m)': 12.5,
       'Stair Tread (1.5m)': 25, 'Stair Tread (2.0m)': 30,
@@ -543,7 +547,9 @@ const SYSTEMS = {
       'Base Jack (Screw Jack)': 2.5, 'Sole Board': 2,
       'Console Bracket (1-Board)': 1.5, 'Console Bracket (2-Board)': 2.5,
       'Console Bracket (3-Board)': 3.5,
-      'End Brace (Dogleg)': 4, 'Face Brace (Diagonal)': 4, 'Tie Bar': 2,
+      'End Brace (Dogleg)': 4, 'Face Brace (Diagonal)': 4,
+      'Tie Bar (3000mm)': 5, 'Tie Bar (2500mm)': 4, 'Tie Bar (1800mm)': 3,
+      'Tie Bar (1300mm)': 2.5, 'Tie Bar (750mm)': 1.5,
       'Face Brace (3.6m)': 5,
       'Stair Tread (1.5m)': 12, 'Stair Tread (2.0m)': 15,
       'Stair Handrail Intermediate (1.5m)': 5, 'Stair Handrail Intermediate (2.0m)': 6,
@@ -722,7 +728,8 @@ const SYSTEMS = {
       // Not in the AT-PAC catalogue: 48.3mm tube at 4.4 kg/m, a nominal tie,
       // and a plank reused as a lap board.
       'Tube (1.2m)': 5.3,
-      'Tie Bar': 4.0,
+      'Tie Bar (3050mm)': 11.2, 'Tie Bar (2430mm)': 9.1, 'Tie Bar (2130mm)': 8.1,
+      'Tie Bar (1820mm)': 7.1, 'Tie Bar (1570mm)': 6.3, 'Tie Bar (1065mm)': 4.6,
       'Lap Board': 8.15,
     },
   },
@@ -1175,9 +1182,24 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   if (hasKB) {
     add(clipPartName(clip), numPos * boardedLifts * 2);
   }
-  if (sideBoards >= 2) {
-    const tieLevels = Math.max(1, Math.ceil(starSpan / 2));
-    add(partName('tieBar', 'Tie Bar'), numBays * tieLevels);
+  // Tie bars. A hop-up is a pair of brackets, one at each standard bounding the
+  // bay, with a tie bar across them for the board to sit in — a floating
+  // piggyback on the inside of the run, towards the building.
+  //
+  // Neighbouring bays SHARE their brackets, which is why the brackets above are
+  // counted per standard position. They do NOT share tie bars: each bay's tie
+  // bar sits centred on that bay, so it is one per bay per WORKING level, and
+  // it is as long as the bay, because it is as long as the board that drops
+  // into it.
+  //
+  // This used to bill them only for hop-ups of two boards or more, and count
+  // levels off the height rather than off the boarded lifts, so a one-board
+  // hop-up came out with no tie bars at all.
+  if (sideBoards > 0) {
+    const tiePart = partName('tieBar', 'Tie Bar');
+    for (const [type, count] of Object.entries(byType)) {
+      add(`${tiePart} (${SYS.bays[type].mm}mm)`, count * boardedLifts);
+    }
   }
   const braceLevels = Math.max(1, Math.ceil(starSpan / 4));
   add(partName('endBrace', 'End Brace (Dogleg)'), 2 * braceLevels);

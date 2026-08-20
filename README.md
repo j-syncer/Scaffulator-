@@ -424,7 +424,14 @@ the frame rules described above.
 - **Deck width** is chosen by board count — see *Deck widths and board counts* below. The
   *Side Hop-up* and *Piggyback Bay* dropdowns are generated from the same system data, so
   they only ever offer brackets and transoms that system actually stocks.
-- **Tie bars** are only added for 2-board and 3-board hop-ups, at one per bay per 2 m.
+- **Hop-ups and tie bars** — a hop-up is a pair of brackets, one at each standard bounding
+  the bay, with a tie bar across them for the board to sit in: a floating piggyback on the
+  inside of the run, towards the building. Neighbouring bays **share their brackets**, so
+  brackets are one per standard position per boarded lift — four across three bays. They
+  do **not** share tie bars: each bay's tie bar sits centred on that bay, so it is one per
+  bay per **working** level (dummy lifts get none), and it is as long as the bay, because
+  it is as long as the board that drops into it. Three 8ft bays with three working levels
+  is twelve brackets and nine 2390 mm tie bars.
 - **Standards** are stacked greedily from the largest enabled size down, so unchecking
   sizes in *Available Standards* changes the mix. The sizes on offer come from the
   system's own `stdSizes`: AT-PAC Ringlock runs 0.5 m to 4.0 m (1-Star to 8-Star), while
