@@ -357,6 +357,15 @@ the frame rules described above.
     it: that bottom ledger ties the tower's feet together rather than railing anything, so
     the count is stars and not the gaps between them. A 3.5 m climb runs star 1 → 8 as
     stair and star 8 → 12 as handrail, and takes **twelve** ledgers.
+  - `faceBrace` braces the tower itself, which the run's own bracing rule does not
+    cover. A stair tower is **fully face-braced** — a diagonal at every lift on each of
+    its long faces, not the run's one-per-4 m — and never end-braced, since a dogleg
+    across the width would sit right where you walk. Kwikstage uses its **3.6 m face
+    brace**, the top of a 1.7 / 2.1 / 2.7 / 3.2 / 3.6 m range. The bracing has to reach
+    **at least the top working platform**, so levels are counted over the climb and not
+    over the handrail above it, and each brace spans a whole lift — the top one finishes
+    a little above the platform rather than being cut short at it, because that is the
+    length it is made in.
   - The bay the stair attaches to **loses its full-length guardrails and mid-rails**. That
     face was the outside of the run, but a piggybacked stair makes it the inside of the
     stairway and the way onto the treads, so an 8ft rail across it would fence the stair

@@ -457,6 +457,13 @@ const SYSTEMS = {
       // default; the Available Stair Treads panel turns either off for a yard
       // that only carries one.
       treadRises: [1.5, 2.0],
+      // A stair tower is FULLY face-braced — a diagonal at every lift, not the
+      // run's one-per-4m — and never with end braces (doglegs). Kwikstage
+      // braces the stair bay with its 3.6m face brace, the top of its
+      // 1.7 / 2.1 / 2.7 / 3.2 / 3.6m range.
+      faceBrace: 'Face Brace (3.6m)',
+      faceBracesPerLift: 2,
+      braceLiftM: 2.0,
     },
     // Kwikstage tops out at a 3.0m (6-Star) standard — there is no 4.0m.
     stdSizes: [3.0, 2.5, 2.0, 1.5, 1.0, 0.5],
@@ -477,6 +484,8 @@ const SYSTEMS = {
       'Console Bracket (1-Board)': 3, 'Console Bracket (2-Board)': 5,
       'Console Bracket (3-Board)': 7,
       'End Brace (Dogleg)': 8, 'Face Brace (Diagonal)': 8, 'Tie Bar': 4,
+      // 48.3 x 3.0mm tube at 3.35 kg/m, plus wedged ends.
+      'Face Brace (3.6m)': 12.5,
       'Stair Tread (1.5m)': 25, 'Stair Tread (2.0m)': 30,
       'Stair Handrail Intermediate (1.5m)': 10, 'Stair Handrail Intermediate (2.0m)': 12,
       'Stair Handrail Top (1.5m)': 10, 'Stair Handrail Top (2.0m)': 12,
@@ -517,6 +526,9 @@ const SYSTEMS = {
       openRails: 3,
       railAboveLandingM: 2.0,
       treadRises: [1.5, 2.0],
+      faceBrace: 'Face Brace (3.6m)',
+      faceBracesPerLift: 2,
+      braceLiftM: 2.0,
     },
     stdSizes: [3.0, 2.0, 1.5, 1.0, 0.5],
     stdClr: { '3.0': '#0284c7', '2.0': '#ca8a04', 1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c' },
@@ -532,6 +544,7 @@ const SYSTEMS = {
       'Console Bracket (1-Board)': 1.5, 'Console Bracket (2-Board)': 2.5,
       'Console Bracket (3-Board)': 3.5,
       'End Brace (Dogleg)': 4, 'Face Brace (Diagonal)': 4, 'Tie Bar': 2,
+      'Face Brace (3.6m)': 5,
       'Stair Tread (1.5m)': 12, 'Stair Tread (2.0m)': 15,
       'Stair Handrail Intermediate (1.5m)': 5, 'Stair Handrail Intermediate (2.0m)': 6,
       'Stair Handrail Top (1.5m)': 5, 'Stair Handrail Top (2.0m)': 6,
@@ -646,6 +659,9 @@ const SYSTEMS = {
       openRailMM: 1570,
       openRails: 3,
       railAboveLandingM: 2.0,
+      faceBrace: 'Bay Brace (Diagonal)',
+      faceBracesPerLift: 2,
+      braceLiftM: 2.0,
     },
     stairTower: {
       legs: 10,
@@ -975,6 +991,7 @@ function addStairTowerGear(add, st, ctx) {
   add(partName('soleBoard', 'Sole Board'), st.legs);
   if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, st.legs);
   add(`Step Down Bracket (${stepDown})`, 2);
+  addStairBracing(add, climb);
 
   const landings = full + half;
   if (landings > 0) {
@@ -1183,6 +1200,7 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
     if (everyM > 0) {
       add(`Ledger (${stairBayMM}mm)`, Math.round((starSpan + railAboveM) / everyM) + 1);
     }
+    addStairBracing(add, starSpan);
     // Transoms carrying the treads, one pair per tread plus the top landing.
     // The tower's own walkway is about 1.2m wide, which is not the run's deck
     // width, so it takes the system's nearest transom rather than wSpec.
@@ -1389,6 +1407,17 @@ function addBreak() {
   runs.push({ bays: [], settings: { ...cur.settings } });
   loadSettings(currentRun());
   render();
+}
+// A stair tower's own bracing. It is fully face-braced — a diagonal at every
+// lift on each of its long faces — and never end-braced: a dogleg across the
+// width would sit right where you walk. The bracing has to reach at least the
+// top working platform, so the levels are counted over the climb, not over the
+// handrail above it.
+function addStairBracing(add, climbM) {
+  const st = SYS.stair;
+  if (!st || !st.faceBrace || !climbM || climbM <= 0) return;
+  const levels = Math.max(1, Math.ceil(climbM / (st.braceLiftM || 2.0)));
+  add(st.faceBrace, levels * (st.faceBracesPerLift || 2));
 }
 // How far a stair tower's standards run above its top landing. A working
 // platform may only carry 1m of guardrail, but the stair side always takes the
@@ -2416,8 +2445,10 @@ function renderStairView() {
     : stairFlightPlan(starSpan, enabledTreadRises());
   const railAboveM = stairRailAboveM();
   const railTopM = starSpan + railAboveM;
+  const braceLiftM = (SYS.stair && SYS.stair.braceLiftM) || 2.0;
+  const braceTopM = Math.max(1, Math.ceil(starSpan / braceLiftM)) * braceLiftM;
   const railTopStar = starAt(railTopM);
-  const totalH = gTFS + railTopM + 0.3;
+  const totalH = gTFS + Math.max(railTopM, braceTopM) + 0.3;
   const { svg, yOf, x0, V } = sectionCanvas(c, totalH, bayM, null, { ticks: false, gutter: 150 });
   const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
   const xL = xOf(0);
@@ -2462,6 +2493,29 @@ function renderStairView() {
   txt(svg, (xL + xR) / 2, yOf(gTFS + railTopM) - 8,
     `${railAboveM.toFixed(1)}m handrail · ★${topStar}–${railTopStar}`,
     { size: 8, fill: '#94a3b8', weight: 700 });
+
+  // Face bracing, drawn first so the stair reads over it. One diagonal per lift
+  // up to the top working platform, alternating direction — which is the zigzag
+  // you see up the outside of a real tower.
+  const st = SYS.stair;
+  if (st && st.faceBrace) {
+    const liftM = st.braceLiftM || 2.0;
+    // Each brace spans a whole lift, because that is the length it is made in —
+    // the top one therefore finishes a little above the platform rather than
+    // being cut short at it. That is what bracing "to at least the top working
+    // platform" means in gear.
+    const levels = Math.max(1, Math.ceil(starSpan / liftM));
+    for (let i = 0; i < levels; i++) {
+      const bM = i * liftM;
+      const up = i % 2 === 0;
+      el('line', {
+        x1: up ? xL : xR, y1: yOf(gTFS + bM), x2: up ? xR : xL, y2: yOf(gTFS + bM + liftM),
+        stroke: '#475569', 'stroke-width': 2, opacity: 0.8,
+      }, svg);
+    }
+    txt(svg, xR + 10, yOf(gTFS) + 11, `${levels * (st.faceBracesPerLift || 2)} × ${st.faceBrace}`,
+      { size: 7, anchor: 'start', fill: '#64748b' });
+  }
 
   // Flights, laid out BACKWARDS from the top.
   //
