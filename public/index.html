@@ -477,18 +477,29 @@ const SYSTEMS = {
     geom: { baseOffsetM: RING_FROM_FOOT_M, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
       jackMinM: 0.1, jackMaxM: 0.6,
       plankMM: KWIKSTAGE_PLANK_MM },
+    // Sizes and weights from the Turbo Scaffolding Kwikstage catalogue.
+    //
+    // There is NO 3.0m bay: the range has no 3.0m ledger, so there is nothing
+    // to span one with. It used to be offered.
+    //
+    // Lengths are the catalogue's metric nominals — 0.7 / 1.2 / 1.8 / 2.4m —
+    // not the imperial-derived figures this carried before (0.71 / 1.22 /
+    // 1.78 / 2.39). The imperial nicknames stay in the labels because that is
+    // what they get called on site.
     bays: {
-      '3m': { mm: 3000, label: '3.00m (3m)', clr: '#f472b6' },
-      '8ft': { mm: 2390, label: '2.39m (8ft)', clr: '#38bdf8' },
-      '6ft': { mm: 1780, label: '1.78m (6ft)', clr: '#34d399' },
-      '4ft': { mm: 1220, label: '1.22m (4ft)', clr: '#fbbf24' },
-      700: { mm: 710, label: '0.71m (700)', clr: '#a78bfa' },
+      '8ft': { mm: 2400, label: '2.4m (8ft)', clr: '#38bdf8' },
+      '6ft': { mm: 1800, label: '1.8m (6ft)', clr: '#34d399' },
+      '4ft': { mm: 1200, label: '1.2m (4ft)', clr: '#fbbf24' },
+      700: { mm: 700, label: '0.7m (700)', clr: '#a78bfa' },
     },
-    // Kwikstage transoms are quoted by board count and carry the boards
-    // captive inside the inverted-T, so the nominal length decks in full:
-    // 510mm takes 2, 710mm takes 3, 1220mm takes 5.
-    widths: deckWidths([510, 710, 1220], { plankMM: KWIKSTAGE_PLANK_MM, span: 'captive' }),
-    defaultWidth: '0.71',
+    // Kwikstage transoms carry the boards captive inside the inverted-T, so the
+    // nominal length decks in full. The catalogue's full transom range gives
+    // 2, 3, 3, 4, 5, 8 and 10 board decks — the manual's own "between 10 and 3
+    // board wide platforms". This used to offer three widths, one of which
+    // (510mm) is not a size anyone makes.
+    widths: deckWidths([500, 700, 800, 1000, 1200, 1800, 2400],
+      { plankMM: KWIKSTAGE_PLANK_MM, span: 'captive' }),
+    defaultWidth: '0.7',
     // A stair tower piggybacks off the 8ft (2390mm) bay and no other — the
     // stringers and the tower footprint are built for that bay length.
     //
@@ -509,7 +520,7 @@ const SYSTEMS = {
     stair: {
       bays: ['8ft'],
       climbRailEveryM: 0.5,
-      openRailMM: 1780,
+      openRailMM: 1800,
       openRails: 3,
       // A stair tower always carries 2.0m of standard above its top landing,
       // whatever the run's own guardrail is set to. You step off the top deck
@@ -536,24 +547,31 @@ const SYSTEMS = {
       1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c',
     },
     weights: {
-      'Standard (3.0m)': 15, 'Standard (2.5m)': 12.5,
-      'Standard (2.0m)': 10, 'Standard (1.5m)': 7.5, 'Standard (1.0m)': 5,
-      'Standard (0.5m)': 2.5,
-      'Ledger (3000mm)': 11.5, 'Ledger (2390mm)': 9.5, 'Ledger (1780mm)': 7.5,
-      'Ledger (1220mm)': 5.5, 'Ledger (710mm)': 3.5,
-      'Transom (1220mm)': 6, 'Transom (710mm)': 4, 'Transom (510mm)': 3,
-      'Steel Plank (3000mm)': 20, 'Steel Plank (2390mm)': 16, 'Steel Plank (1780mm)': 12,
-      'Steel Plank (1220mm)': 9, 'Steel Plank (710mm)': 6,
-      'Base Jack (Screw Jack)': 4, 'Sole Board': 2,
-      'Console Bracket (1-Board)': 3, 'Console Bracket (2-Board)': 5,
-      'Console Bracket (3-Board)': 7,
-      'End Brace (Dogleg)': 8, 'Face Brace (Diagonal)': 8,
-      // Tie bars run the length of the bay they sit in. Derived like the brace
-      // above: 48.3 x 3.0mm tube at 3.35 kg/m plus fittings.
-      'Tie Bar (3000mm)': 11, 'Tie Bar (2390mm)': 9, 'Tie Bar (1780mm)': 7,
-      'Tie Bar (1220mm)': 5, 'Tie Bar (710mm)': 3.4,
-      // 48.3 x 3.0mm tube at 3.35 kg/m, plus wedged ends.
-      'Face Brace (3.6m)': 12.5,
+      // Every figure below is the Turbo Scaffolding catalogue's, replacing a set
+      // that was mostly a round 5 kg/m and well out: transoms and hop-ups were
+      // 63% light, base jacks 75%, sole boards 125%.
+      'Standard (3.0m)': 17.5, 'Standard (2.5m)': 14.65,
+      'Standard (2.0m)': 12.1, 'Standard (1.5m)': 9.15, 'Standard (1.0m)': 6.4,
+      'Standard (0.5m)': 3.5,
+      'Ledger (2400mm)': 10, 'Ledger (1800mm)': 7.6,
+      'Ledger (1200mm)': 5, 'Ledger (800mm)': 4, 'Ledger (700mm)': 3.85,
+      'Ledger (1000mm)': 4.35, 'Ledger (500mm)': 3.2,
+      'Transom (2400mm)': 21, 'Transom (1800mm)': 15, 'Transom (1200mm)': 9.8,
+      'Transom (1000mm)': 7.2, 'Transom (800mm)': 6, 'Transom (700mm)': 5.8,
+      'Transom (500mm)': 4.5,
+      'Steel Plank (2400mm)': 15, 'Steel Plank (1800mm)': 11.6,
+      'Steel Plank (1200mm)': 8.1, 'Steel Plank (700mm)': 5.2,
+      // Adjustable solid base jack, 34mm x 650mm.
+      'Base Jack (Screw Jack)': 7, 'Sole Board': 4.5,
+      'Console Bracket (1-Board)': 2.4, 'Console Bracket (2-Board)': 6.5,
+      'Console Bracket (3-Board)': 11.4,
+      'End Brace (Dogleg)': 8.6, 'Face Brace (Diagonal)': 11.5,
+      // Tie bars come in the bay lengths, which is what they span.
+      'Tie Bar (2400mm)': 7, 'Tie Bar (1800mm)': 5.2,
+      'Tie Bar (1200mm)': 3.5, 'Tie Bar (700mm)': 2.5,
+      // Brace range: 1.7 / 2.0 / 2.7 / 3.2 / 3.6m.
+      'Face Brace (1.7m)': 8.4, 'Face Brace (2.0m)': 8.6, 'Face Brace (2.7m)': 11.5,
+      'Face Brace (3.2m)': 13.4, 'Face Brace (3.6m)': 14.7,
       'Stair Tread (1.5m)': 25, 'Stair Tread (2.0m)': 30,
       'Stair Handrail Intermediate (1.5m)': 10, 'Stair Handrail Intermediate (2.0m)': 12,
       'Stair Handrail Top (1.5m)': 10, 'Stair Handrail Top (2.0m)': 12,

@@ -69,7 +69,7 @@ its own geometry, bay lengths, deck widths, component names and weights.
 
 | System | Model | Status | Data |
 | --- | --- | --- | --- |
-| Kwikstage | `modular` | Ready | Confirmed |
+| Kwikstage | `modular` | Ready | Turbo Scaffolding catalogue + Acrow/Waco manuals |
 | AT-PAC Ringlock | `modular` | **Beta** | From AT-PAC AUS catalogue v5.6 |
 | Kwikally | `modular` | **Beta** | **Provisional** |
 | Ally Frame | `frame` | **Beta** | **Provisional** |
@@ -90,6 +90,28 @@ Systems name the same structural member differently, so each may override the wo
 per standard position (Ringlock starts each leg on one), and `toeBoard` bills a dedicated
 toe board per bay per lift instead of Kwikstage's convention of decking the kickboard as an
 extra plank.
+
+### Kwikstage sources
+
+Sizes and weights come from the **Turbo Scaffolding Kwikstage catalogue**; the erection
+rules from the **Acrow Quickstage Erection Manual v02 (11/2021)** and **Waco Kwikform's
+Wedgelok/Kwikstage guidelines**, both written to AS/NZS 1576.
+
+Three things those corrected outright:
+
+- **There is no 3.0m bay.** The range has no 3.0m ledger, so there is nothing to span one
+  with. It was being offered.
+- **Bay lengths are the metric nominals** — 0.7 / 1.2 / 1.8 / 2.4m — not the
+  imperial-derived 0.71 / 1.22 / 1.78 / 2.39 they were carrying. The imperial nicknames
+  stay in the labels because that is what they get called on site.
+- **Weights were badly out.** They were mostly a round 5 kg/m: transoms and hop-up
+  brackets 63% light, base jacks 75%, sole boards 125%. Every figure is now the
+  catalogue's.
+
+Note the suppliers do not agree on everything. Acrow lists standards as "1.0m to 3.0m",
+while Turbo stocks a 0.5m — so the 0.5m stays. Acrow's text pairs a 2.4m bay with a 3.6m
+brace while its own pallet list and Turbo both carry a 3.2m. Where they differ the setting
+is left editable rather than silently picking a side.
 
 ### Deck widths and board counts
 
