@@ -239,13 +239,13 @@
       </select>
     </div>
     <div>
-      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Next Run Direction <span class="text-slate-600 normal-case font-normal">(3D view only)</span></label>
-      <select id="break-turn" class="form-select w-full">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Current Run Direction <span id="turn-run-tag" class="text-amber-400 normal-case"></span></label>
+      <select id="break-turn" class="form-select w-full" onchange="turnChanged()">
         <option value="straight">Straight — continue in line</option>
         <option value="left">Turn Left 90°</option>
         <option value="right">Turn Right 90°</option>
       </select>
-      <p class="text-[9px] text-slate-600 mt-1 leading-tight">For a run that turns a corner around a building. The outer (guardrail) face of this run lines up with the inner (structure) face of the next, forming the corner. Gear counts are unaffected — this only changes the 3D picture.</p>
+      <p id="turn-note" class="text-[9px] text-slate-600 mt-1 leading-tight"></p>
     </div>
     <button onclick="addBreak()" class="w-full bg-slate-700 hover:bg-slate-600 active:scale-[0.98] text-white text-xs font-bold py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-all">
       Insert Run Break / Start New Run
@@ -2000,15 +2000,43 @@ function addStep(dir) {
 }
 function addBreak() {
   const bt = document.getElementById('break-type').value;
-  const turnEl = document.getElementById('break-turn');
-  const turn = turnEl && (turnEl.value === 'left' || turnEl.value === 'right') ? turnEl.value : 'straight';
   const cur = currentRun();
   cur.bays.push({ type: 'break', value: bt });
-  // `turn` only steers the 3D picture — where this run sits and which way it
-  // faces relative to the one it just broke from. It changes no gear count.
-  runs.push({ bays: [], settings: { ...cur.settings }, turn });
+  // A new run starts straight. The direction control below edits whichever run
+  // is current, live — it is NOT read once here and then frozen. It used to be
+  // exactly that, which meant picking a direction AFTER inserting the break did
+  // nothing at all and the run stayed stubbornly straight with no hint why.
+  runs.push({ bays: [], settings: { ...cur.settings }, turn: 'straight' });
   loadSettings(currentRun());
   render();
+}
+// Turns the CURRENT run relative to the one it broke off. Applies immediately
+// and is reversible, so a wrong turn is one dropdown change to fix rather than
+// something baked in at break time.
+function turnChanged() {
+  if (runs.length < 2) return;
+  const v = document.getElementById('break-turn').value;
+  currentRun().turn = v === 'left' || v === 'right' ? v : 'straight';
+  render();
+}
+// Keeps the direction control showing the truth about the current run. Run 1
+// has nothing to turn from, so it says so rather than offering a control that
+// silently does nothing.
+function syncTurnControl() {
+  const sel = document.getElementById('break-turn');
+  const note = document.getElementById('turn-note');
+  const tag = document.getElementById('turn-run-tag');
+  if (!sel) return;
+  const n = runs.length;
+  const first = n < 2;
+  sel.disabled = first;
+  sel.value = first ? 'straight' : currentRun().turn || 'straight';
+  if (tag) tag.textContent = first ? '' : `Run ${n}`;
+  if (note) {
+    note.textContent = first
+      ? 'Run 1 sets the direction everything else is measured from. Insert a run break, then this turns the new run.'
+      : `Turns Run ${n} relative to Run ${n - 1}, for scaffold going round a building. The outer (guardrail) face of Run ${n - 1} meets the inner (structure) face of Run ${n} at the corner. Changes the plan and 3D views only — no gear count moves.`;
+  }
 }
 // A stair tower's own bracing. It is fully face-braced — a diagonal at every
 // lift on each of its long faces — and never end-braced: a dogleg across the
@@ -2692,6 +2720,7 @@ function render() {
   renderHeightNote();
   renderStepNote();
   applyTieChrome();
+  syncTurnControl();
   updateCounters();
   updateSummary();
 }
@@ -2741,6 +2770,15 @@ function emptyNote(container, message) {
 }
 
 /* ---------------- PLAN VIEW — looking down on the run ---------------- */
+// Kept short on purpose: on a job that turns corners this label is drawn
+// horizontally over a run that may be vertical, so every extra word is one
+// more that crosses the run next to it. The system name is already named in
+// the run's own settings and in the legend.
+function planRunLabel(run, ri, plan) {
+  const turn = ri > 0 && (run.turn === 'left' || run.turn === 'right') ? run.turn : null;
+  const tag = turn ? ` · ${turn === 'left' ? '↰' : '↱'}90°` : '';
+  return `RUN ${ri + 1} · ${plan.runMM}mm${tag}`;
+}
 function renderPlan() {
   const container = document.getElementById('plan-view');
   container.innerHTML = '';
@@ -2752,10 +2790,10 @@ function renderPlan() {
     return;
   }
   const S = PLAN_PX_PER_M / 1000; // px per mm
-  const PAD_L = 10, PAD_T = 30, PAD_B = 44;
+  const PAD_L = 10, PAD_T = 30;
 
   // Measure first so the viewBox is exact.
-  let totalMM = 0, maxBandPx = 0;
+  let totalMM = 0;
   const plans = runs.map((run) => {
     const sys = SYSTEMS[run.settings.system] || SYSTEMS.kwikstage;
     const bays = run.bays.filter((b) => b.type === 'bay');
@@ -2766,8 +2804,6 @@ function renderPlan() {
     const hopMM = sys.model === 'frame' ? 0 : side * (sys.geom.plankMM || KWIKSTAGE_PLANK_MM);
     const pbStr = sys.model === 'frame' ? '0' : run.settings.piggyback || '0';
     const pbMM = pbStr !== '0' ? (sys.widths[pbStr] || {}).transomMM || 0 : 0;
-    const band = (deckMM + hopMM + pbMM) * S;
-    maxBandPx = Math.max(maxBandPx, Math.max(band, 18));
     let mm = sys.geom.posMM;
     for (const it of run.bays) {
       if (it.type === 'bay') mm += sys.bays[it.value].mm + sys.geom.posMM;
@@ -2778,42 +2814,105 @@ function renderPlan() {
     return { run, sys, deckMM, hopMM, pbMM, runMM: mm };
   });
 
-  const W = PAD_L * 2 + totalMM * S;
-  const H = PAD_T + Math.max(maxBandPx, 18) + PAD_B;
+  // Place each run in its own local frame — x along the run, y across it from
+  // the inner (structure) edge at 0 to the outer (guardrail) edge at deckPx —
+  // then chain those frames the way the 3D view chains its runs, off the same
+  // `turn` field, so the two drawings turn together instead of disagreeing.
+  // A turned run starts at the previous run's OUTER far corner, which is the
+  // corner a scaffolder actually builds: outer face of one run meets inner
+  // face of the next.
+  let prevP = null;
+  for (const plan of plans) {
+    if (!plan) continue;
+    plan.runW = plan.runMM * S;
+    plan.deckPx = Math.max(plan.deckMM * S, 16);
+    plan.bandPx = plan.deckPx + (plan.hopMM + plan.pbMM) * S;
+    const turn = plan.run.turn;
+    if (!prevP) {
+      plan.o = [0, 0]; plan.dx = [1, 0]; plan.dy = [0, 1];
+    } else if (turn === 'left' || turn === 'right') {
+      plan.o = prevP.pt(prevP.runW, prevP.deckPx);
+      plan.dx = rot90(prevP.dx, turn === 'left' ? 1 : -1);
+      plan.dy = rot90(prevP.dy, turn === 'left' ? 1 : -1);
+    } else {
+      // The 260mm break gap already sits inside the previous run's length, so
+      // a straight run simply carries on from where that band ended.
+      plan.o = prevP.pt(prevP.runW, 0);
+      plan.dx = prevP.dx; plan.dy = prevP.dy;
+    }
+    plan.pt = (lx, ly) => [
+      plan.o[0] + lx * plan.dx[0] + ly * plan.dy[0],
+      plan.o[1] + lx * plan.dx[1] + ly * plan.dy[1],
+    ];
+    prevP = plan;
+  }
+  // Fit: with runs at right angles the extent is a real bounding box, not just
+  // a running total of lengths. Local margins cover the run label above, the
+  // STAIR tag, and the dimension line and figures below.
+  const MT = 26, MB = 36;
+  const corners = [];
+  plans.forEach((plan, ri) => {
+    if (!plan) return;
+    for (const lx of [0, plan.runW]) for (const ly of [-MT, plan.bandPx + MB])
+      corners.push(plan.pt(lx, ly));
+    // The run label is counter-rotated, so it runs along SCREEN x from its
+    // anchor whichever way the run itself points — include where it actually
+    // ends or a turned run's label gets cut off at the edge of the frame.
+    const anchor = plan.pt(2, -12);
+    corners.push([anchor[0] + planRunLabel(plan.run, ri, plan).length * 4.9, anchor[1]]);
+  });
+  const cxs = corners.map((c) => c[0]), cys = corners.map((c) => c[1]);
+  const minX = Math.min(...cxs), minY = Math.min(...cys);
+  const W = PAD_L * 2 + (Math.max(...cxs) - minX);
+  const H = PAD_T + (Math.max(...cys) - minY) + 10;
   const svg = el('svg', {
-    width: Math.max(W, 320), height: H, viewBox: `0 0 ${Math.max(W, 320)} ${H}`,
+    width: Math.max(W, 320), height: Math.max(H, 90),
+    viewBox: `0 0 ${Math.max(W, 320)} ${Math.max(H, 90)}`,
     style: 'display:block;',
   }, container);
   defsHatch(svg, 'plan-gap', '#475569');
 
-  let x = PAD_L;
   plans.forEach((plan, ri) => {
     if (!plan) return;
     const { run, sys, deckMM, hopMM, pbMM } = plan;
     const S_ = S;
-    const yDeck = PAD_T;
-    const deckPx = Math.max(deckMM * S_, 16);
+    // Everything below draws in the run's LOCAL frame, starting at 0 — the
+    // group transform below is what puts it where it belongs and turns it.
+    // That is the whole trick: not one drawing call had to learn about angles.
+    const deg = Math.round(Math.atan2(plan.dx[1], plan.dx[0]) * 180 / Math.PI);
+    const svgRun = el('g', {
+      transform: `translate(${plan.o[0] - minX + PAD_L},${plan.o[1] - minY + PAD_T}) rotate(${deg})`,
+    }, svg);
+    // Annotations sit at a local point but are counter-rotated so they always
+    // read left-to-right. A plan turns; its lettering does not — a run drawn at
+    // 180° would otherwise label itself upside down.
+    const ptxt = (x, y, s, o) => {
+      const g = el('g', { transform: `translate(${x},${y}) rotate(${-deg})` }, svgRun);
+      return txt(g, 0, 0, s, o);
+    };
+    const yDeck = 0;
+    const deckPx = plan.deckPx;
     const hopPx = hopMM * S_;
     const pbPx = pbMM * S_;
     const bandBottom = yDeck + deckPx + hopPx + pbPx;
     const posXs = [];
-    let cursor = x;
+    let cursor = 0;
 
     // Bands: hop-up sits outboard of the deck, piggyback beyond that.
     const runStart = cursor;
     const runWidth = plan.runMM * S_;
     el('rect', { x: runStart, y: yDeck, width: runWidth, height: deckPx,
-      fill: '#1e293b', stroke: '#334155', 'stroke-width': 1, rx: 2 }, svg);
+      fill: '#1e293b', stroke: '#334155', 'stroke-width': 1, rx: 2 }, svgRun);
     if (hopPx > 0) {
       el('rect', { x: runStart, y: yDeck + deckPx, width: runWidth, height: hopPx,
-        fill: '#78350f', opacity: 0.5, stroke: '#9a3412', 'stroke-width': 1 }, svg);
-      txt(svg, runStart + runWidth / 2, yDeck + deckPx + hopPx / 2, `HOP-UP ${hopMM}mm`,
+        fill: '#78350f', opacity: 0.5, stroke: '#9a3412', 'stroke-width': 1 }, svgRun);
+      ptxt(runStart + runWidth / 2, yDeck + deckPx + hopPx / 2, `HOP-UP ${hopMM}mm`,
         { size: 8, fill: '#fdba74', weight: 700 });
     }
     if (pbPx > 0) {
       el('rect', { x: runStart, y: yDeck + deckPx + hopPx, width: runWidth, height: pbPx,
-        fill: '#134e4a', opacity: 0.55, stroke: '#0d9488', 'stroke-width': 1 }, svg);
-      txt(svg, runStart + runWidth / 2, yDeck + deckPx + hopPx + pbPx / 2, `PIGGYBACK ${pbMM}mm`,
+        fill: '#134e4a', opacity: 0.55, stroke: '#0d9488', 'stroke-width': 1 }, svgRun);
+      ptxt(runStart + runWidth / 2, yDeck + deckPx + hopPx + pbPx / 2, `PIGGYBACK ${pbMM}mm`,
         { size: 8, fill: '#5eead4', weight: 700 });
     }
 
@@ -2826,20 +2925,20 @@ function renderPlan() {
         const w = b.mm * S_;
         // Bay body, tinted by size so lengths are readable at a glance.
         el('rect', { x: cursor, y: yDeck + 1, width: w, height: deckPx - 2,
-          fill: b.clr, opacity: 0.16 }, svg);
-        txt(svg, cursor + w / 2, yDeck + deckPx / 2, b.label.replace(/\s*\(.*\)/, ''),
+          fill: b.clr, opacity: 0.16 }, svgRun);
+        ptxt(cursor + w / 2, yDeck + deckPx / 2, b.label.replace(/\s*\(.*\)/, ''),
           { size: 9, fill: b.clr, weight: 700 });
         // Dimension tick + length under the run.
         const yDim = bandBottom + 16;
         el('line', { x1: cursor, y1: yDim, x2: cursor + w, y2: yDim,
-          stroke: b.clr, 'stroke-width': 1.2 }, svg);
-        el('line', { x1: cursor, y1: yDim - 3, x2: cursor, y2: yDim + 3, stroke: b.clr, 'stroke-width': 1.2 }, svg);
-        el('line', { x1: cursor + w, y1: yDim - 3, x2: cursor + w, y2: yDim + 3, stroke: b.clr, 'stroke-width': 1.2 }, svg);
-        if (w > 30) txt(svg, cursor + w / 2, yDim + 12, `${b.mm}`, { size: 8, fill: '#64748b' });
+          stroke: b.clr, 'stroke-width': 1.2 }, svgRun);
+        el('line', { x1: cursor, y1: yDim - 3, x2: cursor, y2: yDim + 3, stroke: b.clr, 'stroke-width': 1.2 }, svgRun);
+        el('line', { x1: cursor + w, y1: yDim - 3, x2: cursor + w, y2: yDim + 3, stroke: b.clr, 'stroke-width': 1.2 }, svgRun);
+        if (w > 30) ptxt(cursor + w / 2, yDim + 12, `${b.mm}`, { size: 8, fill: '#64748b' });
         if (item.stair) {
           el('rect', { x: cursor, y: yDeck - 22, width: w, height: 17,
-            fill: '#3730a3', opacity: 0.55, stroke: '#6366f1', 'stroke-width': 1, rx: 2 }, svg);
-          txt(svg, cursor + w / 2, yDeck - 13.5, 'STAIR', { size: 8, fill: '#c7d2fe', weight: 800 });
+            fill: '#3730a3', opacity: 0.55, stroke: '#6366f1', 'stroke-width': 1, rx: 2 }, svgRun);
+          ptxt(cursor + w / 2, yDeck - 13.5, 'STAIR', { size: 8, fill: '#c7d2fe', weight: 800 });
         }
         cursor += w;
         posXs.push(cursor);
@@ -2847,9 +2946,9 @@ function renderPlan() {
       } else if (item.type === 'gap') {
         const w = item.value * S_;
         el('rect', { x: cursor, y: yDeck, width: w, height: deckPx,
-          fill: 'url(#plan-gap)', stroke: '#475569', 'stroke-width': 1, 'stroke-dasharray': '3 2' }, svg);
-        txt(svg, cursor + w / 2, yDeck + deckPx / 2, `${item.value}`, { size: 8, fill: '#94a3b8', weight: 700 });
-        txt(svg, cursor + w / 2, bandBottom + 28, 'GAP', { size: 7, fill: '#64748b', weight: 700 });
+          fill: 'url(#plan-gap)', stroke: '#475569', 'stroke-width': 1, 'stroke-dasharray': '3 2' }, svgRun);
+        ptxt(cursor + w / 2, yDeck + deckPx / 2, `${item.value}`, { size: 8, fill: '#94a3b8', weight: 700 });
+        ptxt(cursor + w / 2, bandBottom + 28, 'GAP', { size: 7, fill: '#64748b', weight: 700 });
         cursor += w;
       } else if (item.type === 'step') {
         // No length of its own — a step is a change of level at a standard
@@ -2857,31 +2956,31 @@ function renderPlan() {
         stepNodes += item.value;
         const up = item.value > 0;
         el('line', { x1: cursor, y1: yDeck - 10, x2: cursor, y2: bandBottom + 6,
-          stroke: up ? '#fbbf24' : '#38bdf8', 'stroke-width': 2, 'stroke-dasharray': '2 2' }, svg);
-        txt(svg, cursor, yDeck - 15, `${up ? '▲' : '▼'}${(stepNodes * STAR_PITCH_M).toFixed(1)}m`,
+          stroke: up ? '#fbbf24' : '#38bdf8', 'stroke-width': 2, 'stroke-dasharray': '2 2' }, svgRun);
+        ptxt(cursor, yDeck - 15, `${up ? '▲' : '▼'}${(stepNodes * STAR_PITCH_M).toFixed(1)}m`,
           { size: 7, fill: up ? '#fbbf24' : '#38bdf8', weight: 800 });
       } else if (item.type === 'break') {
         const w = 260 * S_;
         el('line', { x1: cursor + w / 2, y1: yDeck - 6, x2: cursor + w / 2, y2: bandBottom + 6,
-          stroke: '#64748b', 'stroke-width': 2, 'stroke-dasharray': '4 3' }, svg);
-        txt(svg, cursor + w / 2, bandBottom + 28, `R${ri + 1}|R${ri + 2}`, { size: 7, fill: '#94a3b8', weight: 700 });
+          stroke: '#64748b', 'stroke-width': 2, 'stroke-dasharray': '4 3' }, svgRun);
+        ptxt(cursor + w / 2, bandBottom + 28, `R${ri + 1}|R${ri + 2}`, { size: 7, fill: '#94a3b8', weight: 700 });
         cursor += w;
       }
     }
     // Standards last so they sit on top of the bands.
     for (const px of posXs) {
       for (const py of [yDeck, yDeck + deckPx]) {
-        el('circle', { cx: px, cy: py, r: 3.4, fill: '#0f172a', stroke: '#94a3b8', 'stroke-width': 1.6 }, svg);
+        el('circle', { cx: px, cy: py, r: 3.4, fill: '#0f172a', stroke: '#94a3b8', 'stroke-width': 1.6 }, svgRun);
       }
       if (pbPx > 0) {
         el('circle', { cx: px, cy: yDeck + deckPx + hopPx + pbPx, r: 3.4,
-          fill: '#0f172a', stroke: '#2dd4bf', 'stroke-width': 1.6 }, svg);
+          fill: '#0f172a', stroke: '#2dd4bf', 'stroke-width': 1.6 }, svgRun);
       }
     }
-    // Run label above.
-    txt(svg, runStart + 2, 12, `RUN ${ri + 1} · ${sys.name} · ${plan.runMM}mm`,
-      { size: 8, fill: '#64748b', weight: 700, anchor: 'start' });
-    x = cursor;
+    // Run label above, and the turn that put this run here — the plan is where
+    // you check the shape, so the corner should say which way it went.
+    ptxt(runStart + 2, -12, planRunLabel(run, ri, plan),
+      { size: 8, fill: deg !== 0 ? '#fbbf24' : '#64748b', weight: 700, anchor: 'start' });
   });
 
   const lbl = document.getElementById('plan-length-label');

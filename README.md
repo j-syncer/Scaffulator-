@@ -479,23 +479,42 @@ under this projection depth runs with `x + y` and the tower is further out in Y 
 anything else in the picture.
 
 **Runs can turn corners.** Most jobs are not one long line — they go round a building — so
-each *Insert Run Break* carries a **Next Run Direction**: Straight, Turn Left 90° or Turn
-Right 90°. A straight break behaves as it always has, continuing along the same wall line
-with a small gap. A turn starts the new run exactly where the previous run's **outer**
+**Current Run Direction** turns the run you are working on relative to the one before it:
+Straight, Turn Left 90° or Turn Right 90°. A straight run behaves as it always has, carrying
+on along the same wall line. A turn starts the run exactly where the previous run's **outer**
 (guardrail) face ended, facing 90° off the previous run's heading — so the outer face of one
 run lines up with the inner (structure) face of the next, and the corner is a clean right
 angle with nothing overlapping and nothing to mitre. Four turns the same way close the job
 into a rectangle with an open middle, the way a run actually going round a building would.
-It only steers the picture: gear counts, the elevation, the plan and the stair view are all
-still per-run and do not know or care which way the 3D view turned.
+It only steers the pictures: gear counts, the elevation and the stair view are all still
+per-run and do not know or care which way anything turned.
 
-Every run keeps its own **local** frame — x along the run, y from its inner face at 0 out to
-its outer at `widthM` — exactly as before. What changes is a `(origin, dirX, dirY)` on each
-run's model, chained from the run before it, that carries that local frame into world space.
-Inside the drawing loop `P(x, y, z)` is redefined once per run, closing over that run's own
-transform, so every single call site — sole boards, columns, ledgers, transoms, decking, the
-whole stair tower — turns with the run automatically. Nothing downstream of `P` had to
-change or even know rotation exists.
+The control **edits the current run live and is reversible** — pick a direction, the drawing
+turns; change your mind, it turns back. It is deliberately *not* a setting captured at the
+moment you insert a break. It was exactly that at first, and it was wrong: choosing a
+direction *after* inserting the break — the obvious order to do it in — silently did nothing
+and left the run stubbornly straight with no hint why. A control that only works if you
+touch it in the right order is a broken control. Run 1 has nothing to turn from, so there it
+disables itself and says so rather than sitting there pretending to be live.
+
+**Both drawings turn**, off the same `turn` field and the same rule, because a plan and a 3D
+view of the same job that disagreed about its shape would be worse than either alone. Each
+gets there the same way: every run keeps its own **local** frame — x along the run, y from
+its inner face at 0 out to its outer — and gains an `(origin, dirX, dirY)` chained from the
+run before it, that carries that frame into the drawing's space. The 3D redefines
+`P(x, y, z)` once per run, closing over that run's transform; the plan wraps each run in one
+SVG `<g transform>`. Either way every call site inside — sole boards, columns, ledgers,
+transoms, decking, the whole stair tower, and in the plan every band, bay tint, standard and
+dimension — turns with the run automatically, and nothing downstream had to learn that
+rotation exists.
+
+Plan **annotations are counter-rotated** so they always read left to right, whichever way
+their run points: a run drawn at 180° would otherwise label itself upside down. The run
+label is kept short for the same reason — drawn horizontally across a run that may be
+vertical, every extra word is one more crossing the run beside it — and the fit accounts for
+where that label actually ends, or a turned run's label gets cut off at the edge of the
+frame. A turned run tags itself `↰90°` / `↱90°` in amber, so the plan says which way it went
+rather than leaving you to infer it from the shape.
 
 The whole job is fitted to the page, and **it prints** — the screen colours are picked for a dark panel, so a print block restyles
 the members to ink on white (presentation attributes lose to CSS, so classing them is
