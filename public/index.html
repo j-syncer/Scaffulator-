@@ -842,6 +842,28 @@ drawing shows:
     "2B"    2-board end hop-up
     "3B"    3-board end hop-up
 
+## A run is not the same thing as a break
+
+A run is one straight, continuous line of scaffold at one height, one width and one
+system. Bays of DIFFERENT lengths inside that same straight line are still the SAME
+run — mixing a long bay with a short one to land on a wall length is normal and needs
+no break between them. An Ally Frame run built from a 3.0m bay, then another 3.0m, then
+a 1.8m to close it out is one run with three bay entries, not three runs. So is a
+Kwikstage run mixing 8ft and 4ft bays.
+
+Only add a break when the drawing actually shows one physically stopping and starting
+again:
+
+- a corner (use turn on the next run instead, see below — a corner is not a break)
+- a lap or hop-up join between two separately-erected sections
+- the system, height or width genuinely changes partway along
+- the scaffold stops and a new length starts somewhere else entirely
+
+Do not insert a break just because a run has many bays, or several different bay sizes,
+or because you are unsure how to keep going — a long straight run stays ONE run object
+with a bays list as long as it needs to be. When in doubt, keep going in the same run;
+only split when the drawing gives you an actual reason to.
+
 ## Corners: a run is a straight line, so a corner is two runs
 
 Scaffold going round a building is several runs, not one. At every corner:
@@ -954,7 +976,31 @@ height and the bay list are the two things worth getting right.
 
 That is a 6.2m-high 3-board Kwikstage job: seven bays and a 900mm gap along the front with
 a stair tower and a step down in it, lapped into a return that turns right at the corner
-and carries a 2-board hop-up.</script>
+and carries a 2-board hop-up. Run 1 mixes "8ft" and "6ft" bays — that is still ONE run;
+the break only happens at the corner, because that is the only place the drawing shows
+the steel actually stopping and starting again.
+
+## A second example — Ally Frame, one run, mixed bay sizes, no break
+
+    {
+      "job": { "name": "Riverside repaint", "client": "Coastal Painting Co" },
+      "runs": [
+        {
+          "turn": "straight",
+          "settings": { "system": "allyframe", "height": 6.0, "lifts": 2, "width": "1.3",
+                        "frameH": "2.0", "frameBase": "castors", "frameExposure": "sheltered" },
+          "bays": [
+            { "type": "bay", "value": "3000", "count": 3 },
+            { "type": "bay", "value": "1800" }
+          ]
+        }
+      ]
+    }
+
+The bay lengths sum to 10.8m — three 3.0m bays and one 1.8m bay to land on the wall
+— still ONE run, no break, because nothing in the drawing shows the tower stopping partway
+along. A break only belongs here if the drawing showed two separate towers butted together,
+or the run turning a corner.</script>
 
 <div id="toasts" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
 
