@@ -875,7 +875,17 @@ loaded, names an inferred system, and counts what was snapped to a stocked size 
 could not be read at all; the console carries the item-by-item detail, which is what you
 need to fix whatever produced the file.
 
-**Paste works too.** Copy the JSON and paste it anywhere on the page — no file, no
-download. Pasting into a field still types into the field, and text that is not a project
-is left for the browser to handle normally. The file picker accepts `.txt` as well as
-`.json`.
+**Paste works too.** *Paste* in the header opens a box to paste the take-off into and a
+**Build the plan** button — which is the only way in on a phone, where there is no Ctrl+V
+to press and saving a file first to load it back is a step with no purpose. Where the
+browser allows reading the clipboard the box offers a button for it, and where it does
+not, long-pressing the field and choosing Paste is the same thing. On a desktop Ctrl+V
+anywhere on the page imports directly, and Ctrl+Enter imports from the box. Pasting into
+a field still types into the field, and text that is not a project is left for the
+browser to handle normally.
+
+Failures stay in the box with the reason on them — *"Could not read that…"*, or *"No bay
+in that was a size Kwikstage stocks — it had bay "9.9m""* — rather than flashing past in
+a toast, because the fix is usually a re-prompt and you need to know what to change. On a
+phone a successful paste moves to the Visualisations phase, since the plan is the answer
+to the paste. The file picker accepts `.txt` as well as `.json`.

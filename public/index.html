@@ -258,6 +258,59 @@
   body.mode-mobile .stepper.num { margin-top: 8px; }
   body.mode-mobile .stepper.num .st-btn { flex: 1 1 0; }
 
+  /* ---------- paste-a-take-off box (both modes) ---------- */
+  #import-box[hidden] { display: none; }
+  #import-box {
+    position: fixed; inset: 0; z-index: 60;
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  #import-scrim { position: absolute; inset: 0; background: rgba(2, 6, 12, .72); }
+  #import-panel {
+    position: relative; width: 100%; max-width: 660px;
+    max-height: calc(100vh - 32px); overflow: auto;
+    display: flex; flex-direction: column; gap: 10px;
+    background: #161d27; border: 1px solid #2d3f55; border-radius: 14px;
+    padding: 16px; box-shadow: 0 24px 48px -12px rgba(0, 0, 0, .7);
+  }
+  .import-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  #import-title {
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 15px;
+    letter-spacing: .1em; text-transform: uppercase; color: #fbbf24;
+  }
+  .import-x { font-size: 26px; line-height: 1; color: #64748b; padding: 0 6px; min-height: 36px; }
+  .import-x:hover { color: #e2e8f0; }
+  .import-hint { font-size: 11px; line-height: 1.5; color: #94a3b8; }
+  .import-hint .mono { color: #fbbf24; }
+  #import-text {
+    width: 100%; min-height: 34vh; resize: vertical;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px; line-height: 1.5;
+    background: #0d1117; color: #e2e8f0;
+    border: 1px solid #2d3f55; border-radius: 10px; padding: 10px 12px;
+  }
+  #import-text:focus { outline: none; border-color: #fbbf24; }
+  .import-error {
+    font-size: 12px; line-height: 1.4; color: #fda4af;
+    background: rgba(225, 29, 72, .1); border: 1px solid rgba(225, 29, 72, .35);
+    border-radius: 8px; padding: 8px 10px;
+  }
+  .import-error[hidden] { display: none; }
+  .import-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+  .import-btn {
+    flex: 1 1 auto; min-height: 46px; padding: 10px 14px; border-radius: 10px;
+    font-size: 13px; font-weight: 700; transition: background-color .15s;
+  }
+  .import-btn.ghost { background: #1e2a3a; border: 1px solid #2d3f55; color: #cbd5e1; }
+  .import-btn.ghost:hover { background: #2d3f55; }
+  .import-btn.go { background: #fbbf24; color: #0f172a; flex-basis: 100%; }
+  .import-btn.go:hover { background: #fcd34d; }
+  .import-btn:active { transform: scale(.99); }
+  @media (min-width: 560px) { .import-btn.go { flex-basis: auto; } }
+  /* On a phone the keyboard takes half the screen, so the box gives the
+     textarea what is left rather than centring a short panel behind it. */
+  body.mode-mobile #import-box { align-items: flex-start; padding: 10px; }
+  body.mode-mobile #import-text { font-size: 16px; min-height: 30vh; }
+
   /* The phase nav and the mode switch are screen furniture, never paper. */
   @media print {
     #m-shell, .mode-switch, #mode-auto, #install-btn, #sync-pill, #offline-pill,
@@ -304,6 +357,9 @@
       </button>
     </div>
     <button id="mode-auto" type="button" onclick="setMode('auto')" title="Go back to picking the mode automatically" style="display:none">Auto</button>
+    <button onclick="openImportBox()" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-2 px-3 rounded transition-colors" title="Paste a take-off in as text — no file needed">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg><span class="ms-label">Paste</span>
+    </button>
     <button onclick="saveProject()" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-2 px-3 rounded transition-colors">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg><span class="hidden sm:inline">Save</span>
     </button>
@@ -668,6 +724,36 @@
   </div>
 </aside>
 </div><!-- end grid -->
+
+<!-- ═══════════ PASTE A TAKE-OFF IN ═══════════
+     A job written somewhere else — by a model reading a photo of a drawing,
+     most often — arrives as text in a chat window. On a desktop Ctrl+V on the
+     page is enough; a phone has no Ctrl+V, so it needs a field to long-press
+     into. Hidden until asked for, and outside the layout grid, so it is not
+     part of either mode's page. -->
+<div id="import-box" class="no-print" role="dialog" aria-modal="true" aria-labelledby="import-title" hidden>
+  <div id="import-scrim" onclick="closeImportBox()"></div>
+  <div id="import-panel">
+    <div class="import-head">
+      <h3 id="import-title">Paste a take-off</h3>
+      <button type="button" class="import-x" onclick="closeImportBox()" aria-label="Close">×</button>
+    </div>
+    <p class="import-hint">
+      Paste the JSON below — long-press the box and choose Paste. Bay sizes can be
+      written any way round: <span class="mono">2400</span>, <span class="mono">"2.4m"</span>,
+      <span class="mono">"8ft"</span> or <span class="mono">"2.4m (8ft)"</span>. Prose and
+      code fences around it are fine.
+    </p>
+    <textarea id="import-text" spellcheck="false" autocapitalize="off" autocorrect="off"
+      placeholder='{"runs":[{"bays":["2.4m","2.4m","1.8m"],"settings":{"height":4.5,"lifts":2}}]}'></textarea>
+    <p id="import-error" class="import-error" hidden></p>
+    <div class="import-actions">
+      <button type="button" id="import-clip" class="import-btn ghost" onclick="pasteFromClipboard()">Paste from clipboard</button>
+      <button type="button" class="import-btn ghost" onclick="closeImportBox()">Cancel</button>
+      <button type="button" class="import-btn go" onclick="importFromBox()">Build the plan</button>
+    </div>
+  </div>
+</div>
 
 <div id="toasts" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
 
@@ -3244,17 +3330,18 @@ function importProjectText(text, source = 'file') {
       console.info('Scaffulator import:', { snapped: report.snapped, dropped: report.dropped });
     }
     if (bays === 0) {
-      toast(`Loaded, but no bay was readable — sizes look like ${report.dropped.slice(0, 2).join(', ') || 'nothing this system stocks'}.`);
-    } else {
-      toast(`${source === 'paste' ? 'Pasted' : 'Loaded'} — ${bits.join(' · ')}.`, false);
+      const why = `No bay in that was a size ${SYS.name} stocks${report.dropped.length ? ` — it had ${report.dropped.slice(0, 3).join(', ')}` : ''}.`;
+      toast(why);
+      return { ok: false, message: why };
     }
-    return true;
+    toast(`${source === 'paste' ? 'Pasted' : 'Loaded'} — ${bits.join(' · ')}.`, false);
+    return { ok: true, message: bits.join(' · '), report };
   } catch (err) {
     runs = before; // leave the current job alone rather than half-loaded
     loadSettings(currentRun());
     render();
     toast(`Could not read that: ${err.message}.`);
-    return false;
+    return { ok: false, message: `Could not read that: ${err.message}.` };
   }
 }
 // Rebuilds a trusted `runs` array from whatever a project file contains,
@@ -3307,6 +3394,76 @@ function loadProject(ev) {
   r.readAsText(f);
   ev.target.value = '';
 }
+/* ---------------- the paste box ----------------
+   Ctrl+V on the page covers a desktop. A phone has no Ctrl+V, so the same
+   import needs somewhere to long-press into: a field, a button that reads the
+   clipboard where the browser allows it, and the error in front of you rather
+   than in a toast that has already gone. */
+function openImportBox() {
+  const box = document.getElementById('import-box');
+  const field = document.getElementById('import-text');
+  if (!box || !field) return;
+  box.hidden = false;
+  setImportError('');
+  // Clipboard reading needs permission and a gesture, and Firefox has no API
+  // for it at all — the button only offers what the browser can do.
+  const clip = document.getElementById('import-clip');
+  if (clip) clip.hidden = !(navigator.clipboard && navigator.clipboard.readText);
+  field.focus();
+  field.select();
+}
+
+function closeImportBox() {
+  const box = document.getElementById('import-box');
+  if (box) box.hidden = true;
+}
+
+function setImportError(msg) {
+  const el = document.getElementById('import-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+async function pasteFromClipboard() {
+  const field = document.getElementById('import-text');
+  if (!field || !navigator.clipboard || !navigator.clipboard.readText) return;
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) { setImportError('The clipboard is empty.'); return; }
+    field.value = text;
+    setImportError('');
+  } catch {
+    // A refused permission is not an error worth a red box — the field is
+    // right there to paste into by hand.
+    setImportError('This browser will not hand over the clipboard — long-press the box and choose Paste.');
+  }
+}
+
+function importFromBox() {
+  const field = document.getElementById('import-text');
+  if (!field) return;
+  const text = field.value.trim();
+  if (!text) { setImportError('Nothing to read yet — paste the take-off into the box first.'); return; }
+  const outcome = importProjectText(text, 'paste');
+  if (!outcome.ok) { setImportError(outcome.message); return; }
+  closeImportBox();
+  field.value = '';
+  // On a phone the plan is the answer to the paste, so go and show it rather
+  // than leaving the job on the settings screen.
+  if (document.body.classList.contains('mode-mobile') && typeof setPhase === 'function') {
+    setPhase('2');
+  }
+}
+
+document.addEventListener('keydown', (ev) => {
+  const box = document.getElementById('import-box');
+  if (!box || box.hidden) return;
+  if (ev.key === 'Escape') closeImportBox();
+  // Ctrl/Cmd+Enter imports, so a desktop paste never needs the mouse back.
+  if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); importFromBox(); }
+});
+
 // Paste a project straight onto the page. A take-off written by something else
 // arrives as text in a chat window, and saving it to a file first to load it
 // back is a step with no purpose. Pasting into a field still types into the
