@@ -3295,7 +3295,12 @@ function isoRunModel(run, x0) {
     p.inner = stdColumnList(plan.nomH + extra, enabled, b);
     p.outer = stdColumnList(plan.nomH + guardM + extra, enabled, b);
   }
-  return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels };
+  const stairBay = run.bays.find((b) => b.type === 'bay' && b.stair);
+  let stairDeck = null;
+  if (stairBay) {
+    stairDeck = decks.find((d) => Math.abs(d.bayMM - sys.bays[stairBay.value].mm) < 1);
+  }
+  return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels, stairDeck };
 }
 function bayMmToStdClr(bayMM, stdClr) {
   if (!stdClr) return '#64748b';
@@ -3420,9 +3425,11 @@ function renderIso() {
           line(P(d.x0, y, plan.gTFS + r + d.lvl), P(d.x1, y, plan.gTFS + r + d.lvl),
             ledgerClr, 1.8, dim ? 0.6 : 1);
         if (!rails) continue;
-        for (const rh of guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
-          line(P(d.x0, y, topZ(d.lvl) + rh), P(d.x1, y, topZ(d.lvl) + rh),
-            dim ? '#a16207' : '#fbbf24', 1.8, 0.95, 'iso-rail');
+        for (const br of boarded) {
+          for (const rh of guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
+            line(P(d.x0, y, plan.gTFS + br + d.lvl + rh), P(d.x1, y, plan.gTFS + br + d.lvl + rh),
+              dim ? '#a16207' : '#fbbf24', 1.8, 0.95, 'iso-rail');
+        }
       }
     };
     rowGear(0, true, false);
@@ -3447,6 +3454,24 @@ function renderIso() {
       // The near edge, so the boards read as sitting on top of the ring.
       quad(P(d.x0, widthM, t), P(d.x1, widthM, t), P(d.x1, widthM, z), P(d.x0, widthM, z),
         top ? '#475569' : '#3a4859', '#cbd5e1', 0.95, 'iso-deck');
+    }
+    // Stair base visualization if present
+    if (m.stairDeck && sys.stair) {
+      const sd = m.stairDeck;
+      const stairSpan = plan.starSpan;
+      const treadH = 0.25;
+      const stairBaseZ = plan.gTFS + sd.lvl;
+      const numTreads = Math.ceil(stairSpan / 0.25);
+      for (let i = 0; i < numTreads && i * treadH < stairSpan; i++) {
+        const z = stairBaseZ + i * treadH;
+        const tNext = z + treadH;
+        const xMid = (sd.x0 + sd.x1) / 2;
+        const stairW = 0.5;
+        quad(P(xMid - stairW, 0, z), P(xMid + stairW, 0, z), P(xMid + stairW, 0, tNext), P(xMid - stairW, 0, tNext),
+          '#6b7280', '#4b5563', 0.8);
+        quad(P(xMid - stairW, 0, z), P(xMid - stairW, widthM, z), P(xMid - stairW, widthM, tNext), P(xMid - stairW, 0, tNext),
+          '#555f6f', '#4b5563', 0.85);
+      }
     }
     rowGear(widthM, false, true);
   }
