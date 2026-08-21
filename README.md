@@ -544,6 +544,17 @@ the frame rules described above.
 - **Deck width** is chosen by board count — see *Deck widths and board counts* below. The
   *Side Hop-up* and *Piggyback Bay* dropdowns are generated from the same system data, so
   they only ever offer brackets and transoms that system actually stocks.
+- **Step up / step down** — a `step` item in the bay list moves everything after it one
+  node (0.5 m) up or down, for ground that has run past what the jack can follow. Ground
+  that only rises or falls a little is **not** a step: the jack takes that and every deck
+  stays where it is. Stepping in whole nodes is why the jack's travel is one node pitch —
+  the jack setting is the same either side of a step.
+
+  A stepped bay needs no more gear than a level one, because its base and its deck move
+  together. What does change is the **step position itself**: those standards serve both
+  levels, feet on the lower ground and heads reaching the upper deck's guardrail, so those
+  two columns are one node taller. The plan view marks each step with the running level,
+  and the section caption reports the deck range across the run.
 - **End edge protection** — at each **open end** of a run a person or object could fall off,
   so the end takes the same rails the sides do: guardrail and mid-rail at every boarded
   lift, the full set at the top, plus a toe board. The manual allows transoms in place of

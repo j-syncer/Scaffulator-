@@ -187,6 +187,14 @@
       <button onclick="addGap()" class="bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg whitespace-nowrap transition-colors">Add Gap</button>
     </div>
     <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Step Up / Down</label>
+      <div class="flex gap-2">
+        <button onclick="addStep(1)" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors">Step Up</button>
+        <button onclick="addStep(-1)" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors">Step Down</button>
+      </div>
+      <p id="step-note" class="text-[9px] text-slate-600 mt-1 leading-tight"></p>
+    </div>
+    <div>
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Break / Join Type</label>
       <select id="break-type" class="form-select w-full">
         <option value="none">Standard Break (Tube &amp; Coupler)</option>
@@ -1312,6 +1320,28 @@ function addStairTowerGear(add, st, ctx) {
     add(`${SYS.plank} (${st.bayMM}mm)`, landings * walk.landingPlanks);
   }
 }
+// The run's level as it walks along, in nodes above where it started. A step
+// item shifts everything after it; bays carry the level they sit at.
+function runLevels(run) {
+  let step = 0;
+  const out = [];
+  for (const item of run.bays) {
+    if (item.type === 'step') step += item.value;
+    out.push({ item, step });
+  }
+  return out;
+}
+// How far the run climbs or drops overall, in metres.
+function runStepRange(run) {
+  let step = 0, lo = 0, hi = 0;
+  for (const item of run.bays) {
+    if (item.type !== 'step') continue;
+    step += item.value;
+    lo = Math.min(lo, step);
+    hi = Math.max(hi, step);
+  }
+  return { lo: lo * STAR_PITCH_M, hi: hi * STAR_PITCH_M, steps: step };
+}
 // Ends of a run where a person or object could fall. A run that carries a break
 // joins the next one there, and the run after it is joined at its start, so
 // those ends are not open and need no edge protection.
@@ -1424,8 +1454,22 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
     for (const [k, v] of Object.entries(stackMap(pair.a))) add(k, v * nA);
     for (const [k, v] of Object.entries(stackMap(pair.b))) add(k, v * (count - nA));
   };
-  addColumns(nomH, numPos);
-  addColumns(nomH + guardrailM, numPos);
+  // A step position's standards serve BOTH levels: their feet are on the lower
+  // ground and their heads have to reach the upper deck's guardrail, so those
+  // columns are one node taller. Everything else on the run is unaffected —
+  // both the base and the deck move together, so a stepped bay needs no more
+  // gear than a level one.
+  const stepCount = Math.min(
+    numPos,
+    run.bays.filter((b) => b.type === 'step').length
+  );
+  const levelPos = numPos - stepCount;
+  addColumns(nomH, levelPos);
+  addColumns(nomH + guardrailM, levelPos);
+  if (stepCount > 0) {
+    addColumns(nomH + STAR_PITCH_M, stepCount);
+    addColumns(nomH + guardrailM + STAR_PITCH_M, stepCount);
+  }
   const guardRailsPB = handrail === '2' ? 4 : 2;
   const midRailsPB = 2 * Math.max(0, boardedLifts - 1);
   const ledgerPart = partName('ledger', 'Ledger');
@@ -1762,6 +1806,27 @@ function addGap() {
     el.value = '';
     render();
   }
+}
+// Step the run one node up or down from here on.
+//
+// Ground that rises or falls a little is NOT a step: the jack takes that, and
+// every deck stays where it is. A step is the deliberate move you make when the
+// ground has run away further than the jack can follow — the whole set-out from
+// that point on goes up or down one node, 0.5m, which is exactly why the jack's
+// travel is one node pitch. The jack setting is then the same either side.
+function addStep(dir) {
+  const run = currentRun();
+  useSystem(run.settings.system);
+  if (SYS.model === 'frame') {
+    toast(`${SYS.name} steps by frame height, not by node — not modelled.`);
+    return;
+  }
+  if (!run.bays.some((b) => b.type === 'bay')) {
+    toast('Add a bay before stepping — a step applies to the bays after it.');
+    return;
+  }
+  run.bays.push({ type: 'step', value: dir > 0 ? 1 : -1 });
+  render();
 }
 function addBreak() {
   const bt = document.getElementById('break-type').value;
@@ -2248,6 +2313,7 @@ function sanitiseRuns(data) {
         if (!b || typeof b !== 'object') return false;
         if (b.type === 'bay') return !!sys.bays[b.value];
         if (b.type === 'gap') return Number.isFinite(b.value) && b.value > 0;
+        if (b.type === 'step') return b.value === 1 || b.value === -1;
         return b.type === 'break';
       });
       // A stair only survives the load if that bay can actually carry one.
@@ -2405,6 +2471,7 @@ function render() {
   renderGearList();
   renderMetrics();
   renderHeightNote();
+  renderStepNote();
   updateCounters();
   updateSummary();
 }
@@ -2532,6 +2599,7 @@ function renderPlan() {
 
     posXs.push(cursor);
     cursor += sys.geom.posMM * S_;
+    let stepNodes = 0;
     for (const item of run.bays) {
       if (item.type === 'bay') {
         const b = sys.bays[item.value];
@@ -2563,6 +2631,15 @@ function renderPlan() {
         txt(svg, cursor + w / 2, yDeck + deckPx / 2, `${item.value}`, { size: 8, fill: '#94a3b8', weight: 700 });
         txt(svg, cursor + w / 2, bandBottom + 28, 'GAP', { size: 7, fill: '#64748b', weight: 700 });
         cursor += w;
+      } else if (item.type === 'step') {
+        // No length of its own — a step is a change of level at a standard
+        // position, so it is drawn as a marker rather than a span.
+        stepNodes += item.value;
+        const up = item.value > 0;
+        el('line', { x1: cursor, y1: yDeck - 10, x2: cursor, y2: bandBottom + 6,
+          stroke: up ? '#fbbf24' : '#38bdf8', 'stroke-width': 2, 'stroke-dasharray': '2 2' }, svg);
+        txt(svg, cursor, yDeck - 15, `${up ? '▲' : '▼'}${(stepNodes * STAR_PITCH_M).toFixed(1)}m`,
+          { size: 7, fill: up ? '#fbbf24' : '#38bdf8', weight: 800 });
       } else if (item.type === 'break') {
         const w = 260 * S_;
         el('line', { x1: cursor + w / 2, y1: yDeck - 6, x2: cursor + w / 2, y2: bandBottom + 6,
@@ -2672,6 +2749,12 @@ function renderElevation() {
   if (label) {
     label.textContent =
       `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m (${nodeRef(1)}–${starAt(starSpan)}) · Step-down ${stepDown}` +
+      (() => {
+        const r = runStepRange(run);
+        if (r.lo === 0 && r.hi === 0) return '';
+        const net = r.steps * STAR_PITCH_M;
+        return ` · steps ${net >= 0 ? '+' : ''}${net.toFixed(1)}m (deck +${(targetH + r.lo).toFixed(2)}m to +${(targetH + r.hi).toFixed(2)}m)`;
+      })() +
       (run.settings.stagger === '1' ? ' · staggered' : '') +
       (hasStair && !SYS.stairTower ? ` · ${stairPlanSummary(starSpan)}` : '') +
       (scalesDiffer ? ' · width exaggerated' : '');
@@ -3207,6 +3290,18 @@ function renderHeightNote() {
     (plan.shortfall > 0
       ? ` · ${plan.requestedLifts} needs ≥ ${minHeightForPlatforms(plan.requestedLifts)}m`
       : '');
+}
+// What the step buttons have done to the current run.
+function renderStepNote() {
+  const note = document.getElementById('step-note');
+  if (!note) return;
+  const run = currentRun();
+  useSystem(run.settings.system);
+  const r = runStepRange(run);
+  const n = run.bays.filter((b) => b.type === 'step').length;
+  note.textContent = n
+    ? `${n} step${n === 1 ? '' : 's'} · net ${r.steps >= 0 ? '+' : ''}${(r.steps * STAR_PITCH_M).toFixed(1)}m · deck ranges ${(r.lo).toFixed(1)}m to +${(r.hi).toFixed(1)}m across the run.`
+    : `Ground that only rises or falls a little is not a step — the jack takes that. Step when it runs past the jack: everything after moves one ${nodeSpec().name.toLowerCase()}, ${(STAR_PITCH_M * 1000).toFixed(0)}mm.`;
 }
 function renderMetrics() {
   const s = (id, v) => {
