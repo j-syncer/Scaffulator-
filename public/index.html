@@ -1825,6 +1825,14 @@ function addStep(dir) {
     toast('Add a bay before stepping — a step applies to the bays after it.');
     return;
   }
+  // One node per step, and never two at the same place: stepping more than one
+  // at a time is not allowed. Two metres of fall is four steps taken a bay at a
+  // time, not one big one.
+  const last = run.bays[run.bays.length - 1];
+  if (last && last.type === 'step') {
+    toast(`Only one ${nodeSpec().name.toLowerCase()} per step — add a bay before stepping again.`);
+    return;
+  }
   run.bays.push({ type: 'step', value: dir > 0 ? 1 : -1 });
   render();
 }
@@ -2316,6 +2324,11 @@ function sanitiseRuns(data) {
         if (b.type === 'step') return b.value === 1 || b.value === -1;
         return b.type === 'break';
       });
+      // Two steps at the same position is more than one node at a time, which
+      // is not allowed — keep the first and drop the rest.
+      for (let n = bays.length - 1; n > 0; n--) {
+        if (bays[n].type === 'step' && bays[n - 1].type === 'step') bays.splice(n, 1);
+      }
       // A stair only survives the load if that bay can actually carry one.
       for (const b of bays) {
         if (b.type === 'bay' && b.stair && !canCarryStair(sys, b.value)) b.stair = false;
@@ -3301,7 +3314,7 @@ function renderStepNote() {
   const n = run.bays.filter((b) => b.type === 'step').length;
   note.textContent = n
     ? `${n} step${n === 1 ? '' : 's'} · net ${r.steps >= 0 ? '+' : ''}${(r.steps * STAR_PITCH_M).toFixed(1)}m · deck ranges ${(r.lo).toFixed(1)}m to +${(r.hi).toFixed(1)}m across the run.`
-    : `Ground that only rises or falls a little is not a step — the jack takes that. Step when it runs past the jack: everything after moves one ${nodeSpec().name.toLowerCase()}, ${(STAR_PITCH_M * 1000).toFixed(0)}mm.`;
+    : `Ground that only rises or falls a little is not a step — the jack takes that. Step when it runs past the jack: every platform in the bays after it moves one ${nodeSpec().name.toLowerCase()} together, ${(STAR_PITCH_M * 1000).toFixed(0)}mm, so they stay ${SYS.geom.ringM.toFixed(1)}m apart. One per step — 2m of fall is four steps, a bay at a time.`;
 }
 function renderMetrics() {
   const s = (id, v) => {

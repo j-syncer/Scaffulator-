@@ -550,6 +550,12 @@ the frame rules described above.
   stays where it is. Stepping in whole nodes is why the jack's travel is one node pitch —
   the jack setting is the same either side of a step.
 
+  **Every platform in the bays after a step moves together**, so they stay `ringM` apart —
+  a step is a move of the whole set-out, not of one deck. And it is always exactly one
+  node: stepping more than one at a time is not allowed, so 2 m of fall is four steps taken
+  a bay at a time. `addStep()` refuses a second step at the same position and the loader
+  drops doubled ones.
+
   A stepped bay needs no more gear than a level one, because its base and its deck move
   together. What does change is the **step position itself**: those standards serve both
   levels, feet on the lower ground and heads reaching the upper deck's guardrail, so those
