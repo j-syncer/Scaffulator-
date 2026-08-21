@@ -106,6 +106,7 @@ same queue from the page's `online` event. A pill in the header counts what is w
 | `public/icons/` | Home-screen icons (192, 512, maskable 512, Apple touch) |
 | `public/favicon.ico` | Tab icon |
 | `public/og-image.jpg` | Social preview image referenced by the `og:image` meta tag |
+| `docs/ai-prompt.md` | The prompt that teaches an AI to write a file this app can read |
 | `wrangler.toml` | Cloudflare Worker config — serves `public/` as static assets |
 
 ## Deployment
@@ -899,6 +900,14 @@ not, long-pressing the field and choosing Paste is the same thing. On a desktop 
 anywhere on the page imports directly, and Ctrl+Enter imports from the box. Pasting into
 a field still types into the field, and text that is not a project is left for the
 browser to handle normally.
+
+**And there is a prompt to teach an AI the format.** `docs/ai-prompt.md` is the whole
+thing — the entry types, corners as separate runs, break types, stair bays, hop-ups,
+heights, and the sizes each of the four systems actually stocks — with a worked example.
+*Copy the prompt for your AI* in the paste box puts it on the clipboard, which is how it
+gets onto a phone. The app's copy is generated from that document and a test fails if the
+two drift apart; the example inside it is imported by that same test, so the format it
+teaches is the format that loads.
 
 Failures stay in the box with the reason on them — *"Could not read that…"*, or *"No bay
 in that was a size Kwikstage stocks — it had bay "9.9m""* — rather than flashing past in
