@@ -3278,7 +3278,7 @@ function isoRunModel(run, x0) {
     if (!prevPost) { prevPost = post(x + gapM / 2, lvl, pi); posts.push(prevPost); }
     const next = post(prevPost.x + len, lvl, ++pi);
     posts.push(next);
-    decks.push({ x0: prevPost.x, x1: next.x, lvl, clr: sys.bays[item.value].clr });
+    decks.push({ x0: prevPost.x, x1: next.x, lvl, clr: sys.bays[item.value].clr, bayMM: sys.bays[item.value].mm });
     x = next.x + gapM;
     prevPost = next;
   }
@@ -3296,6 +3296,13 @@ function isoRunModel(run, x0) {
     p.outer = stdColumnList(plan.nomH + guardM + extra, enabled, b);
   }
   return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels };
+}
+function bayMmToStdClr(bayMM, stdClr) {
+  const stdSizes = Object.keys(stdClr).map(Number).sort((a, b) => b - a);
+  const closest = stdSizes.reduce((prev, curr) =>
+    Math.abs(curr - bayMM / 1000) < Math.abs(prev - bayMM / 1000) ? curr : prev
+  );
+  return stdClr[closest.toFixed(1)] || stdClr[closest] || '#64748b';
 }
 function renderIso() {
   const panel = document.getElementById('iso-panel');
@@ -3399,9 +3406,10 @@ function renderIso() {
               fill: dim ? '#31465e' : '#e2e8f0', opacity: dim ? 1 : 0.9 }, svg);
       }
       for (const d of decks) {
+        const ledgerClr = bayMmToStdClr(d.bayMM, sys.stdClr);
         for (const r of rings)
           line(P(d.x0, y, plan.gTFS + r + d.lvl), P(d.x1, y, plan.gTFS + r + d.lvl),
-            dim ? '#46617f' : '#8095ab', 1.8);
+            ledgerClr, 1.8, dim ? 0.6 : 1);
         if (!rails) continue;
         for (const rh of guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
           line(P(d.x0, y, topZ(d.lvl) + rh), P(d.x1, y, topZ(d.lvl) + rh),
@@ -3409,9 +3417,13 @@ function renderIso() {
       }
     };
     rowGear(0, true, false);
-    // Transoms across, at every ring.
-    for (const p of posts) for (const r of rings)
-      line(P(p.x, 0, plan.gTFS + r + p.lvl), P(p.x, widthM, plan.gTFS + r + p.lvl), '#61758c', 1.6);
+    // Transoms across, at every ring. Colored by the bay they carry (the one ending at this post).
+    for (const p of posts) {
+      const bayDeck = decks.find((d) => Math.abs(d.x1 - p.x) < 0.001);
+      const transomClr = bayDeck ? bayMmToStdClr(bayDeck.bayMM, sys.stdClr) : '#61758c';
+      for (const r of rings)
+        line(P(p.x, 0, plan.gTFS + r + p.lvl), P(p.x, widthM, plan.gTFS + r + p.lvl), transomClr, 1.6);
+    }
     // Decks, drawn ON the ring rather than in it. Boards sit on the transom,
     // which sits on the ring, so the slab is lifted a board's thickness and
     // given a visible edge — otherwise it lay exactly in the plane of the
