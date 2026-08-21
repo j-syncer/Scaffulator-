@@ -478,6 +478,25 @@ leg grey would hide the build the colours are there to show. It is drawn last, b
 under this projection depth runs with `x + y` and the tower is further out in Y than
 anything else in the picture.
 
+**Runs can turn corners.** Most jobs are not one long line — they go round a building — so
+each *Insert Run Break* carries a **Next Run Direction**: Straight, Turn Left 90° or Turn
+Right 90°. A straight break behaves as it always has, continuing along the same wall line
+with a small gap. A turn starts the new run exactly where the previous run's **outer**
+(guardrail) face ended, facing 90° off the previous run's heading — so the outer face of one
+run lines up with the inner (structure) face of the next, and the corner is a clean right
+angle with nothing overlapping and nothing to mitre. Four turns the same way close the job
+into a rectangle with an open middle, the way a run actually going round a building would.
+It only steers the picture: gear counts, the elevation, the plan and the stair view are all
+still per-run and do not know or care which way the 3D view turned.
+
+Every run keeps its own **local** frame — x along the run, y from its inner face at 0 out to
+its outer at `widthM` — exactly as before. What changes is a `(origin, dirX, dirY)` on each
+run's model, chained from the run before it, that carries that local frame into world space.
+Inside the drawing loop `P(x, y, z)` is redefined once per run, closing over that run's own
+transform, so every single call site — sole boards, columns, ledgers, transoms, decking, the
+whole stair tower — turns with the run automatically. Nothing downstream of `P` had to
+change or even know rotation exists.
+
 The whole job is fitted to the page, and **it prints** — the screen colours are picked for a dark panel, so a print block restyles
 the members to ink on white (presentation attributes lose to CSS, so classing them is
 enough).

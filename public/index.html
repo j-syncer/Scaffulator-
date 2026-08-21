@@ -238,6 +238,15 @@
         <option value="3B">3-Board End Hop-up</option>
       </select>
     </div>
+    <div>
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Next Run Direction <span class="text-slate-600 normal-case font-normal">(3D view only)</span></label>
+      <select id="break-turn" class="form-select w-full">
+        <option value="straight">Straight — continue in line</option>
+        <option value="left">Turn Left 90°</option>
+        <option value="right">Turn Right 90°</option>
+      </select>
+      <p class="text-[9px] text-slate-600 mt-1 leading-tight">For a run that turns a corner around a building. The outer (guardrail) face of this run lines up with the inner (structure) face of the next, forming the corner. Gear counts are unaffected — this only changes the 3D picture.</p>
+    </div>
     <button onclick="addBreak()" class="w-full bg-slate-700 hover:bg-slate-600 active:scale-[0.98] text-white text-xs font-bold py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 transition-all">
       Insert Run Break / Start New Run
     </button>
@@ -1991,9 +2000,13 @@ function addStep(dir) {
 }
 function addBreak() {
   const bt = document.getElementById('break-type').value;
+  const turnEl = document.getElementById('break-turn');
+  const turn = turnEl && (turnEl.value === 'left' || turnEl.value === 'right') ? turnEl.value : 'straight';
   const cur = currentRun();
   cur.bays.push({ type: 'break', value: bt });
-  runs.push({ bays: [], settings: { ...cur.settings } });
+  // `turn` only steers the 3D picture — where this run sits and which way it
+  // faces relative to the one it just broke from. It changes no gear count.
+  runs.push({ bays: [], settings: { ...cur.settings }, turn });
   loadSettings(currentRun());
   render();
 }
@@ -2524,7 +2537,8 @@ function sanitiseRuns(data) {
       for (const b of bays) {
         if (b.type === 'bay' && b.stair && !canCarryStair(sys, b.value)) b.stair = false;
       }
-      return { bays, settings };
+      const turn = run.turn === 'left' || run.turn === 'right' ? run.turn : 'straight';
+      return { bays, settings, turn };
     })
     .filter(Boolean);
   if (clean.length === 0) throw new Error('no usable runs');
@@ -3238,8 +3252,21 @@ const ISO_SIN = Math.sin(Math.PI / 6);
 function isoPt(x, y, z, k) {
   return [(x - y) * ISO_COS * k, ((x + y) * ISO_SIN - z) * k];
 }
-// Everything a run puts on the drawing, walked out in metres.
-function isoRunModel(run, x0) {
+// Rotates a 2D direction vector a quarter turn. sign > 0 is a left turn,
+// sign < 0 a right turn — the two are mirror images of each other, so which
+// literal sign is "left" only matters in that it has to be consistent turn
+// after turn: four right turns in a row have to close up into a rectangle,
+// walked the way a person actually walks it, or the picture is wrong no
+// matter what the words on the dropdown say.
+function rot90(v, sign) {
+  return sign > 0 ? [-v[1], v[0]] : [v[1], -v[0]];
+}
+// Everything a run puts on the drawing, walked out in metres, in the run's
+// OWN local frame (x along the run, y from the inner/structure face at 0 out
+// to the outer/guardrail face at widthM). `prev` is the previous run's model,
+// or null for the first run in the job — it is where this run's world
+// position and facing come from.
+function isoRunModel(run, prev) {
   const sys = SYSTEMS[run.settings.system] || SYSTEMS.kwikstage;
   useSystem(sys.id);
   const bays = run.bays.filter((b) => b.type === 'bay');
@@ -3251,7 +3278,7 @@ function isoRunModel(run, x0) {
   const guardM = run.settings.handrail === '2' ? 2.0 : 1.0;
   const posts = [];
   const decks = [];
-  let x = x0;
+  let x = 0;
   let lvl = 0;
   let prevPost = null;
   // A post carries the level of its own ground (`foot`) and the level its head
@@ -3325,7 +3352,36 @@ function isoRunModel(run, x0) {
       braced: !!(sys.stair && sys.stair.faceBrace),
     };
   }
-  return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels, stair };
+  // World placement, chained from the previous run. The first run in the job
+  // sits at the origin facing +x. Every run after it either continues in a
+  // straight line — the small gap between runs is along the SAME wall, so it
+  // stays on the previous run's inner (y=0) line — or turns a corner, in
+  // which case it starts exactly where the previous run's OUTER face ended
+  // (its local (endX, widthM), in world) and faces 90° off the previous run's
+  // heading. That is the "outer of this run lines up with inner of the next"
+  // corner a real scaffold turns: the two run frames share that one point,
+  // and the structure-side (inner) line of the new run picks up from there.
+  let origin, dirX, dirY;
+  if (!prev) {
+    origin = [0, 0]; dirX = [1, 0]; dirY = [0, 1];
+  } else if (run.turn === 'left' || run.turn === 'right') {
+    const sign = run.turn === 'left' ? 1 : -1;
+    origin = [
+      prev.origin[0] + prev.endX * prev.dirX[0] + prev.widthM * prev.dirY[0],
+      prev.origin[1] + prev.endX * prev.dirX[1] + prev.widthM * prev.dirY[1],
+    ];
+    dirX = rot90(prev.dirX, sign);
+    dirY = rot90(prev.dirY, sign);
+  } else {
+    const GAP = 0.6;
+    origin = [
+      prev.origin[0] + (prev.endX + GAP) * prev.dirX[0],
+      prev.origin[1] + (prev.endX + GAP) * prev.dirX[1],
+    ];
+    dirX = prev.dirX; dirY = prev.dirY;
+  }
+  return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels, stair,
+    origin, dirX, dirY };
 }
 function bayMmToStdClr(bayMM, stdClr) {
   if (!stdClr) return '#64748b';
@@ -3340,12 +3396,12 @@ function renderIso() {
   const label = document.getElementById('iso-label');
   if (!panel || !c) return;
   const models = [];
-  let cursor = 0;
+  let prevModel = null;
   for (const run of runs) {
-    const m = isoRunModel(run, cursor);
+    const m = isoRunModel(run, prevModel);
     if (!m) continue;
     models.push(m);
-    cursor = m.endX + 0.6;
+    prevModel = m;
   }
   if (!models.length) {
     c.innerHTML = '';
@@ -3353,19 +3409,32 @@ function renderIso() {
     if (label) label.textContent = '';
     return;
   }
+  // Local (x, y) → world (X, Y), for the run's own placement — chained off
+  // wherever it broke from, or the origin facing +x for the first run.
+  const worldOf = (m) => (xLocal, yLocal) => [
+    m.origin[0] + xLocal * m.dirX[0] + yLocal * m.dirY[0],
+    m.origin[1] + xLocal * m.dirX[1] + yLocal * m.dirY[1],
+  ];
   // Fit the whole job to the page.
   const pts = [];
   for (const m of models) {
+    const toWorld = worldOf(m);
     const zTop = m.plan.gTFS + m.plan.starSpan + m.guardM + 0.6;
     for (const p of m.posts) for (const y of [0, m.widthM])
-      for (const z of [p.foot, zTop + p.top]) pts.push(isoPt(p.x, y, z, 1));
+      for (const z of [p.foot, zTop + p.top]) {
+        const [wx, wy] = toWorld(p.x, y);
+        pts.push(isoPt(wx, wy, z, 1));
+      }
     // The stair tower hangs off the outer face and runs taller than the run's
     // own guardrail, so it sets the extent on two sides.
     if (m.stair) {
       const s = m.stair;
       const sTop = m.plan.gTFS + s.lvl + m.plan.starSpan + s.railAboveM + 0.3;
       for (const x of [s.x0, s.x1]) for (const y of [m.widthM, m.widthM + s.depthM])
-        for (const z of [s.lvl, sTop]) pts.push(isoPt(x, y, z, 1));
+        for (const z of [s.lvl, sTop]) {
+          const [wx, wy] = toWorld(x, y);
+          pts.push(isoPt(wx, wy, z, 1));
+        }
     }
   }
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
@@ -3374,16 +3443,16 @@ function renderIso() {
   // under the feet, STEP OFF / WALK ON at the ends of a stair — are not cut in
   // half by the viewBox.
   const PAD = 42;
-  const k = Math.max(9, Math.min(62, 1180 / Math.max(bx[1] - bx[0], 0.5)));
+  // A run of corners can end up nearly as tall (in the projection) as it is
+  // wide, where a single straight run never was — so the scale is capped by
+  // whichever extent is larger, not just width.
+  const k = Math.max(9, Math.min(62,
+    Math.min(1180 / Math.max(bx[1] - bx[0], 0.5), 900 / Math.max(by[1] - by[0], 0.5))));
   const W = (bx[1] - bx[0]) * k + PAD * 2;
   const H = (by[1] - by[0]) * k + PAD * 2;
   c.innerHTML = '';
   const svg = el('svg', { width: Math.max(W, 320), height: Math.max(H, 200),
     viewBox: `0 0 ${Math.max(W, 320)} ${Math.max(H, 200)}`, style: 'display:block;' }, c);
-  const P = (x, y, z) => {
-    const [a, b] = isoPt(x, y, z, k);
-    return [a - bx[0] * k + PAD, b - by[0] * k + PAD];
-  };
   const line = (p, q, stroke, w, op, cls) =>
     el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke, class: cls || 'iso-member',
       'stroke-width': w, opacity: op === undefined ? 1 : op, 'stroke-linecap': 'round' }, svg);
@@ -3396,6 +3465,16 @@ function renderIso() {
 
   for (const m of models) {
     const { sys, plan, widthM, guardM, posts, decks } = m;
+    // Every P() call below takes LOCAL (x, y) — x along this run, y from its
+    // inner face out to its outer — and only here, per model, does that turn
+    // into a world position via the run's own origin/facing before it gets
+    // projected. Nothing else in this loop needs to know the run is rotated.
+    const toWorld = worldOf(m);
+    const P = (x, y, z) => {
+      const [wx, wy] = toWorld(x, y);
+      const [a, b] = isoPt(wx, wy, z, k);
+      return [a - bx[0] * k + PAD, b - by[0] * k + PAD];
+    };
     const rings = plan.levels.map((l) => l.m);
     const boarded = plan.working.map((l) => l.m);
     const topZ = (lvl) => plan.gTFS + plan.starSpan + lvl;
