@@ -3350,6 +3350,9 @@ function renderIso() {
     el('polygon', { points: [a, b, cc, d].map((t) => t.join(',')).join(' '),
       fill, stroke: stroke || 'none', class: cls || 'iso-face',
       'stroke-width': 0.8, opacity: op === undefined ? 1 : op }, svg);
+  const text = (pt, str, size, anchor, color) =>
+    el('text', { x: pt[0], y: pt[1], 'text-anchor': anchor || 'middle', 'font-size': size || '10px',
+      'font-family': 'monospace', fill: color || '#94a3b8', 'pointer-events': 'none' }, svg, str);
 
   for (const m of models) {
     const { sys, plan, widthM, guardM, posts, decks } = m;
@@ -3367,6 +3370,12 @@ function renderIso() {
       const a = P(p.x - 0.16, y - 0.14, p.foot), b = P(p.x + 0.16, y - 0.14, p.foot);
       const cc = P(p.x + 0.16, y + 0.14, p.foot), d = P(p.x - 0.16, y + 0.14, p.foot);
       quad(a, b, cc, d, '#334155', '#475569', 0.75);
+      // Jack height label on outer leg only.
+      if (y === widthM) {
+        const jackH = plan.gTFS - RING_FROM_FOOT_M;
+        const labelPt = P(p.x, y + 0.25, p.foot - 0.15);
+        text(labelPt, `${jackH.toFixed(2)}m`, '9px', 'middle', '#cbd5e1');
+      }
     }
     // One column, drawn as what it is made of: the jack up to the foot of the
     // steel, then a segment per standard in its colour, with the joints marked.
