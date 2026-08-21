@@ -535,9 +535,10 @@ the outside of the run and becomes the inside of the stairway, which is the same
 takeoff strips its guardrails. Standing straight against the run its inner legs *are* the
 run's own outer standards, so only the length the tower adds above the run's guardrail is
 drawn over them — painting the whole leg grey would hide the build the colours are there to
-show; pushed clear by a hop-up or a piggyback it stands on all four of its own legs and is
-tied back to the run at every ring. It is drawn last, because under this projection depth
-runs with `x + y` and the tower is further out in Y than anything else in the picture.
+show; pushed clear by a piggyback it stands on all four of its own legs and is tied back to
+the run at every ring — a hop-up never pushes it, because a hop-up is on the opposite side of
+the run entirely (see below). It is drawn last, because under this projection depth runs
+with `x + y` and the tower is further out in Y than anything else in the picture.
 
 At the stair opening the part-width rails run into an **intermediate standard**, and it is
 drawn. That standard is a short one clipped straight onto the base ledger of the deck you
@@ -545,22 +546,37 @@ are standing on rather than run up from the ground — which is how the takeoff 
 2.0 m stack per boarded lift — so it starts at deck level and carries the four stars the
 rails need. Without it the rails simply stopped in mid-air at the opening.
 
-**The cross-section is the elevation's.** Deck, then hop-up outboard of it, then the
-piggyback bay, then the stair tower, on the one axis and in the one order `renderElevation`
-lays them out. Taking the elevation's own layout rather than inventing a second one is what
-stops the two drawings disagreeing about what is bolted to which face — and it is why the
-stair tower moves out of the way when a hop-up is fitted instead of standing where the
-hop-up boards already are.
+**The cross-section is the elevation's.** Hop-up, then the deck, then the piggyback bay,
+then the stair tower, on the one axis and in the one order `renderElevation` lays them out.
+Taking the elevation's own layout rather than inventing a second one is what stops the two
+drawings disagreeing about what is bolted to which face.
 
-**Hop-up** draws its console brackets — an arm out at each standard position and the
-diagonal back down to the leg, which is what a console bracket is — and the boards they
-carry. Guardrails then move out to the hop-up's edge, because the outermost face is the one
-you can fall off; the elevation rails to `oX + hopM` for the same reason. **Piggyback**
-shares the run's outer standards as its inner legs, so only its new outer row of columns is
-drawn as new steel, with transoms tying it back at every ring, its own decks, and its own
-rails on the face that is now the outside. Its rails follow the takeoff's own count —
-`numRings + (lifts − 1) + guardRails` per bay, so one rail at each lift below the top and
-the full set at the top, which is one fewer per lower lift than the run itself gets.
+**A side hop-up brackets off the INNER standard, toward the structure — not the outer one.**
+That is what a hop-up is *for*: closing the gap to the wall you are working on, not adding
+width out past the guardrail into open air. This was wrong for a while: it drew on the far
+side of the outer standard, past the handrail, in all three views (elevation, plan, 3D)
+because the 3D work copied an assumption the elevation already had. All three now put it on
+the structure side instead — `y ∈ [-hopM, 0]` in the 3D run frame, `[0, hopM]` on the far side
+of `iX` in the elevation's one axis, and the band ABOVE the deck rather than below it in the
+plan. **Guardrails never moved for it** — the fall hazard is still only on the run's own
+outer face, whether or not a hop-up sits against the structure on the other side — which is
+also why nothing else outboard (piggyback, the stair tower) had to move: they were never
+sharing that space with the hop-up to begin with, once the hop-up is on the correct side. In
+the 3D view this also flips the paint order: a hop-up now sits even further back in the
+picture than the run's own inner row, so it has to be drawn *before* that row rather than
+after the outer one, or the inner row's steel would show through it.
+
+None of this touches the **end** hop-up a run break can carry (the 1B/2B/3B *Break / Join
+Type*) — that one caps the END of a run to join it to the next, which is a different
+mechanism with its own correct placement already, described under Breaks below.
+
+**Console brackets** are drawn for the hop-up — an arm out at each standard position and the
+diagonal back down to the leg, which is what a console bracket is — carrying the boards.
+**Piggyback** shares the run's outer standards as its inner legs, so only its new outer row
+of columns is drawn as new steel, with transoms tying it back at every ring, its own decks,
+and its own rails on the face that is now the outside. Its rails follow the takeoff's own
+count — `numRings + (lifts − 1) + guardRails` per bay, so one rail at each lift below the top
+and the full set at the top, which is one fewer per lower lift than the run itself gets.
 
 **Runs can turn corners.** Most jobs are not one long line — they go round a building — so
 **Current Run Direction** turns the run you are working on relative to the one before it:

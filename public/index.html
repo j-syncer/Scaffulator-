@@ -3698,7 +3698,13 @@ function renderPlan() {
     if (!plan) continue;
     plan.runW = plan.runMM * S;
     plan.deckPx = Math.max(plan.deckMM * S, 16);
-    plan.bandPx = plan.deckPx + (plan.hopMM + plan.pbMM) * S;
+    plan.hopPx = plan.hopMM * S;
+    // A side hop-up brackets off the INNER standard, toward the structure —
+    // that is what it is for, closing the gap to the wall rather than adding
+    // width past the guardrail into open air. So it sits on the yDeck side
+    // (negative y, "above" the deck band as drawn), not stacked below the
+    // deck the way the piggyback correctly is.
+    plan.bandPx = plan.deckPx + plan.pbMM * S;
     const turn = plan.run.turn;
     if (!prevP) {
       plan.o = [0, 0]; plan.dx = [1, 0]; plan.dy = [0, 1];
@@ -3721,16 +3727,19 @@ function renderPlan() {
   // Fit: with runs at right angles the extent is a real bounding box, not just
   // a running total of lengths. Local margins cover the run label above, the
   // STAIR tag, and the dimension line and figures below.
-  const MT = 26, MB = 36;
+  const MB = 36;
   const corners = [];
   plans.forEach((plan, ri) => {
     if (!plan) return;
-    for (const lx of [0, plan.runW]) for (const ly of [-MT, plan.bandPx + MB])
+    // The top margin has to clear the hop-up band as well as the run label —
+    // a wide hop-up pushes the label further out, not just the deck.
+    const mt = plan.hopPx + 26;
+    for (const lx of [0, plan.runW]) for (const ly of [-mt, plan.bandPx + MB])
       corners.push(plan.pt(lx, ly));
     // The run label is counter-rotated, so it runs along SCREEN x from its
     // anchor whichever way the run itself points — include where it actually
     // ends or a turned run's label gets cut off at the edge of the frame.
-    const anchor = plan.pt(2, -12);
+    const anchor = plan.pt(2, -(plan.hopPx + 12));
     corners.push([anchor[0] + planRunLabel(plan.run, ri, plan).length * 4.9, anchor[1]]);
   });
   const cxs = corners.map((c) => c[0]), cys = corners.map((c) => c[1]);
@@ -3764,27 +3773,31 @@ function renderPlan() {
     };
     const yDeck = 0;
     const deckPx = plan.deckPx;
-    const hopPx = hopMM * S_;
+    const hopPx = plan.hopPx;
     const pbPx = pbMM * S_;
-    const bandBottom = yDeck + deckPx + hopPx + pbPx;
+    const bandBottom = yDeck + deckPx + pbPx;
     const posXs = [];
     let cursor = 0;
 
-    // Bands: hop-up sits outboard of the deck, piggyback beyond that.
+    // Bands. Hop-up brackets off the INNER standard toward the structure, so
+    // it sits above yDeck (negative y) rather than stacked below the deck the
+    // way the piggyback correctly is — the piggyback shares the run's OUTER
+    // standards and extends away from the structure, which is the opposite
+    // side and the opposite reason.
     const runStart = cursor;
     const runWidth = plan.runMM * S_;
     el('rect', { x: runStart, y: yDeck, width: runWidth, height: deckPx,
       fill: '#1e293b', stroke: '#334155', 'stroke-width': 1, rx: 2 }, svgRun);
     if (hopPx > 0) {
-      el('rect', { x: runStart, y: yDeck + deckPx, width: runWidth, height: hopPx,
+      el('rect', { x: runStart, y: yDeck - hopPx, width: runWidth, height: hopPx,
         fill: '#78350f', opacity: 0.5, stroke: '#9a3412', 'stroke-width': 1 }, svgRun);
-      ptxt(runStart + runWidth / 2, yDeck + deckPx + hopPx / 2, `HOP-UP ${hopMM}mm`,
+      ptxt(runStart + runWidth / 2, yDeck - hopPx / 2, `HOP-UP ${hopMM}mm`,
         { size: 8, fill: '#fdba74', weight: 700 });
     }
     if (pbPx > 0) {
-      el('rect', { x: runStart, y: yDeck + deckPx + hopPx, width: runWidth, height: pbPx,
+      el('rect', { x: runStart, y: yDeck + deckPx, width: runWidth, height: pbPx,
         fill: '#134e4a', opacity: 0.55, stroke: '#0d9488', 'stroke-width': 1 }, svgRun);
-      ptxt(runStart + runWidth / 2, yDeck + deckPx + hopPx + pbPx / 2, `PIGGYBACK ${pbMM}mm`,
+      ptxt(runStart + runWidth / 2, yDeck + deckPx + pbPx / 2, `PIGGYBACK ${pbMM}mm`,
         { size: 8, fill: '#5eead4', weight: 700 });
     }
 
@@ -3808,9 +3821,10 @@ function renderPlan() {
         el('line', { x1: cursor + w, y1: yDim - 3, x2: cursor + w, y2: yDim + 3, stroke: b.clr, 'stroke-width': 1.2 }, svgRun);
         if (w > 30) ptxt(cursor + w / 2, yDim + 12, `${b.mm}`, { size: 8, fill: '#64748b' });
         if (item.stair) {
-          el('rect', { x: cursor, y: yDeck - 22, width: w, height: 17,
+          // Clear of the hop-up band, which now occupies this same side.
+          el('rect', { x: cursor, y: yDeck - hopPx - 22, width: w, height: 17,
             fill: '#3730a3', opacity: 0.55, stroke: '#6366f1', 'stroke-width': 1, rx: 2 }, svgRun);
-          ptxt(cursor + w / 2, yDeck - 13.5, 'STAIR', { size: 8, fill: '#c7d2fe', weight: 800 });
+          ptxt(cursor + w / 2, yDeck - hopPx - 13.5, 'STAIR', { size: 8, fill: '#c7d2fe', weight: 800 });
         }
         cursor += w;
         posXs.push(cursor);
@@ -3827,13 +3841,13 @@ function renderPlan() {
         // position, so it is drawn as a marker rather than a span.
         stepNodes += item.value;
         const up = item.value > 0;
-        el('line', { x1: cursor, y1: yDeck - 10, x2: cursor, y2: bandBottom + 6,
+        el('line', { x1: cursor, y1: yDeck - hopPx - 10, x2: cursor, y2: bandBottom + 6,
           stroke: up ? '#fbbf24' : '#38bdf8', 'stroke-width': 2, 'stroke-dasharray': '2 2' }, svgRun);
-        ptxt(cursor, yDeck - 15, `${up ? '▲' : '▼'}${(stepNodes * STAR_PITCH_M).toFixed(1)}m`,
+        ptxt(cursor, yDeck - hopPx - 15, `${up ? '▲' : '▼'}${(stepNodes * STAR_PITCH_M).toFixed(1)}m`,
           { size: 7, fill: up ? '#fbbf24' : '#38bdf8', weight: 800 });
       } else if (item.type === 'break') {
         const w = 260 * S_;
-        el('line', { x1: cursor + w / 2, y1: yDeck - 6, x2: cursor + w / 2, y2: bandBottom + 6,
+        el('line', { x1: cursor + w / 2, y1: yDeck - hopPx - 6, x2: cursor + w / 2, y2: bandBottom + 6,
           stroke: '#64748b', 'stroke-width': 2, 'stroke-dasharray': '4 3' }, svgRun);
         ptxt(cursor + w / 2, bandBottom + 28, `R${ri + 1}|R${ri + 2}`, { size: 7, fill: '#94a3b8', weight: 700 });
         cursor += w;
@@ -3845,13 +3859,14 @@ function renderPlan() {
         el('circle', { cx: px, cy: py, r: 3.4, fill: '#0f172a', stroke: '#94a3b8', 'stroke-width': 1.6 }, svgRun);
       }
       if (pbPx > 0) {
-        el('circle', { cx: px, cy: yDeck + deckPx + hopPx + pbPx, r: 3.4,
+        el('circle', { cx: px, cy: yDeck + deckPx + pbPx, r: 3.4,
           fill: '#0f172a', stroke: '#2dd4bf', 'stroke-width': 1.6 }, svgRun);
       }
     }
-    // Run label above, and the turn that put this run here — the plan is where
-    // you check the shape, so the corner should say which way it went.
-    ptxt(runStart + 2, -12, planRunLabel(run, ri, plan),
+    // Run label above the hop-up band, and the turn that put this run here —
+    // the plan is where you check the shape, so the corner should say which
+    // way it went.
+    ptxt(runStart + 2, -hopPx - 12, planRunLabel(run, ri, plan),
       { size: 8, fill: deg !== 0 ? '#fbbf24' : '#64748b', weight: 700, anchor: 'start' });
   });
 
@@ -3917,8 +3932,9 @@ function renderElevation() {
   const enabled = getEnabledSizes();
   const ringLevels = plan.levels.map((l) => l.m);
   const hasStair = run.bays.some((b) => b.type === 'bay' && b.stair && canCarryStair(SYS, b.value));
-  // Everything is placed along one metre axis: deck, hop-up, piggyback, stair.
-  // The label gutter then starts beyond all of it, so nothing can collide.
+  // Everything is placed along one metre axis: hop-up, deck, piggyback, stair —
+  // hop-up first because it sits on the structure side of the deck, not past
+  // it. The label gutter then starts beyond all of it, so nothing can collide.
   const pbGapM = pbM ? 0.18 : 0;
   const stairGapM = hasStair ? 0.3 : 0;
   const stairWM = hasStair ? 0.85 : 0;
@@ -3936,7 +3952,14 @@ function renderElevation() {
   const boardPx = Math.max(3, Math.min(7, V * 0.14));
   const xOf = (m) => x0 + m * SEC_PX_PER_M_H;
   const labelX = xOf(totalW) + 10;
-  const iX = xOf(0), oX = xOf(deckM);
+  // A side hop-up brackets off the INNER standard, extending the platform
+  // toward the structure — that is what it is for, closing the gap to the
+  // wall rather than adding width out past the guardrail into open air. So it
+  // occupies [0, hopM] and the deck's own two standards sit at hopM and
+  // hopM+deckM, not at 0 and deckM. Nothing to its right moves: pbX0 and
+  // stairX0 already measured from deckM+hopM, so shifting the hop-up to the
+  // other side of iX changes nothing beyond it.
+  const iX = xOf(hopM), oX = xOf(hopM + deckM);
   if (label) {
     label.textContent =
       `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m (${nodeRef(1)}–${starAt(starSpan)}) · Step-down ${stepDown}` +
@@ -3973,17 +3996,27 @@ function renderElevation() {
     const y = yOf(gTFS + lv);
     const top = i === boarded.length - 1;
     drawDeck(svg, iX, y, oX - iX, wSpec.planks, '#475569', '#cbd5e1', boardPx);
-    if (hopM > 0) drawDeck(svg, oX, y, hopM * SEC_PX_PER_M_H, sideBoards, '#475569', '#cbd5e1', boardPx);
+    // Hop-up boards, on the structure side of iX.
+    if (hopM > 0) {
+      drawDeck(svg, xOf(0), y, hopM * SEC_PX_PER_M_H, sideBoards, '#475569', '#cbd5e1', boardPx);
+      if (top) txt(svg, xOf(0) + (hopM * SEC_PX_PER_M_H) / 2, yOf(gTFS + lv + guardrailM) - 12,
+        'HOP-UP', { size: 7, fill: '#fdba74', weight: 800 });
+    }
     txt(svg, labelX, y, `${top ? `Top deck +${targetH}m` : `Lift ${i + 1}`} · ${nodeRef(starAt(lv))}`,
       { size: 9, anchor: 'start', fill: top ? '#fbbf24' : '#94a3b8', weight: top ? 700 : 500 });
+    // The guardrail stays on the OUTER face regardless of a hop-up: the hop-up
+    // sits against the structure, where there is nothing to fall into, so it
+    // does not move the rail — it never did move the inner face, and now it
+    // does not move the outer one either.
     const rails = guardrailM === 2 ? [0.5, 1.0, 1.5, 2.0] : [0.5, 1.0];
     (top ? rails : [0.5, 1.0]).forEach((rh) => {
       const ry = yOf(gTFS + lv + rh);
-      el('line', { x1: iX, y1: ry, x2: oX + hopM * SEC_PX_PER_M_H, y2: ry,
+      el('line', { x1: iX, y1: ry, x2: oX, y2: ry,
         stroke: top ? '#94a3b8' : '#3f4c5f', 'stroke-width': top ? 2 : 1.2 }, svg);
     });
   });
-  // Piggyback bay outboard of the hop-up.
+  // Piggyback bay outboard of the deck's own outer face — unaffected by any
+  // hop-up, which sits on the opposite (structure) side of it.
   if (pbM > 0) {
     const pX = xOf(pbX0);
     drawFoundation(svg, yOf, pX + pbM * SEC_PX_PER_M_H, gTFS, '#0d9488');
@@ -4247,22 +4280,29 @@ function isoRunModel(run, prev) {
   const widthM = (wSpec.transomMM || 700) / 1000;
   const gapM = sys.geom.posMM / 1000;
   const guardM = run.settings.handrail === '2' ? 2.0 : 1.0;
-  // The cross-section, laid out on the same one axis the elevation uses:
-  // deck, then hop-up outboard of it, then the piggyback bay beyond that, then
-  // the stair tower. Taking the elevation's own layout rather than inventing a
-  // second one is what stops the two drawings disagreeing about what is bolted
-  // to which face.
+  // The cross-section, laid out on the same axis the elevation uses: hop-up
+  // (if any) against the structure below y=0, the deck itself from 0 to
+  // widthM, then the piggyback bay beyond that, then the stair tower. Taking
+  // the elevation's own layout rather than inventing a second one is what
+  // stops the two drawings disagreeing about what is bolted to which face.
+  //
+  // A side hop-up brackets off the INNER standard, toward the structure —
+  // that is what it is for, closing the gap to the wall rather than adding
+  // width past the guardrail into open air. It has its own reserved -y band
+  // for exactly that reason: y=0 is the inner/structure face, so hop-up
+  // occupies [-hopM, 0], on the near side of it, not stacked past widthM.
   const hopStr = sys.model === 'frame' ? '0' : String(run.settings.hopup || '0');
   const sideBoards = parseInt((hopStr.match(/(\d)B/) || [, 0])[1]) || 0;
   const hopM = (sideBoards * (sys.geom.plankMM || KWIKSTAGE_PLANK_MM)) / 1000;
   const pbStr = sys.model === 'frame' ? '0' : run.settings.piggyback || '0';
   const pbSpec = pbStr !== '0' ? sys.widths[pbStr] : null;
   const pbM = pbSpec ? (pbSpec.transomMM || 0) / 1000 : 0;
-  const pbY0 = widthM + hopM + (pbM ? 0.18 : 0);
-  // Guardrails live on the outermost face you can fall off, which is the edge
-  // of the hop-up when there is one — the elevation rails to oX + hopM for the
-  // same reason.
-  const railY = widthM + hopM;
+  const pbY0 = widthM + (pbM ? 0.18 : 0);
+  // Guardrails stay on the OUTER face regardless of a hop-up: the hop-up sits
+  // against the structure, where there is nothing to fall into, so it does
+  // not move the rail — same as the elevation, which rails to oX, not to
+  // oX + hopM, now that hop-up sits on the other side of iX.
+  const railY = widthM;
   const posts = [];
   const decks = [];
   let x = 0;
@@ -4331,9 +4371,15 @@ function isoRunModel(run, prev) {
     stair = {
       x0: sd.x0, x1: sd.x1, lvl: sd.lvl,
       depthM: walk ? walk.towerWidthMM / 1000 : widthM,
-      // Outboard of the deck, the hop-up and the piggyback — the tower cannot
-      // stand where the hop-up boards already are.
-      y0: pbY0 + pbM + 0.3,
+      // Flush against the run's own outer face when there is nothing else out
+      // there — sharing its standards as legs, same as ever. Only pushed clear
+      // when a piggyback actually occupies that space; a fixed gap here
+      // regardless of whether anything was in the way was a bug, not a rule —
+      // it detached the tower from the run in the plain case, which is not
+      // what "outboard of the piggyback" was ever supposed to mean when there
+      // is no piggyback. Hop-up never competes for this space at all: it sits
+      // on the opposite (inner, structure) side of the run.
+      y0: pbM > 0 ? pbY0 + pbM + 0.3 : widthM,
       flights: fp.flights,
       reachable: fp.reachable,
       railAboveM: stairRailAboveM(sys),
@@ -4427,10 +4473,12 @@ function renderIso() {
   for (const m of models) {
     const toWorld = m.toWorld;
     const zTop = m.plan.gTFS + m.plan.starSpan + m.guardM + 0.6;
-    // Everything bolted to the outside — hop-up boards, a piggyback bay — puts
-    // steel further out than the deck does, so the fit has to know about it.
+    // A piggyback puts steel further out than the deck does, and a hop-up
+    // further IN (toward the structure, negative y) — the fit has to know
+    // about both or either gets clipped at the edge of the frame.
     const outY = Math.max(m.railY, m.pbY0 + m.pbM);
-    for (const p of m.posts) for (const y of [0, outY])
+    const inY = -m.hopM;
+    for (const p of m.posts) for (const y of [inY, outY])
       for (const z of [p.foot, zTop + p.top]) {
         const [wx, wy] = toWorld(p.x, y);
         pts.push(isoPt(wx, wy, z, 1));
@@ -4496,6 +4544,13 @@ function renderIso() {
     // Each size gets its own colour, the same one the elevation and the
     // Available Standards panel use, so a stack reads as its build.
     const clrOf = (sM) => (sys.stdClr || {})[sM.toFixed(1)] || '#64748b';
+    // Boards sit on the transom, which sits on the ring, so a deck is lifted
+    // this much above ring level and given a visible near edge — otherwise it
+    // lies exactly in the plane of the ledgers and transoms and hides the
+    // whole ring the boards land on. Declared up here because hop-up decking
+    // now draws before the ledger rows do, and needs it just as much as the
+    // run's own deck does further down.
+    const BOARD_T = 0.07;
 
     // Sole boards, on whatever ground that post stands on — a step moves the
     // ground with the deck, which is the whole difference between a step and
@@ -4562,8 +4617,9 @@ function renderIso() {
         // (2 × (lifts-1) + 2, or + 4 for a double). Putting four on every lift
         // would be the picture inventing gear the gear list never ordered.
         const topLvl = boarded[boarded.length - 1];
-        // Rails go on the outermost face there is to fall off — the edge of the
-        // hop-up boards when a hop-up is fitted, not the edge of the deck.
+        // Rails go on the deck's own outer face — a hop-up sits against the
+        // structure on the OTHER side, where there is nothing to fall into, so
+        // it never moves this.
         const ry = m.railY;
         for (const br of boarded) {
           const isTop = br === topLvl;
@@ -4601,6 +4657,37 @@ function renderIso() {
         }
       }
     };
+    // ── Hop-up ─────────────────────────────────────────────────────────────
+    // A console bracket at every standard position carrying boards toward the
+    // structure — which is exactly how the takeoff counts it, per position per
+    // boarded lift, brackets shared between neighbouring bays. It brackets off
+    // the INNER standard (y=0), extending to negative y, not the outer one:
+    // that is what closes the gap to the wall, and it is why the guardrails
+    // never moved for it.
+    //
+    // Drawn before the far (inner) row rather than after it: hop-up sits even
+    // further back in this projection than the inner row itself (smaller
+    // x + y still), so it has to paint first or the inner row's own steel
+    // would show through it.
+    if (m.hopM > 0) {
+      const hy = -m.hopM;
+      for (const d of decks) for (const r of boarded) {
+        const z = plan.gTFS + r + d.lvl, t = z + BOARD_T;
+        quad(P(d.x0, 0, t), P(d.x1, 0, t), P(d.x1, hy, t), P(d.x0, hy, t),
+          '#78350f', '#fdba74', 0.85, 'iso-deck');
+        quad(P(d.x0, hy, t), P(d.x1, hy, t), P(d.x1, hy, z), P(d.x0, hy, z),
+          '#5c2a0b', '#fdba74', 0.9, 'iso-deck');
+      }
+      // The brackets themselves: a triangle off the standard, which is what a
+      // console bracket is — an arm out and a diagonal back to the leg below.
+      for (const p of posts) for (const r of boarded) {
+        const z = plan.gTFS + r + p.lvl;
+        line(P(p.x, 0, z), P(p.x, hy, z), '#fdba74', 2, 0.7);
+        line(P(p.x, hy, z), P(p.x, 0, z - Math.min(0.45, m.hopM + 0.15)), '#fdba74', 1.6, 0.6);
+      }
+      text(P(decks[0].x0, hy - 0.06, plan.gTFS + boarded[boarded.length - 1] + decks[0].lvl + 0.06),
+        `HOP-UP ${m.sideBoards}B`, { size: 7, fill: '#fdba74', weight: 800, anchor: 'start' });
+    }
     rowGear(0, true, false);
     // Transoms across, at every ring. Colored by the bay they carry (the one ending at this post).
     for (const p of posts) {
@@ -4613,7 +4700,6 @@ function renderIso() {
     // which sits on the ring, so the slab is lifted a board's thickness and
     // given a visible edge — otherwise it lay exactly in the plane of the
     // ledgers and transoms and hid the whole ring the boards land on.
-    const BOARD_T = 0.07;
     for (const d of decks) for (const r of boarded) {
       const z = plan.gTFS + r + d.lvl;
       const t = z + BOARD_T;
@@ -4625,31 +4711,6 @@ function renderIso() {
         top ? '#475569' : '#3a4859', '#cbd5e1', 0.95, 'iso-deck');
     }
     rowGear(widthM, false, true);
-    // ── Hop-up ─────────────────────────────────────────────────────────────
-    // A console bracket at every standard position carrying boards outboard of
-    // the deck — which is exactly how the takeoff counts it, per position per
-    // boarded lift, brackets shared between neighbouring bays. The rails above
-    // already moved out to the hop-up's edge, so this fills in what you are
-    // actually standing on out there.
-    if (m.hopM > 0) {
-      const hy = widthM + m.hopM;
-      for (const d of decks) for (const r of boarded) {
-        const z = plan.gTFS + r + d.lvl, t = z + BOARD_T;
-        quad(P(d.x0, widthM, t), P(d.x1, widthM, t), P(d.x1, hy, t), P(d.x0, hy, t),
-          '#78350f', '#fdba74', 0.85, 'iso-deck');
-        quad(P(d.x0, hy, t), P(d.x1, hy, t), P(d.x1, hy, z), P(d.x0, hy, z),
-          '#5c2a0b', '#fdba74', 0.9, 'iso-deck');
-      }
-      // The brackets themselves: a triangle off the standard, which is what a
-      // console bracket is — an arm out and a diagonal back to the leg below.
-      for (const p of posts) for (const r of boarded) {
-        const z = plan.gTFS + r + p.lvl;
-        line(P(p.x, widthM, z), P(p.x, hy, z), '#fdba74', 2, 0.95);
-        line(P(p.x, hy, z), P(p.x, widthM, z - Math.min(0.45, m.hopM + 0.15)), '#fdba74', 1.6, 0.8);
-      }
-      text(P(decks[0].x0, hy + 0.06, plan.gTFS + boarded[boarded.length - 1] + decks[0].lvl + 0.06),
-        `HOP-UP ${m.sideBoards}B`, { size: 7, fill: '#fdba74', weight: 800, anchor: 'start' });
-    }
     // ── Piggyback bay ──────────────────────────────────────────────────────
     // Shares the run's outer standards as its inner legs and adds a new outer
     // row — so only that outer row of columns is drawn as new steel, with
@@ -4735,9 +4796,10 @@ function renderIso() {
       // Legs. When the tower sits straight against the run, its inner pair IS
       // the run's own outer standards — already drawn in their own colours, and
       // painting over them would hide the build — so those get only the length
-      // the tower adds above the run's guardrail. Pushed out past a hop-up or a
-      // piggyback the tower stands clear of the run, and then all four legs are
-      // its own steel on their own sole boards.
+      // the tower adds above the run's guardrail. Pushed out past a piggyback
+      // (a hop-up never pushes it: that sits on the opposite, structure side)
+      // the tower stands clear of the run, and then all four legs are its own
+      // steel on their own sole boards.
       const runTopZ = baseZ + climbM + guardM;
       const detached = yIn > widthM + 0.001;
       const foot = (x, y) => quad(P(x - 0.16, y - 0.14, s.lvl), P(x + 0.16, y - 0.14, s.lvl),
