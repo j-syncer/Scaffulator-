@@ -3298,6 +3298,7 @@ function isoRunModel(run, x0) {
   return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels };
 }
 function bayMmToStdClr(bayMM, stdClr) {
+  if (!stdClr) return '#64748b';
   const bayM = bayMM / 1000;
   const stdSizes = Object.keys(stdClr).map(Number).sort((a, b) => a - b);
   const match = stdSizes.find((s) => s >= bayM - 0.01) || stdSizes[stdSizes.length - 1];
