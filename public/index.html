@@ -571,6 +571,8 @@ const SYSTEMS = {
       'Steel Plank (1200mm)': 8.1, 'Steel Plank (700mm)': 5.2,
       // Adjustable solid base jack, 34mm x 650mm.
       'Base Jack (Screw Jack)': 7, 'Sole Board': 4.5,
+      // Fitted across each open end of a run, with the end rails.
+      'Toe Board (End)': 5,
       'Console Bracket (1-Board)': 2.4, 'Console Bracket (2-Board)': 6.5,
       'Console Bracket (3-Board)': 11.4,
       'End Brace (Dogleg)': 8.6, 'Face Brace (Diagonal)': 11.5,
@@ -649,6 +651,7 @@ const SYSTEMS = {
       'Alloy Plank (3000mm)': 9, 'Alloy Plank (2500mm)': 8, 'Alloy Plank (1800mm)': 5.5,
       'Alloy Plank (1300mm)': 4.5, 'Alloy Plank (750mm)': 3,
       'Base Jack (Screw Jack)': 2.5, 'Sole Board': 2,
+      'Toe Board (End)': 3,
       'Console Bracket (1-Board)': 1.5, 'Console Bracket (2-Board)': 2.5,
       'Console Bracket (3-Board)': 3.5,
       'End Brace (Dogleg)': 4, 'Face Brace (Diagonal)': 4,
@@ -829,6 +832,8 @@ const SYSTEMS = {
       'Bay Brace (Diagonal)': 9.52,
       // Toe Board Retaining Clamp (04.16.001)
       'Toe Board Retaining Clamp': 0.74,
+      // Fitted across each open end of a run, with the end rails.
+      'Toe Board (End)': 4.75,
       // 10-Leg Steel Stair Tower: Stringer (15.01.xxx), Tread (15.02.xxx),
       // Handrail (15.03.xxx), Step Down Bracket (01.15.027).
       'Stair Stringer (2.0m Lift)': 15.95, 'Stair Stringer (1.0m Lift)': 8.95,
@@ -1307,6 +1312,15 @@ function addStairTowerGear(add, st, ctx) {
     add(`${SYS.plank} (${st.bayMM}mm)`, landings * walk.landingPlanks);
   }
 }
+// Ends of a run where a person or object could fall. A run that carries a break
+// joins the next one there, and the run after it is joined at its start, so
+// those ends are not open and need no edge protection.
+function openEndCount(run) {
+  const i = runs.indexOf(run);
+  const joinedEnd = run.bays.some((b) => b.type === 'break');
+  const joinedStart = i > 0 && runs[i - 1].bays.some((b) => b.type === 'break');
+  return Math.max(0, 2 - (joinedEnd ? 1 : 0) - (joinedStart ? 1 : 0));
+}
 // Component names differ between systems: a Kwikstage transom is a Ringlock
 // Ledger O-Type, a dogleg is a Bay Brace. A system may override any of these
 // through its `parts` map; otherwise the Kwikstage wording is used.
@@ -1455,6 +1469,19 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   }
   for (const [type, count] of Object.entries(byType)) {
     add(`${SYS.plank} (${SYS.bays[type].mm}mm)`, count * planksPerBayLift * boardedLifts);
+  }
+  // End edge protection. At each open end of the run a person or object could
+  // fall off, so the end takes the same rails the sides do — guardrail and
+  // mid-rail at every boarded lift, and the full set at the top — plus a toe
+  // board. The manual allows transoms in place of ledgers, and across the end
+  // of a run the member that spans is a transom, at the deck width.
+  const openEnds = openEndCount(run);
+  if (openEnds > 0) {
+    add(
+      `${partName('transom', 'Transom')} (${wSpec.transomMM}mm)`,
+      openEnds * (midRailsPB + guardRailsPB)
+    );
+    if (hasKB) add('Toe Board (End)', openEnds * boardedLifts);
   }
   if (sideBoards > 0) {
     add(`${partName('console', 'Console Bracket')} (${sideBoards}-Board)`, numPos * boardedLifts);

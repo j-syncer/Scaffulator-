@@ -544,6 +544,12 @@ the frame rules described above.
 - **Deck width** is chosen by board count — see *Deck widths and board counts* below. The
   *Side Hop-up* and *Piggyback Bay* dropdowns are generated from the same system data, so
   they only ever offer brackets and transoms that system actually stocks.
+- **End edge protection** — at each **open end** of a run a person or object could fall off,
+  so the end takes the same rails the sides do: guardrail and mid-rail at every boarded
+  lift, the full set at the top, plus a toe board. The manual allows transoms in place of
+  ledgers, and across the end of a run the member that spans is a **transom at the deck
+  width**. A run carrying a break joins the next one there, so `openEndCount()` does not
+  charge either side of that join — two joined runs have one open end each, not four.
 - **Hop-ups and tie bars** — a hop-up is a pair of brackets, one at each standard bounding
   the bay, with a tie bar across them for the board to sit in: a floating piggyback on the
   inside of the run, towards the building. Neighbouring bays **share their brackets**, so
