@@ -21,7 +21,7 @@
    old document from the cache until the background revalidate catches up.
    =========================================================================== */
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v6';
 const SHELL_CACHE = `scaffulator-shell-${CACHE_VERSION}`;
 const FONT_CACHE = `scaffulator-fonts-${CACHE_VERSION}`;
 const KEEP = new Set([SHELL_CACHE, FONT_CACHE]);

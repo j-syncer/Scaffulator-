@@ -90,10 +90,15 @@ listed and carry on.
   `"2.13"` `"2.43"` `"3.05"`
 - stair on a `"2130"` bay, with `"stairWalkway"` of `"0.81"` or `"1.52"` · hop-ups 1 to 4
 
-**Ally Frame**
-- bays: `"2400"` `"1800"` `"1200"` · widths: `"0.7"` single, `"1.3"` double
-- `"frameH"`: `"1.0"` `"1.5"` `"2.0"` — the frame that stacks to the height
-- no steps, no ties, no hop-ups, no piggyback and no stair tower
+**Ally Frame** — the aluminium mobile tower
+- bays: `"3000"` `"2500"` `"2400"` `"1800"` `"1300"` (millimetres; `"2500"` is the AU standard deck)
+- widths: `"0.7"` single (light, 225kg) · `"1.3"` double (medium, 450kg) · `"1.8"` triple (heavy, 675kg)
+- `"frameH"`: `"2.0"` `"1.5"` `"1.2"` `"1.0"` `"0.8"` — the frame section that stacks to the height
+- `"frameBase"`: `"castors"` mobile · `"plates"` static on sole boards
+- `"frameExposure"`: `"sheltered"` (H ≤ 3 × Dmin) · `"exposed"` (H ≤ 2 × Dmin)
+- `"frameOutrig"`: `"auto"` sized to the ratio · `"0"` none · `"0.6"` `"1.0"` `"1.4"` metres each side
+- `"frameTied"`: `"0"` freestanding · `"1"` tied in, which takes it out of the ratio
+- no steps, no hop-ups, no piggyback and no stair tower
 
 ## settings, per run
 
@@ -111,7 +116,11 @@ listed and carry on.
     "stagger"       "0" | "1" — stagger the standard joints
     "ties"          "0" none | "bracket" | "ftie" | "reveal" | "box"
     "tieEvery"      1 every standard | 2 every 2nd (Acrow) | 3 every 3rd (Waco)
-    "frameH"        Ally Frame only
+    "frameH"        Ally Frame only — the frame section that stacks to the height
+    "frameBase"     Ally Frame only — "castors" (mobile) | "plates" (static)
+    "frameExposure" Ally Frame only — "sheltered" | "exposed"; picks the 3:1 or 2:1 ratio
+    "frameOutrig"   Ally Frame only — "auto" | "0" | a projection in metres each side
+    "frameTied"     Ally Frame only — "1" if tied in, which takes it out of the ratio
     "stairWalkway"  Ringlock only
 
 Leave out anything the drawing does not show — every setting has a sensible default.

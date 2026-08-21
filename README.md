@@ -133,7 +133,7 @@ its own geometry, bay lengths, deck widths, component names and weights.
 | Kwikstage | `modular` | Ready | Turbo Scaffolding catalogue + Acrow/Waco manuals |
 | AT-PAC Ringlock | `modular` | **Beta** | From AT-PAC AUS catalogue v5.6 |
 | Kwikally | `modular` | **Beta** | **Provisional** |
-| Ally Frame | `frame` | **Beta** | **Provisional** |
+| Ally Frame | `frame` | **Beta** | Dimensions from AS/NZS 1576 + AU ranges · weights **provisional** (derived) |
 
 **Kwikstage is the only finished system.** Everything else is beta: tagged in the system
 dropdown, banner-warned in the sidebar, and badged in the gear list. Two independent flags
@@ -415,11 +415,32 @@ Two takeoff models exist, selected by each system's `model` field:
 
 - **`modular`** — standards, ledgers and transoms (`calcModularGear`). Standards stack to
   the deck height, ledgers ring at fixed spacing, planks fill the deck width.
-- **`frame`** — stacked frames, braces and platforms (`calcFrameGear`). Frames stand at
-  each position and stack to height; each bay takes a horizontal and a diagonal brace per
-  frame level, and platforms lie in the boarded lifts. Deck heights are quantised by the
-  frames: the leg has only `FRAME_LEG_MAX_M` of travel, so the engine picks the smallest
-  stack the leg can lift to the requested height and reports the height actually reached.
+- **`frame`** — the aluminium mobile tower (`calcFrameGear`). Welded end frames stand at
+  each position and stack on internal spigots; the tri-directional brace matrix goes on
+  around them — a plan brace on the flat at the base, horizontal braces as ledgers on both
+  faces at every level, and a diagonal on each face per level. Platforms land where a
+  frame ends, one of them per lift being an access deck with a trapdoor, because the climb
+  has to come up inside the tower.
+
+  Deck heights are quantised twice: by whole frame sections, and by the travel in the
+  adjustable stem under them (`bases[].minM`/`maxM` — 200–600 mm on a castor, 150–750 mm
+  on a base plate). The engine picks the tallest stack whose remainder still lands inside
+  that travel and reports the height it actually reached, which is not always the one that
+  was asked for.
+
+  **Stability is part of the takeoff, not a footnote to it.** A freestanding tower resists
+  overturning with footprint alone, so `frameStability()` solves the height-to-base ratio
+  before the gear list is written: AS/NZS puts the top platform at H ≤ 3 × Dmin, and the
+  manufacturers halve that to 2 × Dmin once the tower is exposed to wind. Outriggers never
+  raise the ratio — they widen D — so the engine sizes the smallest stocked arm that gets
+  Dmin where it needs to be and bills four of them. Tie the run in and the ratio stops
+  governing, the auto-sizing stops, and the face against the building stops taking
+  guardrails and toe boards. The same object drives the sidebar's Stability & Compliance
+  panel, the section header and the 3D view's label, so all four agree by construction.
+
+  It also surfaces what changes who may legally touch the thing: a fall over 2.0 m is High
+  Risk Construction Work and needs a SWMS; a platform over 4.0 m may only be erected,
+  altered or dismantled under a scaffolding High Risk Work Licence.
 
 Runs may use different systems in one job. Quantities are bucketed per system, because the
 same component name (`Ledger (3000mm)`) means different weights in different systems, and
@@ -440,10 +461,26 @@ framing, the bracing rules and the stair access geometry are still being worked 
 
 **Kwikally has a 4.0m standard** — it is Kwikstage that does not.
 
-**Kwikally and Ally Frame are beta and provisional.** Their bay lengths, deck widths,
-frame heights and every weight are placeholders derived from typical aluminium practice,
-not from a supplier spec sheet. Correct them in the `SYSTEMS` entry and clear the flags
-once verified — nothing else needs to change.
+**Kwikally is beta and provisional.** Its bay lengths, deck widths and every weight are
+placeholders derived from typical aluminium practice, not from a supplier spec sheet.
+
+**Ally Frame is beta and provisional, but its dimensions are no longer guesses.** The
+frame heights, deck widths, duty ratings, bay lengths, castor travel and stability rules
+follow the AS/NZS 1576 suite and the Australian ranges that publish them — Mr Scaffold
+(Easyscaf 225 kg / Supascaf 450 kg; 0.7 / 1.3 / 1.8 m widths; 0.8 / 1.2 / 2.0 m sections),
+Turbo, SafeSmart and Global.
+
+What remains provisional is the **weights**, and deliberately so: no supplier publishes a
+component-by-component weight list for a tower, only a kit total and the heaviest single
+piece. So `ALLY_WEIGHTS` derives them from the metal instead — 6061-T6 at 2.70 g/cm³ in
+the 50 × 2.0 mm extrusion, which is 0.81 kg per metre of tube, times the metres of tube in
+the part, plus a fixed allowance for its welded and captive fittings. That model reproduces
+Turbo's published 2.7–3.0 m wide tower (131.2 kg total, 22.6 kg heaviest piece) to within
+about a kilogram. Replace any figure with one from your own yard and every total in the app
+re-solves against it.
+
+Correct either system in its `SYSTEMS` entry and clear the flags once verified — nothing
+else needs to change.
 
 ## Engine layout
 
