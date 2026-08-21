@@ -135,6 +135,13 @@ divided evenly asked the jack to stand at **0 mm** — not something you can bui
 fifth of heights change column as a result: exactly those where the old jack came out under
 100 mm.
 
+`geom.baseOffsetM` is everything **fixed** between the jack head and the first node —
+nothing else varies, so soleboards and ground packing are deliberately not in the height.
+On Ringlock that is the 0.301 m Starter/Base Collar (01.27.000.00). Kwikstage has no base
+collar, so the standard sits straight on the jack and the offset is the standard's own
+190 mm from its foot to its first star — the same figure the section draws it at, which
+those two had disagreed about.
+
 The catalogue gives the AT-PAC screwjack as 0.60 m (06.01.060.00). The wound-down figure is
 a working assumption in `geom.jackMinM`; correct it and every height re-solves against it.
 

@@ -378,6 +378,21 @@
    falls out of the arithmetic. Add a length to the list and the
    dropdown option, its label and its plank count all follow.
    ============================================================ */
+// A standard's nodes sit at 500mm centres. Below the lowest one — the node the
+// transom goes into — there is 190mm of tube down to the base of the standard:
+// the socket that slides over the spigot of the standard underneath. That
+// leaves 310mm above the top node for the spigot itself, and the two together
+// reproduce every count exactly, since 190 + 310 = one 500mm pitch: 0.5m is a
+// 1-Star, 2.0m a 4-Star, 3.0m a 6-Star, 4.0m an 8-Star.
+//
+// It is also what makes a joint visible. The next standard starts 190mm BELOW
+// its first node, so a short bleed of its colour shows under that node and you
+// can see where one standard ends and the next begins.
+//
+// And on a system with no base collar it is the whole of the base offset: the
+// standard sits on the jack, so the first node is 190mm above the jack head.
+const RING_FROM_FOOT_M = 0.19;
+const SPIGOT_M = 0.31;
 const STANDARD_OD_MM = 48.3; // 48.3mm OD tube — the standard itself
 function deckWidths(lengthsMM, { plankMM, span = 'clear', postMM = STANDARD_OD_MM }) {
   const out = {};
@@ -412,12 +427,17 @@ const SYSTEMS = {
     beta: false,
     provisional: false,
     plank: 'Steel Plank',
+    // baseOffsetM is everything fixed between the jack head and the first node.
+    // Kwikstage has no base collar — the standard sits straight on the jack —
+    // so it is the standard's own 190mm from its foot up to its first star,
+    // the same figure the section draws it at. Only the jack varies.
+    //
     // jackMinM/jackMaxM are the jack's standing height wound down and wound out.
     // The span between them is one node pitch, which is what lets any height be
     // reached. Catalogue gives the AT-PAC screwjack as 0.60m (06.01.060.00);
     // the wound-down figure is a working assumption — correct it here and every
     // height re-solves against it.
-    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+    geom: { baseOffsetM: RING_FROM_FOOT_M, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
       jackMinM: 0.1, jackMaxM: 0.6,
       plankMM: KWIKSTAGE_PLANK_MM },
     bays: {
@@ -519,7 +539,7 @@ const SYSTEMS = {
     // reached. Catalogue gives the AT-PAC screwjack as 0.60m (06.01.060.00);
     // the wound-down figure is a working assumption — correct it here and every
     // height re-solves against it.
-    geom: { baseOffsetM: 0.3, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
+    geom: { baseOffsetM: RING_FROM_FOOT_M, posMM: 50, pitchM: 0.5, ringM: 2.0, braceEveryM: 4, tieEveryM: 2,
       jackMinM: 0.1, jackMaxM: 0.6,
       plankMM: KWIKSTAGE_PLANK_MM },
     bays: {
@@ -2496,18 +2516,6 @@ function drawRosette(svg, x, y, V) {
     fill: '#0d1117', stroke: '#94a3b8', 'stroke-width': 0.5,
     rx: ring ? h / 2 : 0.6 }, svg);
 }
-// A standard's rings sit at 500mm centres. Below the lowest one — the star the
-// transom goes into — there is 190mm of tube down to the base of the standard:
-// the socket that slides over the spigot of the standard underneath. That
-// leaves 310mm above the top ring for the spigot itself, and the two together
-// reproduce every star count exactly, since 190 + 310 = one 500mm pitch: 0.5m
-// is a 1-Star, 2.0m a 4-Star, 3.0m a 6-Star, 4.0m an 8-Star.
-//
-// It is also what makes a joint visible. The next standard starts 190mm BELOW
-// its first ring, so a short bleed of its colour shows under that ring and you
-// can see where one standard ends and the next begins.
-const RING_FROM_FOOT_M = 0.19;
-const SPIGOT_M = 0.31;
 // Colour-coded standard stack with a rosette at every 0.5m.
 //
 // `startYm` is the first ring of the column, so the foot of the bottom
