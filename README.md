@@ -442,13 +442,41 @@ neighbouring columns visibly break at different heights, which is the whole poin
 The jack below the steel is drawn separately, and the counts in the legend are the same
 numbers the gear list bills.
 
-Two things it is deliberately careful about, because the drawing has to agree with the
+**Ledgers and transoms carry the bay's colour.** A ledger is drawn in the standard colour
+of the size nearest its bay length rounding up — a 2.4 m bay in the 2.5 m green, an 1.8 m
+bay in the 2.0 m amber, a 1.2 m bay in the 1.5 m pink — and each transom takes the colour
+of the bay that lands on it. The mapping is arithmetic over the system's own `stdClr`
+rather than a second table, so a system that carries a 4.0 m standard gets a sensible
+colour for its long bays without anything being added.
+
+**Under each outer jack is the extension it is wound out to**, in metres, so the set-out
+can be read off the drawing at the feet where you actually need it.
+
+Three things it is deliberately careful about, because the drawing has to agree with the
 takeoff rather than the other way round. **Guardrails are drawn on the outer face only** —
 the inner face is the one against the structure, and the gear list has only ever billed one
-face's worth, so rails on both faces were the picture over-reporting. And the **decking sits
-*on* the ring, not in it**: the slab is lifted a board's thickness above the ring level and
-given a visible near edge, so the ledgers and transoms the boards land on stay in view
-instead of being buried inside the deck plane.
+face's worth, so rails on both faces were the picture over-reporting. They go on at **every
+boarded lift**, since a run carrying three platforms is three platforms you can fall off,
+but only the top lift takes the full set: the lifts below it get a guardrail and a mid-rail,
+which is exactly the `2 × (lifts − 1) + 2` (or `+ 4` for a double) the takeoff bills. A bay
+carrying a stair loses its full-length rails on that face altogether and takes the
+part-width open rails instead, for the reason described under the stair below. And the
+**decking sits *on* the ring, not in it**: the slab is lifted a board's thickness above the
+ring level and given a visible near edge, so the ledgers and transoms the boards land on
+stay in view instead of being buried inside the deck plane.
+
+**The stair tower is drawn in full**, off the same `stairFlightPlan()` the side view uses —
+sharing the plan is the point, because if the two pictures disagreed about where a tread
+lands one of them would be lying. Flights switchback inside the one bay, each climbing the
+bay's length onto a landing you turn on, with risers and treads stepped out in the flight's
+rise colour and the last flight pinned to the access end so the top landing arrives where
+you can step off. The tower hangs off the **outer** face of its bay: that face stops being
+the outside of the run and becomes the inside of the stairway, which is the same reason the
+takeoff strips its guardrails. Its inner legs are the run's own outer standards, so only
+the length the tower adds above the run's guardrail is drawn over them — painting the whole
+leg grey would hide the build the colours are there to show. It is drawn last, because
+under this projection depth runs with `x + y` and the tower is further out in Y than
+anything else in the picture.
 
 The whole job is fitted to the page, and **it prints** — the screen colours are picked for a dark panel, so a print block restyles
 the members to ink on white (presentation attributes lose to CSS, so classing them is

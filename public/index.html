@@ -61,6 +61,8 @@
     /* The standard colours ARE the information — they stay colour on paper. */
     #iso-view .iso-std { stroke-width:5 !important; }
     #iso-view .iso-joint { stroke:#111827 !important; }
+    /* Tread colours name the flight rise, so they stay colour too. */
+    #iso-view .iso-tread { stroke:#111827 !important; }
     #iso-legend, #iso-legend div, #iso-legend span { color:#000 !important; }
   }
   /* Elevation */
@@ -3278,7 +3280,9 @@ function isoRunModel(run, x0) {
     if (!prevPost) { prevPost = post(x + gapM / 2, lvl, pi); posts.push(prevPost); }
     const next = post(prevPost.x + len, lvl, ++pi);
     posts.push(next);
-    decks.push({ x0: prevPost.x, x1: next.x, lvl, clr: sys.bays[item.value].clr, bayMM: sys.bays[item.value].mm });
+    decks.push({ x0: prevPost.x, x1: next.x, lvl, clr: sys.bays[item.value].clr,
+      bayMM: sys.bays[item.value].mm,
+      stair: !!item.stair && canCarryStair(sys, item.value) });
     x = next.x + gapM;
     prevPost = next;
   }
@@ -3295,12 +3299,33 @@ function isoRunModel(run, x0) {
     p.inner = stdColumnList(plan.nomH + extra, enabled, b);
     p.outer = stdColumnList(plan.nomH + guardM + extra, enabled, b);
   }
-  const stairBay = run.bays.find((b) => b.type === 'bay' && b.stair);
-  let stairDeck = null;
-  if (stairBay) {
-    stairDeck = decks.find((d) => Math.abs(d.bayMM - sys.bays[stairBay.value].mm) < 1);
+  // The stair tower, off the SAME flight plan the 2D stair view is drawn from —
+  // switchback flights inside the one bay, each climbing the bay's length onto
+  // a landing you turn on. Sharing the plan is the point: if the two pictures
+  // disagreed about where a tread lands, one of them would be lying.
+  const sd = decks.find((d) => d.stair);
+  let stair = null;
+  if (sd && sys.stair && plan.starSpan > 0) {
+    const fp = sys.stairTower
+      ? towerFlights(plan.starSpan)
+      : stairFlightPlan(plan.starSpan, enabledTreadRises(sys));
+    // AT-PAC names a tower width per walkway; every other system's tower is the
+    // width of the run it hangs off.
+    const walk = sys.stairTower && sys.stairTower.walkways
+      ? sys.stairTower.walkways[run.settings.stairWalkway]
+      : null;
+    stair = {
+      x0: sd.x0, x1: sd.x1, lvl: sd.lvl,
+      depthM: walk ? walk.towerWidthMM / 1000 : widthM,
+      flights: fp.flights,
+      reachable: fp.reachable,
+      railAboveM: stairRailAboveM(sys),
+      climbEveryM: (sys.stair && sys.stair.climbRailEveryM) || 0,
+      braceLiftM: (sys.stair && sys.stair.braceLiftM) || 2.0,
+      braced: !!(sys.stair && sys.stair.faceBrace),
+    };
   }
-  return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels, stairDeck };
+  return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels, stair };
 }
 function bayMmToStdClr(bayMM, stdClr) {
   if (!stdClr) return '#64748b';
@@ -3334,10 +3359,21 @@ function renderIso() {
     const zTop = m.plan.gTFS + m.plan.starSpan + m.guardM + 0.6;
     for (const p of m.posts) for (const y of [0, m.widthM])
       for (const z of [p.foot, zTop + p.top]) pts.push(isoPt(p.x, y, z, 1));
+    // The stair tower hangs off the outer face and runs taller than the run's
+    // own guardrail, so it sets the extent on two sides.
+    if (m.stair) {
+      const s = m.stair;
+      const sTop = m.plan.gTFS + s.lvl + m.plan.starSpan + s.railAboveM + 0.3;
+      for (const x of [s.x0, s.x1]) for (const y of [m.widthM, m.widthM + s.depthM])
+        for (const z of [s.lvl, sTop]) pts.push(isoPt(x, y, z, 1));
+    }
   }
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
   const bx = [Math.min(...xs), Math.max(...xs)], by = [Math.min(...ys), Math.max(...ys)];
-  const PAD = 22;
+  // Wide enough that the labels hung off the edges of the frame — jack heights
+  // under the feet, STEP OFF / WALK ON at the ends of a stair — are not cut in
+  // half by the viewBox.
+  const PAD = 42;
   const k = Math.max(9, Math.min(62, 1180 / Math.max(bx[1] - bx[0], 0.5)));
   const W = (bx[1] - bx[0]) * k + PAD * 2;
   const H = (by[1] - by[0]) * k + PAD * 2;
@@ -3355,9 +3391,8 @@ function renderIso() {
     el('polygon', { points: [a, b, cc, d].map((t) => t.join(',')).join(' '),
       fill, stroke: stroke || 'none', class: cls || 'iso-face',
       'stroke-width': 0.8, opacity: op === undefined ? 1 : op }, svg);
-  const text = (pt, str, size, anchor, color) =>
-    el('text', { x: pt[0], y: pt[1], 'text-anchor': anchor || 'middle', 'font-size': size || '10px',
-      'font-family': 'monospace', fill: color || '#94a3b8', 'pointer-events': 'none' }, svg, str);
+  // el() takes no text child, so labels go through txt(), which sets one.
+  const text = (pt, str, o) => txt(svg, pt[0], pt[1], str, o);
 
   for (const m of models) {
     const { sys, plan, widthM, guardM, posts, decks } = m;
@@ -3378,8 +3413,8 @@ function renderIso() {
       // Jack height label on outer leg only.
       if (y === widthM) {
         const jackH = plan.gTFS - RING_FROM_FOOT_M;
-        const labelPt = P(p.x, y + 0.25, p.foot - 0.15);
-        text(labelPt, `${jackH.toFixed(2)}m`, '9px', 'middle', '#cbd5e1');
+        text(P(p.x, y + 0.28, p.foot - 0.12), `${jackH.toFixed(2)}m`,
+          { size: 8, fill: '#cbd5e1', weight: 700 });
       }
     }
     // One column, drawn as what it is made of: the jack up to the foot of the
@@ -3425,10 +3460,32 @@ function renderIso() {
           line(P(d.x0, y, plan.gTFS + r + d.lvl), P(d.x1, y, plan.gTFS + r + d.lvl),
             ledgerClr, 1.8, dim ? 0.6 : 1);
         if (!rails) continue;
+        // Rails at EVERY boarded lift, not just the top one — a run carrying
+        // three platforms is three platforms you can fall off.
+        //
+        // Only the top lift takes the full set, though: the ones below it get a
+        // guardrail and a mid-rail, which is what the takeoff bills
+        // (2 × (lifts-1) + 2, or + 4 for a double). Putting four on every lift
+        // would be the picture inventing gear the gear list never ordered.
+        const topLvl = boarded[boarded.length - 1];
         for (const br of boarded) {
-          for (const rh of guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
-            line(P(d.x0, y, plan.gTFS + br + d.lvl + rh), P(d.x1, y, plan.gTFS + br + d.lvl + rh),
-              dim ? '#a16207' : '#fbbf24', 1.8, 0.95, 'iso-rail');
+          const isTop = br === topLvl;
+          const z = plan.gTFS + br + d.lvl;
+          // A bay carrying a stair tower has no full-length rails on this face:
+          // that face is the way onto the treads, and a rail across it would
+          // fence the stair off. It takes part-width rails into an intermediate
+          // standard instead, leaving the rest of the bay open to step through.
+          if (d.stair && sys.stair) {
+            const railM = (sys.stair.openRailMM || 1800) / 1000;
+            const nOpen = sys.stair.openRails || 3;
+            for (let i = 0; i < nOpen; i++)
+              line(P(d.x0, y, z + 0.5 * (i + 1)), P(Math.min(d.x0 + railM, d.x1), y, z + 0.5 * (i + 1)),
+                dim ? '#a16207' : '#fbbf24', 1.8, 0.95, 'iso-rail');
+            continue;
+          }
+          for (const rh of isTop && guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
+            line(P(d.x0, y, z + rh), P(d.x1, y, z + rh),
+              dim ? '#a16207' : '#fbbf24', isTop ? 1.8 : 1.4, 0.95, 'iso-rail');
         }
       }
     };
@@ -3455,25 +3512,123 @@ function renderIso() {
       quad(P(d.x0, widthM, t), P(d.x1, widthM, t), P(d.x1, widthM, z), P(d.x0, widthM, z),
         top ? '#475569' : '#3a4859', '#cbd5e1', 0.95, 'iso-deck');
     }
-    // Stair base visualization if present
-    if (m.stairDeck && sys.stair) {
-      const sd = m.stairDeck;
-      const stairSpan = plan.starSpan;
-      const treadH = 0.25;
-      const stairBaseZ = plan.gTFS + sd.lvl;
-      const numTreads = Math.ceil(stairSpan / 0.25);
-      for (let i = 0; i < numTreads && i * treadH < stairSpan; i++) {
-        const z = stairBaseZ + i * treadH;
-        const tNext = z + treadH;
-        const xMid = (sd.x0 + sd.x1) / 2;
-        const stairW = 0.5;
-        quad(P(xMid - stairW, 0, z), P(xMid + stairW, 0, z), P(xMid + stairW, 0, tNext), P(xMid - stairW, 0, tNext),
-          '#6b7280', '#4b5563', 0.8);
-        quad(P(xMid - stairW, 0, z), P(xMid - stairW, widthM, z), P(xMid - stairW, widthM, tNext), P(xMid - stairW, 0, tNext),
-          '#555f6f', '#4b5563', 0.85);
-      }
-    }
     rowGear(widthM, false, true);
+    // ── Stair tower ────────────────────────────────────────────────────────
+    // The tower hangs off the OUTER face of its bay: that face stops being the
+    // outside of the run and becomes the inside of the stairway, which is the
+    // same reason the takeoff strips its guardrails. Everything here is in the
+    // run's own coordinates, so it lands against the real standards.
+    //
+    // Drawn last, and last inside the run, because it is the nearest thing in
+    // the picture — under this projection depth runs with x + y, and the tower
+    // is further out in y than anything else.
+    if (m.stair) {
+      const s = m.stair;
+      const yIn = widthM, yOut = widthM + s.depthM;
+      const baseZ = plan.gTFS + s.lvl;       // the tower's first node
+      const climbM = plan.starSpan;
+      const railTopZ = baseZ + climbM + s.railAboveM;
+      const n = s.flights.length;
+      // The top landing has to arrive at the access end or you cannot step off
+      // onto the deck, so the last flight is pinned there and every flight
+      // below alternates down from it — the 2D view's rule, kept verbatim.
+      const endsAtAccess = (i) => (n - 1 - i) % 2 === 0;
+      // Stringers sit inboard of the legs; the treads span between them.
+      const inset = Math.min(0.1, s.depthM * 0.14);
+      const ya = yIn + inset, yb = yOut - inset;
+      const landDeep = Math.min(0.55, (s.x1 - s.x0) * 0.25);
+
+      // Face bracing first, so the stair reads over it — one diagonal per lift
+      // up the outer face, alternating, which is the zigzag on a real tower.
+      if (s.braced) {
+        const lifts = Math.max(1, Math.ceil(climbM / s.braceLiftM));
+        for (let i = 0; i < lifts; i++) {
+          const up = i % 2 === 0;
+          line(P(up ? s.x0 : s.x1, yOut, baseZ + i * s.braceLiftM),
+            P(up ? s.x1 : s.x0, yOut, baseZ + (i + 1) * s.braceLiftM),
+            '#475569', 1.6, 0.7);
+        }
+      }
+      // Guard ledgers up the outside, at every star the stair climbs past. Thin
+      // and low-contrast on purpose: they are in front of the whole tower, and
+      // the treads are what you came to read.
+      if (s.climbEveryM > 0) {
+        for (let z = baseZ; z <= railTopZ + 0.001; z += s.climbEveryM)
+          line(P(s.x0, yOut, z), P(s.x1, yOut, z), '#5b6b80', 1.1, 0.5);
+      }
+      // Legs. The inner pair IS the run's own outer standards, already drawn in
+      // their own colours — painting over them would hide the build — so those
+      // only get the length the tower adds above the run's guardrail. The outer
+      // pair is new steel, standing on its own sole board.
+      const runTopZ = baseZ + climbM + guardM;
+      for (const x of [s.x0, s.x1]) {
+        if (railTopZ > runTopZ + 0.01)
+          line(P(x, yIn, runTopZ), P(x, yIn, railTopZ), '#8ea3ba', 2.6, 1);
+        line(P(x, yOut, s.lvl), P(x, yOut, railTopZ), '#8ea3ba', 2.6, 1);
+        quad(P(x - 0.16, yOut - 0.14, s.lvl), P(x + 0.16, yOut - 0.14, s.lvl),
+          P(x + 0.16, yOut + 0.14, s.lvl), P(x - 0.16, yOut + 0.14, s.lvl),
+          '#334155', '#475569', 0.75);
+      }
+      // Cross ledgers at each landing level, tying the outer legs back to the
+      // run. These are the ledgers the takeoff bills per landing, and without
+      // them the flights read as hanging in mid-air rather than framed in a
+      // tower.
+      for (const f of s.flights) for (const x of [s.x0, s.x1])
+        line(P(x, yIn, baseZ + f.topM), P(x, yOut, baseZ + f.topM), '#5b6b80', 1.3, 0.75);
+      // Flights, bottom to top. Each climbs the full length of the bay and ends
+      // on a landing; the next one turns on that landing and climbs back.
+      s.flights.forEach((f, i) => {
+        const toAccess = endsAtAccess(i);
+        const xa = toAccess ? s.x0 : s.x1;   // this flight's foot
+        const xb = toAccess ? s.x1 : s.x0;   // and the end it lands on
+        const za = baseZ + f.baseM, zb = baseZ + f.topM;
+        const clr = TREAD_CLR[f.rise] || '#818cf8';
+        const steps = Math.max(2, Math.round(f.rise / STEP_RISE_M));
+        // Stringers.
+        for (const y of [ya, yb]) line(P(xa, y, za), P(xb, y, zb), clr, 2, 0.9);
+        // Risers and treads. Painter's order is by x + y, so a flight running
+        // back down the bay has to be drawn from its far end in.
+        const order = [];
+        for (let k = 1; k <= steps; k++) order.push(k);
+        if (xb < xa) order.reverse();
+        for (const k of order) {
+          const t0 = (k - 1) / steps, t1 = k / steps;
+          const px0 = xa + (xb - xa) * t0, px1 = xa + (xb - xa) * t1;
+          const z0 = za + (zb - za) * t0, z1 = za + (zb - za) * t1;
+          // The riser first, then the tread landing on top of it — same profile
+          // the 2D view steps out, seen from the side instead of drawn flat.
+          quad(P(px0, ya, z0), P(px0, yb, z0), P(px0, yb, z1), P(px0, ya, z1),
+            clr, '#0b1017', 0.4, 'iso-tread');
+          quad(P(px0, ya, z1), P(px1, ya, z1), P(px1, yb, z1), P(px0, yb, z1),
+            clr, '#0b1017', 1, 'iso-tread');
+        }
+        // The landing at the top of the flight, at the end the flight arrives
+        // at. One that arrives at the access end is one you can step off.
+        const lx0 = xb < xa ? xb : xb - landDeep;
+        const face = toAccess ? '#c7d2fe' : '#94a3b8';
+        quad(P(lx0, yIn, zb), P(lx0 + landDeep, yIn, zb),
+          P(lx0 + landDeep, yOut, zb), P(lx0, yOut, zb),
+          face, '#0b1017', 1, 'iso-deck');
+        // Its near edge, so a landing reads as a slab you stand on rather than
+        // a line across the flights.
+        quad(P(lx0, yOut, zb), P(lx0 + landDeep, yOut, zb),
+          P(lx0 + landDeep, yOut, zb - 0.07), P(lx0, yOut, zb - 0.07),
+          toAccess ? '#8f9dc8' : '#64748b', '#0b1017', 1, 'iso-deck');
+      });
+      // Where you get on, and where you get off.
+      if (n > 0) {
+        const top = s.flights[n - 1];
+        // Amber, and clear of the landing: in the landing's own pale blue it
+        // was invisible for exactly the length that sat over the slab.
+        text(P(endsAtAccess(n - 1) ? s.x1 : s.x0, yOut + 0.1, baseZ + top.topM + 0.85),
+          'STEP OFF', { size: 8, fill: '#fbbf24', weight: 800 });
+        text(P(endsAtAccess(0) ? s.x0 : s.x1, yOut + 0.1, s.lvl - 0.12),
+          'WALK ON', { size: 8, fill: '#34d399', weight: 800 });
+      }
+      if (!s.reachable)
+        text(P((s.x0 + s.x1) / 2, yOut, railTopZ + 0.25),
+          '⚠ climb unreachable', { size: 8, fill: '#fbbf24', weight: 700 });
+    }
   }
   renderIsoLegend(models);
   const bays = runs.reduce((n, r) => n + r.bays.filter((b) => b.type === 'bay').length, 0);
