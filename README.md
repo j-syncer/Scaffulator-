@@ -11,6 +11,34 @@ No build step and no dependencies to install — open `public/index.html` in a b
 Tailwind and the Google Fonts stylesheet are loaded from CDNs, so the page needs a network
 connection to look right. The calculation engine itself is inline and works offline.
 
+## Front end
+
+**No render-blocking network.** The utility CSS is built from this file's own markup with
+Tailwind 3.4 + the forms plugin and inlined into `index.html` (~24 kB). It used to pull
+`cdn.tailwindcss.com` at load — ~400 kB of JavaScript that parses the page and generates
+CSS at runtime — which on poor signal left the app not merely unstyled but **wrong**: seven
+controls hide themselves with `.hidden`, so with no CSS a Ringlock job showed a Frame
+Height dropdown and a Kwikstage clip selector that do not apply to it. Fonts still come
+from Google but load non-blocking behind real fallbacks, so the page works with no network
+at all. To regenerate after adding classes:
+
+```
+npx tailwindcss@3 -i in.css -o out.css --minify --content public/index.html
+```
+
+**The job persists.** `runs` and the job details autosave to `localStorage` on every render
+and restore on load, so closing the tab or having the browser evict the page does not lose
+a take-off. Every storage call is wrapped — private browsing and a full quota both throw,
+and neither stops the calculator. *Save* / *Load* still write and read a file, which is how
+a job moves between devices; files predating job details (a bare run array) still load.
+
+**Job details** — name, client, site, estimator, date — sit at the foot of the sidebar and
+print as a header block above the manifest, so what comes off the printer identifies
+itself. They are user input and are escaped before going into the page.
+
+**Phones are the primary target.** The header collapses to one line with icon-only buttons
+under `sm`, putting the bay buttons in the first screen.
+
 ## Files
 
 | File | Purpose |
