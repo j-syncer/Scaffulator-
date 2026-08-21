@@ -416,7 +416,22 @@ labelled sections:
 `render()` recomputes everything from `runs` on every change; there is no incremental
 update path, so state changes only need to mutate `runs` and call `render()`.
 
-## The three views
+## The four views
+
+**3D view** draws the whole job — every run, every bay — as a true **axonometric**
+projection rather than a perspective one, so parallel lines stay parallel, a bay reads the
+same wherever it sits and the drawing can be scaled off:
+
+```
+sx = (x - y) · cos30        sy = (x + y) · sin30 - z
+```
+
+X runs along the job, Y across the deck, Z up. It draws the far row, then the transoms and
+decking, then the near row, which is enough of a painter's order for a structure this
+regular. Steps show as the level change they are. The whole job is fitted to the page, and
+**it prints** — the screen colours are picked for a dark panel, so a print block restyles
+the members to ink on white (presentation attributes lose to CSS, so classing them is
+enough).
 
 **Plan view** looks down on the run, drawn to one scale (`PLAN_PX_PER_M`). Bays are tinted
 by size and dimensioned underneath, standards appear as circles at every position on both

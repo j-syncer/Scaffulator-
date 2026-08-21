@@ -46,6 +46,18 @@
     .no-print { display:none !important; }
     .print-show { display:block !important; }
     #gear-table tr { border-bottom:1px solid #ccc; }
+    /* The 3D view is meant to go out with the manifest, so it has to survive
+       the switch to white paper. */
+    #iso-panel, #iso-panel div { background:#fff !important; border-color:#bbb !important; }
+    #iso-panel h3, #iso-label { color:#000 !important; }
+    #iso-view svg { max-width:100%; height:auto; }
+    /* Screen colours are picked for a dark panel; on paper the members need to
+       be ink. Presentation attributes lose to CSS, so this is enough. */
+    #iso-view .iso-member { stroke:#1f2937 !important; }
+    #iso-view .iso-rail { stroke:#b45309 !important; }
+    #iso-view .iso-deck { fill:#cbd5e1 !important; stroke:#1f2937 !important; }
+    #iso-view .iso-face { fill:#94a3b8 !important; stroke:#1f2937 !important; }
+    #iso-view circle { fill:#1f2937 !important; }
   }
   /* Elevation */
   .elev-el { position:absolute; box-sizing:border-box; }
@@ -304,6 +316,17 @@
     <!-- The section scales itself to fit, so this only scrolls for very tall jobs. -->
     <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-3" style="max-height:70vh;">
       <div id="elevation-view"></div>
+    </div>
+  </div>
+
+  <!-- Isometric view — prints with the manifest -->
+  <div id="iso-panel" class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">3D View — All Runs</h3>
+      <span id="iso-label" class="mono text-xs text-slate-500"></span>
+    </div>
+    <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-3">
+      <div id="iso-view"></div>
     </div>
   </div>
 
@@ -2610,6 +2633,7 @@ function render() {
   renderPlan();
   renderElevation();
   renderStairView();
+  renderIso();
   renderGearList();
   renderMetrics();
   renderHeightNote();
@@ -3149,6 +3173,148 @@ const TREAD_CLR = { 1.5: '#f472b6', 2.0: '#818cf8', 1.0: '#34d399', 2.5: '#fbbf2
 // the same figure the Ringlock tower is modelled at, which keeps every flight
 // inside AS 1657's 130-225mm rise band.
 const STEP_RISE_M = 0.2;
+/* ---------------- ISOMETRIC VIEW — the whole job at an angle ---------------- */
+// A true axonometric projection, not a perspective one: parallel lines stay
+// parallel, so a bay reads the same wherever it sits and the drawing can be
+// scaled off. X runs along the job, Y across the deck, Z up.
+//
+//   sx = (x - y) · cos30      sy = (x + y) · sin30 - z
+//
+// Drawn far row first, then the decking, then the near row, which is enough of
+// a painter's order for a structure this regular.
+const ISO_COS = Math.cos(Math.PI / 6);
+const ISO_SIN = Math.sin(Math.PI / 6);
+function isoPt(x, y, z, k) {
+  return [(x - y) * ISO_COS * k, ((x + y) * ISO_SIN - z) * k];
+}
+// Everything a run puts on the drawing, walked out in metres.
+function isoRunModel(run, x0) {
+  const sys = SYSTEMS[run.settings.system] || SYSTEMS.kwikstage;
+  useSystem(sys.id);
+  const bays = run.bays.filter((b) => b.type === 'bay');
+  if (!bays.length) return null;
+  const plan = liftPlan(run);
+  const wSpec = sys.widths[run.settings.width] || Object.values(sys.widths)[0];
+  const widthM = (wSpec.transomMM || 700) / 1000;
+  const gapM = sys.geom.posMM / 1000;
+  const guardM = run.settings.handrail === '2' ? 2.0 : 1.0;
+  const posts = [];
+  const decks = [];
+  let x = x0;
+  let lvl = 0;
+  let prevPost = null;
+  for (const item of run.bays) {
+    if (item.type === 'step') { lvl += item.value * STAR_PITCH_M; continue; }
+    if (item.type === 'gap') { x += item.value / 1000; prevPost = null; continue; }
+    if (item.type === 'break') { x += 0.26; prevPost = null; continue; }
+    if (item.type !== 'bay') continue;
+    const len = sys.bays[item.value].mm / 1000;
+    if (!prevPost) { prevPost = { x: x + gapM / 2, lvl }; posts.push(prevPost); }
+    const next = { x: prevPost.x + len, lvl };
+    posts.push(next);
+    decks.push({ x0: prevPost.x, x1: next.x, lvl, clr: sys.bays[item.value].clr });
+    x = next.x + gapM;
+    prevPost = { x: x, lvl };
+    posts.push(prevPost);
+    posts.pop(); // the gap post is the next bay's start; keep the list clean
+    prevPost = { x: next.x, lvl };
+  }
+  return { sys, plan, widthM, guardM, posts, decks, endX: x, levels: plan.levels };
+}
+function renderIso() {
+  const panel = document.getElementById('iso-panel');
+  const c = document.getElementById('iso-view');
+  const label = document.getElementById('iso-label');
+  if (!panel || !c) return;
+  const models = [];
+  let cursor = 0;
+  for (const run of runs) {
+    const m = isoRunModel(run, cursor);
+    if (!m) continue;
+    models.push(m);
+    cursor = m.endX + 0.6;
+  }
+  if (!models.length) {
+    c.innerHTML = '';
+    emptyNote(c, 'Add bays to generate the 3D view');
+    if (label) label.textContent = '';
+    return;
+  }
+  // Fit the whole job to the page.
+  const pts = [];
+  for (const m of models) {
+    const zTop = m.plan.gTFS + m.plan.starSpan + m.guardM + 0.6;
+    for (const p of m.posts) for (const y of [0, m.widthM])
+      for (const z of [0, zTop + p.lvl]) pts.push(isoPt(p.x, y, z, 1));
+  }
+  const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
+  const bx = [Math.min(...xs), Math.max(...xs)], by = [Math.min(...ys), Math.max(...ys)];
+  const PAD = 22;
+  const k = Math.max(9, Math.min(62, 1180 / Math.max(bx[1] - bx[0], 0.5)));
+  const W = (bx[1] - bx[0]) * k + PAD * 2;
+  const H = (by[1] - by[0]) * k + PAD * 2;
+  c.innerHTML = '';
+  const svg = el('svg', { width: Math.max(W, 320), height: Math.max(H, 200),
+    viewBox: `0 0 ${Math.max(W, 320)} ${Math.max(H, 200)}`, style: 'display:block;' }, c);
+  const P = (x, y, z) => {
+    const [a, b] = isoPt(x, y, z, k);
+    return [a - bx[0] * k + PAD, b - by[0] * k + PAD];
+  };
+  const line = (p, q, stroke, w, op, cls) =>
+    el('line', { x1: p[0], y1: p[1], x2: q[0], y2: q[1], stroke, class: cls || 'iso-member',
+      'stroke-width': w, opacity: op === undefined ? 1 : op, 'stroke-linecap': 'round' }, svg);
+  const quad = (a, b, cc, d, fill, stroke, op, cls) =>
+    el('polygon', { points: [a, b, cc, d].map((t) => t.join(',')).join(' '),
+      fill, stroke: stroke || 'none', class: cls || 'iso-face',
+      'stroke-width': 0.8, opacity: op === undefined ? 1 : op }, svg);
+
+  for (const m of models) {
+    const { plan, widthM, guardM, posts, decks } = m;
+    const rings = plan.levels.map((l) => l.m);
+    const boarded = plan.working.map((l) => l.m);
+    const topZ = (lvl) => plan.gTFS + plan.starSpan + lvl;
+    const uniq = [...new Map(posts.map((p) => [`${p.x.toFixed(3)}|${p.lvl}`, p])).values()]
+      .sort((a, b) => a.x - b.x);
+
+    // Sole boards on the ground.
+    for (const p of uniq) for (const y of [0, widthM]) {
+      const a = P(p.x - 0.16, y - 0.14, 0), b = P(p.x + 0.16, y - 0.14, 0);
+      const cc = P(p.x + 0.16, y + 0.14, 0), d = P(p.x - 0.16, y + 0.14, 0);
+      quad(a, b, cc, d, '#334155', '#475569', 0.75);
+    }
+    // FAR row (against the structure) — standards, ledgers, guardrails.
+    const rowGear = (y, dim) => {
+      for (const p of uniq) {
+        line(P(p.x, y, 0), P(p.x, y, topZ(p.lvl) + guardM), dim ? '#46617f' : '#9fb3c8', 3);
+        for (const r of rings)
+          el('circle', { cx: P(p.x, y, plan.gTFS + r + p.lvl)[0],
+            cy: P(p.x, y, plan.gTFS + r + p.lvl)[1], r: 1.6,
+            fill: dim ? '#31465e' : '#94a3b8' }, svg);
+      }
+      for (const d of decks) {
+        for (const r of rings)
+          line(P(d.x0, y, plan.gTFS + r + d.lvl), P(d.x1, y, plan.gTFS + r + d.lvl),
+            dim ? '#46617f' : '#8095ab', 1.8);
+        for (const rh of guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
+          line(P(d.x0, y, topZ(d.lvl) + rh), P(d.x1, y, topZ(d.lvl) + rh),
+            dim ? '#a16207' : '#fbbf24', 1.8, 0.95, 'iso-rail');
+      }
+    };
+    rowGear(0, true);
+    // Transoms across, at every ring.
+    for (const p of uniq) for (const r of rings)
+      line(P(p.x, 0, plan.gTFS + r + p.lvl), P(p.x, widthM, plan.gTFS + r + p.lvl), '#61758c', 1.6);
+    // Decks.
+    for (const d of decks) for (const r of boarded) {
+      const z = plan.gTFS + r + d.lvl;
+      quad(P(d.x0, 0, z), P(d.x1, 0, z), P(d.x1, widthM, z), P(d.x0, widthM, z),
+        r === boarded[boarded.length - 1] ? '#64748b' : '#475569', '#cbd5e1', 0.95, 'iso-deck');
+    }
+    rowGear(widthM, false);
+  }
+  const bays = runs.reduce((n, r) => n + r.bays.filter((b) => b.type === 'bay').length, 0);
+  if (label) label.textContent = `${bays} bay${bays === 1 ? '' : 's'} · ${models.length} run${models.length === 1 ? '' : 's'} · isometric, to scale`;
+}
 function renderStairView() {
   const panel = document.getElementById('stair-panel');
   const c = document.getElementById('stair-view');
