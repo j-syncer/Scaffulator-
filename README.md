@@ -428,8 +428,17 @@ sx = (x - y) · cos30        sy = (x + y) · sin30 - z
 
 X runs along the job, Y across the deck, Z up. It draws the far row, then the transoms and
 decking, then the near row, which is enough of a painter's order for a structure this
-regular. Steps show as the level change they are. The whole job is fitted to the page, and
-**it prints** — the screen colours are picked for a dark panel, so a print block restyles
+regular. Steps show as the level change they are.
+
+Two things it is deliberately careful about, because the drawing has to agree with the
+takeoff rather than the other way round. **Guardrails are drawn on the outer face only** —
+the inner face is the one against the structure, and the gear list has only ever billed one
+face's worth, so rails on both faces were the picture over-reporting. And the **decking sits
+*on* the ring, not in it**: the slab is lifted a board's thickness above the ring level and
+given a visible near edge, so the ledgers and transoms the boards land on stay in view
+instead of being buried inside the deck plane.
+
+The whole job is fitted to the page, and **it prints** — the screen colours are picked for a dark panel, so a print block restyles
 the members to ink on white (presentation attributes lose to CSS, so classing them is
 enough).
 
@@ -578,6 +587,10 @@ the frame rules described above.
   bay above one node up, both off the same standards. The previous bay's transoms stay
   exactly where they are; the step adds, it does not move. The plan view marks each step with the running level,
   and the section caption reports the deck range across the run.
+
+  Frame systems have no nodes to step by — an Ally Frame lift is whatever frame you stack —
+  so the step buttons are hidden there rather than billing a half-metre nothing can be
+  built at.
 - **Ties to the structure** (*Ties to Structure*, **None** by default) — whether a scaffold
   is tied and how is a design decision, so nothing is assumed. Turned on, you pick the tie
   type (wall/multi bracket, F-tie, reveal tie, box tie) and the spacing, and the ties bill

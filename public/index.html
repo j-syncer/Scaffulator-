@@ -216,7 +216,7 @@
     </div>
     <div>
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Step Up / Down</label>
-      <div class="flex gap-2">
+      <div id="step-btns" class="flex gap-2">
         <button onclick="addStep(1)" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors">Step Up</button>
         <button onclick="addStep(-1)" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors">Step Down</button>
       </div>
@@ -3283,9 +3283,14 @@ function renderIso() {
       quad(a, b, cc, d, '#334155', '#475569', 0.75);
     }
     // FAR row (against the structure) — standards, ledgers, guardrails.
-    const rowGear = (y, dim) => {
+    // `rails` is the outer face only. Guardrails go on the outside of a run —
+    // the inside faces the structure — and the takeoff has only ever billed one
+    // face's worth, so drawing them on both was the picture disagreeing with
+    // the gear list rather than the other way round.
+    const rowGear = (y, dim, rails) => {
       for (const p of uniq) {
-        line(P(p.x, y, 0), P(p.x, y, topZ(p.lvl) + guardM), dim ? '#46617f' : '#9fb3c8', 3);
+        line(P(p.x, y, 0), P(p.x, y, topZ(p.lvl) + (rails ? guardM : 0)),
+          dim ? '#46617f' : '#9fb3c8', 3);
         for (const r of rings)
           el('circle', { cx: P(p.x, y, plan.gTFS + r + p.lvl)[0],
             cy: P(p.x, y, plan.gTFS + r + p.lvl)[1], r: 1.6,
@@ -3295,22 +3300,32 @@ function renderIso() {
         for (const r of rings)
           line(P(d.x0, y, plan.gTFS + r + d.lvl), P(d.x1, y, plan.gTFS + r + d.lvl),
             dim ? '#46617f' : '#8095ab', 1.8);
+        if (!rails) continue;
         for (const rh of guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
           line(P(d.x0, y, topZ(d.lvl) + rh), P(d.x1, y, topZ(d.lvl) + rh),
             dim ? '#a16207' : '#fbbf24', 1.8, 0.95, 'iso-rail');
       }
     };
-    rowGear(0, true);
+    rowGear(0, true, false);
     // Transoms across, at every ring.
     for (const p of uniq) for (const r of rings)
       line(P(p.x, 0, plan.gTFS + r + p.lvl), P(p.x, widthM, plan.gTFS + r + p.lvl), '#61758c', 1.6);
-    // Decks.
+    // Decks, drawn ON the ring rather than in it. Boards sit on the transom,
+    // which sits on the ring, so the slab is lifted a board's thickness and
+    // given a visible edge — otherwise it lay exactly in the plane of the
+    // ledgers and transoms and hid the whole ring the boards land on.
+    const BOARD_T = 0.07;
     for (const d of decks) for (const r of boarded) {
       const z = plan.gTFS + r + d.lvl;
-      quad(P(d.x0, 0, z), P(d.x1, 0, z), P(d.x1, widthM, z), P(d.x0, widthM, z),
-        r === boarded[boarded.length - 1] ? '#64748b' : '#475569', '#cbd5e1', 0.95, 'iso-deck');
+      const t = z + BOARD_T;
+      const top = r === boarded[boarded.length - 1];
+      quad(P(d.x0, 0, t), P(d.x1, 0, t), P(d.x1, widthM, t), P(d.x0, widthM, t),
+        top ? '#64748b' : '#475569', '#cbd5e1', 0.95, 'iso-deck');
+      // The near edge, so the boards read as sitting on top of the ring.
+      quad(P(d.x0, widthM, t), P(d.x1, widthM, t), P(d.x1, widthM, z), P(d.x0, widthM, z),
+        top ? '#475569' : '#3a4859', '#cbd5e1', 0.95, 'iso-deck');
     }
-    rowGear(widthM, false);
+    rowGear(widthM, false, true);
   }
   const bays = runs.reduce((n, r) => n + r.bays.filter((b) => b.type === 'bay').length, 0);
   if (label) label.textContent = `${bays} bay${bays === 1 ? '' : 's'} · ${models.length} run${models.length === 1 ? '' : 's'} · isometric, to scale`;
@@ -3606,6 +3621,16 @@ function renderStepNote() {
   if (!note) return;
   const run = currentRun();
   useSystem(run.settings.system);
+  // A step is one node of the standard. A frame system has no nodes to step
+  // by — its lift is whatever frame you stack — so the buttons come off
+  // rather than bill a half-metre nothing can be built at.
+  const btns = document.getElementById('step-btns');
+  if (SYS.model === 'frame') {
+    if (btns) btns.classList.add('hidden');
+    note.textContent = `Stepping is not modelled for ${SYS.name} — a frame steps by a whole frame, not by a node.`;
+    return;
+  }
+  if (btns) btns.classList.remove('hidden');
   const r = runStepRange(run);
   const n = run.bays.filter((b) => b.type === 'step').length;
   note.textContent = n
