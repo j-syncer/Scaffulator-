@@ -3298,11 +3298,10 @@ function isoRunModel(run, x0) {
   return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels };
 }
 function bayMmToStdClr(bayMM, stdClr) {
-  const stdSizes = Object.keys(stdClr).map(Number).sort((a, b) => b - a);
-  const closest = stdSizes.reduce((prev, curr) =>
-    Math.abs(curr - bayMM / 1000) < Math.abs(prev - bayMM / 1000) ? curr : prev
-  );
-  return stdClr[closest.toFixed(1)] || stdClr[closest] || '#64748b';
+  const bayM = bayMM / 1000;
+  const stdSizes = Object.keys(stdClr).map(Number).sort((a, b) => a - b);
+  const match = stdSizes.find((s) => s >= bayM - 0.01) || stdSizes[stdSizes.length - 1];
+  return stdClr[match.toFixed(1)] || stdClr[match] || '#64748b';
 }
 function renderIso() {
   const panel = document.getElementById('iso-panel');
