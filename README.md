@@ -557,10 +557,22 @@ the frame rules described above.
   drops doubled ones.
 
   A stepped bay needs no more gear than a level one, because its base and its deck move
-  together. What does change is the **step position itself**: those standards serve both
-  levels, feet on the lower ground and heads reaching the upper deck's guardrail, so those
-  two columns are one node taller. The plan view marks each step with the running level,
+  together. What does change is the **step position itself**, which carries both set-outs:
+  those standards serve both levels, so the two columns there are one node taller, **and a
+  step adds a set of transoms** — the bay below lands its boards at the lower level, the
+  bay above one node up, both off the same standards. The previous bay's transoms stay
+  exactly where they are; the step adds, it does not move. The plan view marks each step with the running level,
   and the section caption reports the deck range across the run.
+- **Ties to the structure** (*Ties to Structure*, **None** by default) — whether a scaffold
+  is tied and how is a design decision, so nothing is assumed. Turned on, you pick the tie
+  type (wall/multi bracket, F-tie, reveal tie, box tie) and the spacing, and the ties bill
+  with their tube and couplers. Vertically they sit no more than 4.0 m above the
+  foundation and then no more than 4.0 m apart; horizontally every Nth standard, never
+  fewer than the two ends. A scaffold inside its free-standing limit — three times the
+  deck width — needs none, and the note says so. Acrow's table says every second standard
+  under 10 m and Waco's every third under 20 m, so **the spacing is a setting** rather than
+  a silent choice. The parts making up each tie are declared in `TIE_TYPES` and are the
+  piece most worth checking against your own yard.
 - **End edge protection** — at each **open end** of a run a person or object could fall off,
   so the end takes the same rails the sides do: guardrail and mid-rail at every boarded
   lift, the full set at the top, plus a toe board. The manual allows transoms in place of

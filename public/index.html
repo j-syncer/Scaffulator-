@@ -161,6 +161,22 @@
       <p class="text-[9px] text-slate-600 mt-1 leading-tight">Alternate columns are built to the same height a different way, so no two adjacent standards join at the same level. Only changes the gear where a column has more than one build.</p>
     </div>
 
+    <div class="modular-only">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ties to Structure</label>
+      <select id="ties" class="form-select w-full" onchange="settingsChanged(); applyTieChrome()">
+        <option value="0">None</option>
+      </select>
+      <div id="tie-every-row" class="hidden mt-2">
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Tie Spacing</label>
+        <select id="tieEvery" class="form-select w-full" onchange="settingsChanged()">
+          <option value="1">Every standard</option>
+          <option value="2" selected>Every 2nd standard (Acrow)</option>
+          <option value="3">Every 3rd standard (Waco)</option>
+        </select>
+      </div>
+      <p id="tie-note" class="text-[9px] text-slate-600 mt-1 leading-tight"></p>
+    </div>
+
     <!-- Piggyback -->
     <div class="border-t border-[#2d3f55] pt-3 modular-only">
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Piggyback Bay <span class="text-teal-400">(Outside)</span></label>
@@ -446,6 +462,42 @@
 // standard sits on the jack, so the first node is 190mm above the jack head.
 const RING_FROM_FOOT_M = 0.19;
 const SPIGOT_M = 0.31;
+/* ------------------------------------------------------------
+   TIES TO THE STRUCTURE
+   ------------------------------------------------------------
+   Off by default, because whether a scaffold is tied and how is a design
+   decision, not something to assume. Turned on, the spacing follows the
+   erection manuals: vertically not more than 4.0m above the foundation and
+   then not more than 4.0m apart, and horizontally every Nth standard —
+   Acrow's table says every second under 10m, Waco's every third under 20m,
+   so which one is a setting rather than a silent choice.
+
+   The parts making up each tie are declared here and are the piece most
+   worth checking against your own yard: swap the makeup and every tie
+   re-bills against it.
+   ------------------------------------------------------------ */
+const TIE_TYPES = {
+  bracket: {
+    label: 'Wall / Multi Bracket',
+    // Bracket bolted to the structure, tube back to the standard, right angle
+    // coupler and a safety (check) coupler behind it.
+    parts: { 'Wall Tie Bracket': 1, 'Tube (1.2m)': 1, 'Right Angle Coupler': 2 },
+  },
+  ftie: {
+    label: 'F-Tie',
+    parts: { 'F-Tie': 1, 'Right Angle Coupler': 1 },
+  },
+  reveal: {
+    label: 'Reveal Tie',
+    // Propped in an opening, on a timber pad at each end.
+    parts: { 'Reveal Screw Tie': 1, 'Tube (1.2m)': 1, 'Right Angle Coupler': 2, 'Timber Pad': 2 },
+  },
+  box: {
+    label: 'Box Tie (around column)',
+    parts: { 'Tube (1.2m)': 2, 'Right Angle Coupler': 4 },
+  },
+};
+const TIE_VERTICAL_M = 4.0;
 const STANDARD_OD_MM = 48.3; // 48.3mm OD tube — the standard itself
 function deckWidths(lengthsMM, { plankMM, span = 'clear', postMM = STANDARD_OD_MM }) {
   const out = {};
@@ -581,6 +633,8 @@ const SYSTEMS = {
       'Base Jack (Screw Jack)': 7, 'Sole Board': 4.5,
       // Fitted across each open end of a run, with the end rails.
       'Toe Board (End)': 5,
+      // Tie hardware — makeups are declared in TIE_TYPES; check against your yard.
+      'Wall Tie Bracket': 2.5, 'F-Tie': 3, 'Reveal Screw Tie': 4, 'Timber Pad': 0.5,
       'Console Bracket (1-Board)': 2.4, 'Console Bracket (2-Board)': 6.5,
       'Console Bracket (3-Board)': 11.4,
       'End Brace (Dogleg)': 8.6, 'Face Brace (Diagonal)': 11.5,
@@ -660,6 +714,7 @@ const SYSTEMS = {
       'Alloy Plank (1300mm)': 4.5, 'Alloy Plank (750mm)': 3,
       'Base Jack (Screw Jack)': 2.5, 'Sole Board': 2,
       'Toe Board (End)': 3,
+      'Wall Tie Bracket': 2.5, 'F-Tie': 3, 'Reveal Screw Tie': 4, 'Timber Pad': 0.5,
       'Console Bracket (1-Board)': 1.5, 'Console Bracket (2-Board)': 2.5,
       'Console Bracket (3-Board)': 3.5,
       'End Brace (Dogleg)': 4, 'Face Brace (Diagonal)': 4,
@@ -842,6 +897,7 @@ const SYSTEMS = {
       'Toe Board Retaining Clamp': 0.74,
       // Fitted across each open end of a run, with the end rails.
       'Toe Board (End)': 4.75,
+      'Wall Tie Bracket': 2.5, 'F-Tie': 3, 'Reveal Screw Tie': 4, 'Timber Pad': 0.5,
       // 10-Leg Steel Stair Tower: Stringer (15.01.xxx), Tread (15.02.xxx),
       // Handrail (15.03.xxx), Step Down Bracket (01.15.027).
       'Stair Stringer (2.0m Lift)': 15.95, 'Stair Stringer (1.0m Lift)': 8.95,
@@ -922,6 +978,8 @@ const DEFAULT_SETTINGS = {
   clip: 'Wine Glass',
   piggyback: '0',
   stagger: '0',
+  ties: '0',
+  tieEvery: '2',
 };
 /* ============================================================
    STATE
@@ -1342,6 +1400,26 @@ function runStepRange(run) {
   }
   return { lo: lo * STAR_PITCH_M, hi: hi * STAR_PITCH_M, steps: step };
 }
+// How many ties a run needs, and where.
+//
+// Vertically: not more than TIE_VERTICAL_M above the foundation and then not
+// more than that apart. Horizontally: every Nth standard, but never fewer than
+// the two ends, which both manuals call for. A scaffold inside its
+// free-standing limit — three times the deck width — needs none at all.
+function tieCount(run, plan) {
+  const wSpec = SYS.widths[run.settings.width] || Object.values(SYS.widths)[0];
+  const widthM = (wSpec.transomMM || 700) / 1000;
+  const freeStandM = widthM * 3;
+  const bays = run.bays.filter((b) => b.type === 'bay').length;
+  const numPos = bays + 1;
+  const every = Math.max(1, parseInt(run.settings.tieEvery) || 2);
+  if (!bays || plan.starSpan <= freeStandM + 0.001) {
+    return { total: 0, levels: 0, perLevel: 0, freeStandM };
+  }
+  const levels = Math.max(1, Math.floor(plan.starSpan / TIE_VERTICAL_M));
+  const perLevel = Math.max(2, Math.ceil(numPos / every));
+  return { total: levels * perLevel, levels, perLevel, freeStandM };
+}
 // Ends of a run where a person or object could fall. A run that carries a break
 // joins the next one there, and the run after it is joined at its start, so
 // those ends are not open and need no edge protection.
@@ -1501,7 +1579,14 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
     }
     add(`${ledgerPart} (${mm}mm)`, n);
   }
-  add(`${partName('transom', 'Transom')} (${wSpec.transomMM}mm)`, numPos * numRings);
+  // A step position carries BOTH set-outs: the bay below it lands its boards on
+  // transoms at the lower level, the bay above on transoms one node up, and
+  // both hang off the same standards. So a step ADDS a set of transoms at that
+  // position — the previous bay's stay exactly where they are.
+  add(
+    `${partName('transom', 'Transom')} (${wSpec.transomMM}mm)`,
+    (numPos + stepCount) * numRings
+  );
   // Kwikstage decks its kickboard as an extra plank; a system with a dedicated
   // toe board part bills that instead.
   const kbPart = SYS.parts && SYS.parts.toeBoard;
@@ -1555,6 +1640,12 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
     for (const [type, count] of Object.entries(byType)) {
       add(`${tiePart} (${SYS.bays[type].mm}mm)`, count * boardedLifts);
     }
+  }
+  // Ties to the structure, when the run asks for them.
+  const tieType = TIE_TYPES[run.settings.ties];
+  if (tieType) {
+    const t = tieCount(run, plan);
+    for (const [part, n] of Object.entries(tieType.parts)) add(part, t.total * n);
   }
   const braceLevels = Math.max(1, Math.ceil(starSpan / 4));
   add(partName('endBrace', 'End Brace (Dogleg)'), 2 * braceLevels);
@@ -1958,6 +2049,8 @@ function settingsChanged() {
   s.piggyback = document.getElementById('piggyback').value;
   const stg = document.getElementById('stagger');
   if (stg) s.stagger = stg.checked ? '1' : '0';
+  s.ties = document.getElementById('ties').value;
+  s.tieEvery = document.getElementById('tieEvery').value;
   s.system = document.getElementById('system').value;
   const fh = document.getElementById('frameH');
   if (fh && SYS.model === 'frame' && fh.value) s.frameH = fh.value;
@@ -1974,6 +2067,7 @@ function loadSettings(run) {
   buildWidthOpts();
   buildPiggybackOpts();
   buildHopupOpts();
+  buildTieOpts();
   buildFrameHeightOpts();
   buildStairOpts();
   buildStandardsList();
@@ -2003,6 +2097,9 @@ function loadSettings(run) {
   s.piggyback = setSelect('piggyback', s.piggyback || '0', '0');
   const stgEl = document.getElementById('stagger');
   if (stgEl) stgEl.checked = s.stagger === '1';
+  s.ties = setSelect('ties', s.ties || '0', '0');
+  s.tieEvery = setSelect('tieEvery', s.tieEvery || '2', '2');
+  applyTieChrome();
   updateLiftOpts();
 }
 /* ------------------------------------------------------------
@@ -2063,6 +2160,38 @@ function buildWidthOpts() {
       ? `${SYS.name} decks with ${plankMM}mm boards — available widths are ${counts.join(', ')} board.`
       : '';
   }
+}
+function buildTieOpts() {
+  const sel = document.getElementById('ties');
+  if (!sel) return;
+  sel.innerHTML =
+    '<option value="0">None</option>' +
+    Object.entries(TIE_TYPES)
+      .map(([k, t]) => `<option value="${k}">${t.label}</option>`)
+      .join('');
+}
+// The spacing control and the note only mean anything once ties are on.
+function applyTieChrome() {
+  const sel = document.getElementById('ties');
+  const row = document.getElementById('tie-every-row');
+  const note = document.getElementById('tie-note');
+  const on = sel && sel.value !== '0';
+  if (row) row.classList.toggle('hidden', !on);
+  if (!note) return;
+  if (!on) {
+    note.textContent = 'Off by default — whether a scaffold is tied, and how, is a design decision. Turn on to bill the ties and their tube and couplers.';
+    return;
+  }
+  const run = currentRun();
+  useSystem(run.settings.system);
+  const plan = liftPlan(run);
+  const t = tieCount(run, plan);
+  const parts = Object.entries(TIE_TYPES[sel.value].parts)
+    .map(([k, n]) => `${n}× ${k}`)
+    .join(', ');
+  note.textContent = t.total
+    ? `${t.total} ties — ${t.levels} level${t.levels === 1 ? '' : 's'} at ${TIE_VERTICAL_M}m × ${t.perLevel} across. Each is ${parts}.`
+    : `Nothing to tie yet — free-standing limit is ${t.freeStandM.toFixed(1)}m (3 × deck width).`;
 }
 // Hop-up sizes are whatever console/side brackets the system stocks: Kwikstage
 // tops out at a 3-board bracket, AT-PAC also makes a 4-board one.
@@ -2485,6 +2614,7 @@ function render() {
   renderMetrics();
   renderHeightNote();
   renderStepNote();
+  applyTieChrome();
   updateCounters();
   updateSummary();
 }
