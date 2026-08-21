@@ -420,7 +420,9 @@ Two takeoff models exist, selected by each system's `model` field:
   around them — a plan brace on the flat at the base, horizontal braces as ledgers on both
   faces at every level, and a diagonal on each face per level. Platforms land where a
   frame ends, one of them per lift being an access deck with a trapdoor, because the climb
-  has to come up inside the tower.
+  has to come up inside the tower. The rung is the system's node the way the star and the
+  rosette are the modular systems' — a brace snaps to one, a deck lands on one, and you
+  climb them — at a 500 mm pitch.
 
   Deck heights are quantised twice: by whole frame sections, and by the travel in the
   adjustable stem under them (`bases[].minM`/`maxM` — 200–600 mm on a castor, 150–750 mm
@@ -465,10 +467,21 @@ framing, the bracing rules and the stair access geometry are still being worked 
 placeholders derived from typical aluminium practice, not from a supplier spec sheet.
 
 **Ally Frame is beta and provisional, but its dimensions are no longer guesses.** The
-frame heights, deck widths, duty ratings, bay lengths, castor travel and stability rules
-follow the AS/NZS 1576 suite and the Australian ranges that publish them — Mr Scaffold
-(Easyscaf 225 kg / Supascaf 450 kg; 0.7 / 1.3 / 1.8 m widths; 0.8 / 1.2 / 2.0 m sections),
-Turbo, SafeSmart and Global.
+frame sections, deck widths, duty ratings, bay lengths, castor travel and stability rules
+follow the AS/NZS 1576 suite and the Australian ranges that publish them — APAC, Mr Scaffold
+(Easyscaf 225 kg / Supascaf 450 kg), Turbo, SafeSmart and Global.
+
+**Frames are named by rung count, because that is what they are ordered by.** Rungs sit at
+500 mm centres, so the stocked sections are the 4-rung (2.0 m), the 3-rung (1.5 m) and the
+2-rung (1.0 m) — the names APAC and the AU ranges list them under. `frameHeights` is keyed
+in metres because that is what the height solver stacks; `frameRungs` supplies the name, and
+`frameName()` / `frameRungLabel()` compose it once so the dropdown, the section header, the
+3D legend and the gear list (`Frame 4-Rung (2.0m x 1.3m)`) all say it the same way. A yard
+stocking another section adds one entry to each of those two maps.
+
+**Bay lengths are 3.0, 2.5, 2.4, 2.0, 1.8 and 1.3 m.** The 3.0 m and 2.5 m decks are both
+everyday lengths — most of a run is built out of them, and auto-fill packs from 3.0 m down —
+with the shorter bays closing a run out against a corner or an opening.
 
 What remains provisional is the **weights**, and deliberately so: no supplier publishes a
 component-by-component weight list for a tower, only a kit total and the heaviest single

@@ -876,9 +876,11 @@ AT-PAC Ringlock
 - stair on a "2130" bay, with "stairWalkway" of "0.81" or "1.52" · hop-ups 1 to 4
 
 Ally Frame — the aluminium mobile tower
-- bays: "3000" "2500" "2400" "1800" "1300" (millimetres; 2500 is the AU standard deck)
+- bays: "3000" "2500" "2400" "2000" "1800" "1300" (millimetres). 3.0m and 2.5m are both
+  everyday deck lengths — most of a run is built out of them; the shorter bays close it out.
 - widths: "0.7" single (light, 225kg) · "1.3" double (medium, 450kg) · "1.8" triple (heavy, 675kg)
-- "frameH": "2.0" "1.5" "1.2" "1.0" "0.8" — the frame section that stacks to the height
+- "frameH": "2.0" the 4-rung · "1.5" the 3-rung · "1.0" the 2-rung. Rungs are at 500mm
+  centres, so the frame is ordered by rung count and the metres just follow from it.
 - "frameBase": "castors" mobile | "plates" static on sole boards
 - "frameExposure": "sheltered" H<=3xDmin | "exposed" H<=2xDmin
 - "frameOutrig": "auto" sized to the ratio | "0" none | "0.6" "1.0" "1.4" metres each side
@@ -1110,18 +1112,22 @@ const RINGLOCK_PLANK_MM = 240; // AT-PAC Steel Plank O-Type 0.24m
 const ALLY_KG_PER_M = 0.81;      // 50 x 2.0mm 6061-T6 tube
 const ALLY_DECK_KG_PER_M = 7.6;  // multi-chamber 600mm alloy platform extrusion
 const ALLY_HATCH_KG = 3.6;       // what the trapdoor and its frame add to a deck
+// A ladder frame's rungs sit at 500mm centres, which is what makes a 2m frame a
+// 4-rung frame, a 1.5m a 3-rung and a 1m a 2-rung — the names the frames are
+// actually ordered and stacked by.
+const ALLY_RUNG_PITCH_M = 0.5;
 const ALLY_WEIGHTS = (() => {
   const w = {};
   const tube = (m, fittings = 0) => Math.round((m * ALLY_KG_PER_M + fittings) * 100) / 100;
-  const frameHs = [2.0, 1.5, 1.2, 1.0, 0.8];
+  const frameHs = [2.0, 1.5, 1.0];
   const widths = [0.7, 1.3, 1.8];
-  const bays = [3.0, 2.5, 2.4, 1.8, 1.3];
+  const bays = [3.0, 2.5, 2.4, 2.0, 1.8, 1.3];
   for (const h of frameHs) {
-    const rungs = Math.round(h / 0.25);
+    const rungs = Math.round(h / ALLY_RUNG_PITCH_M);
     for (const wd of widths) {
       // Two legs the height of the frame, the rungs across it, and 1.6kg for
       // the welded spigots, lock-clip lugs and end caps.
-      w[`Frame (${h.toFixed(1)}m x ${wd.toFixed(1)}m)`] = tube(2 * h + rungs * wd, 1.6);
+      w[`Frame ${rungs}-Rung (${h.toFixed(1)}m x ${wd.toFixed(1)}m)`] = tube(2 * h + rungs * wd, 1.6);
     }
   }
   for (const b of bays) {
@@ -1147,8 +1153,9 @@ const ALLY_WEIGHTS = (() => {
   }
   for (const h of frameHs) {
     // Internal access ladder, hooked through the trapdoor: two stiles and a
-    // rung every 250mm, plus its hooks.
-    w[`Access Ladder (${h.toFixed(1)}m)`] = tube(2 * h + Math.round(h / 0.25) * 0.4, 0.8);
+    // rung at the frame's own pitch, plus its hooks.
+    w[`Access Ladder (${h.toFixed(1)}m)`] =
+      tube(2 * h + Math.round(h / ALLY_RUNG_PITCH_M) * 0.4, 0.8);
   }
   for (const p of [0.6, 1.0, 1.4]) {
     // Stabiliser: an angled arm out to a foot, plus the clamp onto the frame.
@@ -1590,14 +1597,20 @@ const SYSTEMS = {
     plank: 'Alloy Platform',
     alloy: '6061-T6',
     // The rung is the frame's node: braces snap to it, platforms land on it,
-    // and you climb it. 250mm is the pitch the AU ladder frames are welded at.
-    // plankMM is one platform unit's own width (a 2.5m x 0.6m deck), which is
-    // what makes a 1.3m double width two decks across and a 0.7m single one.
-    geom: { baseOffsetM: 0, posMM: 40, rungPitchM: 0.25, plankMM: 600 },
-    // Frame sections that stack to the deck height. Keys are metres; the rung
-    // count is what the section is called on the yard sheet and on the frame.
-    frameHeights: { '2.0': 2.0, 1.5: 1.5, 1.2: 1.2, '1.0': 1.0, 0.8: 0.8 },
-    frameRungs: { '2.0': 8, 1.5: 6, 1.2: 5, '1.0': 4, 0.8: 3 },
+    // and you climb it. 500mm is the pitch the AU ladder frames are welded at.
+    // plankMM is one platform unit's own width (a 0.6m wide deck), which is what
+    // makes a 1.3m double width two decks across and a 0.7m single one.
+    geom: { baseOffsetM: 0, posMM: 40, rungPitchM: ALLY_RUNG_PITCH_M, plankMM: 600 },
+    // Frame sections that stack to the deck height. A frame is ordered, stacked
+    // and talked about by its RUNG COUNT, not its metres — nobody on site asks
+    // for a 2.0m frame, they ask for a 4-rung. At the 500mm rung pitch the three
+    // sections the ranges stock are the 4-rung, the 3-rung and the 2-rung, which
+    // is exactly how APAC, Mr Scaffold and the rest list them. The keys stay in
+    // metres because that is what the height solver stacks; the rung count is
+    // what every label says. A yard stocking another section adds one entry to
+    // each of these two maps and nothing else changes.
+    frameHeights: { '2.0': 2.0, 1.5: 1.5, '1.0': 1.0 },
+    frameRungs: { '2.0': 4, 1.5: 3, '1.0': 2 },
     // What the tower stands on. A mobile tower is on castors and is freestanding
     // by definition; a static one is on plates and can be tied. The travel is
     // the adjustment in the stem, and it is what lets a frame stack — which only
@@ -1620,12 +1633,16 @@ const SYSTEMS = {
         note: 'Sole boards min 200mm wide x 38mm thick x 500mm long on soft ground',
       },
     },
-    // Bay = the brace and platform length between two frames. 2.5m is the AU
-    // standard deck; 1.8m and 1.3m are the short bays that close a run out.
+    // Bay = the brace and platform length between two frames. 3.0m and 2.5m are
+    // both standard, everyday decks on an aluminium tower — 3.0m is the long
+    // deck most of a run gets built out of, and auto-fill packs from it down.
+    // 2.4m and 2.0m are the other stocked lengths; 1.8m and 1.3m are the short
+    // bays that close a run out against a corner or an opening.
     bays: {
       3000: { mm: 3000, label: '3.00m', clr: '#f472b6' },
       2500: { mm: 2500, label: '2.50m', clr: '#38bdf8' },
       2400: { mm: 2400, label: '2.40m', clr: '#22d3ee' },
+      2000: { mm: 2000, label: '2.00m', clr: '#818cf8' },
       1800: { mm: 1800, label: '1.80m', clr: '#34d399' },
       1300: { mm: 1300, label: '1.30m', clr: '#fbbf24' },
     },
@@ -1673,7 +1690,7 @@ const SYSTEMS = {
     outriggers: { 0.6: 0.6, '1.0': 1.0, 1.4: 1.4 },
     // Colours for the frame stack, so a tower reads as its sections the way a
     // modular column reads as its standards.
-    frameClr: { '2.0': '#38bdf8', 1.5: '#34d399', 1.2: '#fbbf24', '1.0': '#a78bfa', 0.8: '#f472b6' },
+    frameClr: { '2.0': '#38bdf8', 1.5: '#34d399', '1.0': '#a78bfa' },
     weights: ALLY_WEIGHTS,
   },
 };
@@ -2647,7 +2664,10 @@ function calcFrameGear(run) {
   // ── Frames ────────────────────────────────────────────────────────────────
   // One end frame per position per level, joined to the one below by a spigot
   // pin and a lock clip on each of its two legs.
-  add(`Frame (${frameH.toFixed(1)}m x ${widthM.toFixed(1)}m)`, numPos * frameLevels);
+  // Billed as the frame is ordered: by rung count first, with the dimensions
+  // after it so the yard can still tell a single-width from a double.
+  add(`Frame ${frameRungLabel(run.settings.frameH)} (${frameH.toFixed(1)}m x ${widthM.toFixed(1)}m)`,
+    numPos * frameLevels);
   add('Coupling Pin', numPos * Math.max(0, frameLevels - 1) * 2);
   add('Locking Clip', numPos * Math.max(0, frameLevels - 1) * 2);
 
@@ -3211,14 +3231,27 @@ function buildFrameHeightOpts() {
   const isFrame = SYS.model === 'frame';
   row.classList.toggle('hidden', !isFrame);
   if (!isFrame) return;
-  // Named the way the frame is named on the yard sheet: a 1.2m section is a
-  // 5-rung frame, and the rung count is what you count to check you grabbed
-  // the right one off the stillage.
-  const rungs = SYS.frameRungs || {};
+  // Named the way the frame is named on site and on the yard sheet: nobody
+  // asks for a 2.0m frame, they ask for a 4-rung. So the rung count leads and
+  // the metres follow it, and the rung count is what you count on the stillage
+  // to check you grabbed the right one.
   sel.innerHTML = Object.keys(SYS.frameHeights)
     .sort((a, b) => parseFloat(b) - parseFloat(a))
-    .map((k) => `<option value="${k}">${parseFloat(k).toFixed(1)}m Frame${rungs[k] ? ` · ${rungs[k]}-Rung` : ''}</option>`)
+    .map((k) => `<option value="${k}">${frameName(k)}</option>`)
     .join('');
+}
+// "4-Rung Frame · 2.0m" — the one place the frame's name is composed, so the
+// dropdown, the section header, the 3D legend and the gear list all say it the
+// same way. Falls back to metres for a system that declares no rung counts.
+function frameName(key, sys = SYS) {
+  const m = parseFloat(key);
+  const rungs = (sys.frameRungs || {})[key];
+  return rungs ? `${rungs}-Rung Frame · ${m.toFixed(1)}m` : `${m.toFixed(1)}m Frame`;
+}
+// "4-Rung" on its own, for labels that are already tight on space.
+function frameRungLabel(key, sys = SYS) {
+  const rungs = (sys.frameRungs || {})[key];
+  return rungs ? `${rungs}-Rung` : `${parseFloat(key).toFixed(1)}m`;
 }
 // What the tower stands on, and therefore whether it is mobile at all.
 function buildFrameBaseOpts() {
@@ -4814,7 +4847,6 @@ function renderFrameElevation(c, run) {
   const iX = xOf(0), oX = xOf(deckM);
   const labelX = oX + 12;
   if (label) {
-    const rungs = (SYS.frameRungs || {})[run.settings.frameH];
     // The height-to-base ratio rides along with the height, because on a
     // freestanding tower it is the number that decides whether what is drawn
     // may be built at all.
@@ -4822,8 +4854,8 @@ function renderFrameElevation(c, run) {
       ? 'tied — ratio does not govern'
       : `H/D ${(actualH / stab.effMin).toFixed(2)}:1 of ${stab.ratio}:1${stab.over ? ' ⚠ OVER' : ''}`;
     label.textContent =
-      `Deck +${actualH.toFixed(2)}m · ${frameLevels} × ${frameH.toFixed(1)}m` +
-      (rungs ? ` (${rungs}-rung)` : '') + ` frames · ${base.mobile ? 'castor' : 'plate'} ${Math.round(legExt * 1000)}mm` +
+      `Deck +${actualH.toFixed(2)}m · ${frameLevels} × ${frameRungLabel(run.settings.frameH)}` +
+      ` (${frameH.toFixed(1)}m) frames · ${base.mobile ? 'castor' : 'plate'} ${Math.round(legExt * 1000)}mm` +
       (stab.exact ? '' : ` · nearest to ${targetH}m`) +
       (armM ? ` · ${armM.toFixed(1)}m outriggers → Dmin ${stab.effMin.toFixed(2)}m` : '') +
       ` · ${ratioTxt}`;
@@ -4855,10 +4887,9 @@ function renderFrameElevation(c, run) {
       el('line', { x1: x, y1: yOf(clampZ), x2: footX, y2: yOf(0), stroke: '#f59e0b', 'stroke-width': 2.4 }, svg);
       el('rect', { x: footX - 6, y: yOf(0) - 3, width: 12, height: 3, fill: '#f59e0b' }, svg);
     }
-    // Named on the arm itself rather than under the tower, where the width
-    // dimension already sits.
-    txt(svg, xOf(deckM + armM * 0.55), yOf(0) - 14, `${armM.toFixed(1)}m`,
-      { size: 8, fill: '#f59e0b', weight: 800, anchor: 'start' });
+    // Deliberately unlabelled: the arms are unmistakable, the width dimension
+    // sits under the tower and the plan-brace note sits beside it, and the
+    // header already states the projection and the Dmin it buys.
   }
   // ── The frame stack ───────────────────────────────────────────────────────
   // Each section is a welded ladder: two legs and a rung every 250mm. The rungs
@@ -4875,12 +4906,12 @@ function renderFrameElevation(c, run) {
     for (let r = 1; r <= nRungs; r++) {
       const rz = yB + r * (frameH / nRungs);
       const head = r === nRungs;
-      // Faint intermediate rungs, strong head rung — the head is the one a
-      // deck lands on, and at a 250mm pitch a full-strength stack of the rest
-      // reads as a filled panel rather than as the ladder it is.
+      // The head rung is the one a deck lands on, so it stays the strongest;
+      // the rungs below it are what you climb, and at a 500mm pitch there are
+      // few enough of them to draw properly.
       el('line', { x1: iX, y1: yOf(rz), x2: oX, y2: yOf(rz),
-        stroke: head ? '#0e7490' : '#1e4f63', 'stroke-width': head ? 3 : 0.9,
-        opacity: head ? 1 : 0.45 }, svg);
+        stroke: head ? '#0e7490' : '#1c5f78', 'stroke-width': head ? 3 : 1.4,
+        opacity: head ? 1 : 0.8 }, svg);
     }
     // The spigot joint between one frame and the next, with its lock clip.
     if (i > 0) {
@@ -5150,12 +5181,11 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
       for (let r = 1; r <= nRungs; r++) {
         const rz = z0 + r * (frameH / nRungs);
         const head = r === nRungs;
-        // The intermediate rungs are drawn faint on purpose: at a 250mm pitch
-        // there are eight of them per frame, and at full contrast a stack of
-        // them reads as a mesh wall rather than as the ladder it is. The head
-        // rung stays strong — that is the one a deck lands on.
-        line(P(p.x, 0, rz), P(p.x, widthM, rz), head ? '#0e7490' : '#1e4f63',
-          head ? 2.4 : 0.8, head ? 1 : 0.4);
+        // Four rungs to a 2m frame at the 500mm pitch, so they can be drawn as
+        // the ladder they are. The head rung stays strongest — that is the one
+        // a deck lands on.
+        line(P(p.x, 0, rz), P(p.x, widthM, rz), head ? '#0e7490' : '#1c5f78',
+          head ? 2.4 : 1.2, head ? 1 : 0.7);
       }
     }
   }
@@ -5955,6 +5985,7 @@ function renderIsoLegend(models) {
   const count = {};
   const builds = { inner: new Set(), outer: new Set() };
   const frameNotes = [];
+  const sizeName = {};
   let clr = {};
   for (const m of models) {
     // A frame run has no columns to read off. What its stack is made of is the
@@ -5964,8 +5995,10 @@ function renderIsoLegend(models) {
       clr = { ...clr, ...(m.sys.frameClr || {}) };
       const k = m.frameH.toFixed(1);
       count[k] = (count[k] || 0) + m.posts.length * m.frameLevels;
+      // A frame swatch is labelled by its rung count, not its metres.
+      sizeName[k] = frameRungLabel(k, m.sys);
       frameNotes.push(
-        `${m.frameLevels} × ${k}m frame${m.frameLevels === 1 ? '' : 's'} per position` +
+        `${m.frameLevels} × ${frameRungLabel(k, m.sys)} frame${m.frameLevels === 1 ? '' : 's'} per position` +
         ` · ${m.base.mobile ? 'castors' : 'plates'}` +
         (m.armM ? ` · ${m.armM.toFixed(1)}m outriggers` : ''));
       continue;
@@ -5984,7 +6017,7 @@ function renderIsoLegend(models) {
     `<span class="inline-flex items-center gap-1 mr-3 whitespace-nowrap">` +
     `<span style="display:inline-block;width:9px;height:14px;border-radius:2px;` +
     `background:${clr[k] || '#64748b'};border:1px solid #0d1117;"></span>` +
-    `<span class="mono">${parseFloat(k).toFixed(1)}m</span>` +
+    `<span class="mono">${sizeName[k] || `${parseFloat(k).toFixed(1)}m`}</span>` +
     `<span class="text-slate-500">×${count[k]}</span></span>`;
   const list = (set) => [...set].filter(Boolean).map((b) => `<span class="mono">${escapeHTML(b)}</span>`).join(' or ');
   const columnLine = builds.inner.size

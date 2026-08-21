@@ -91,9 +91,12 @@ listed and carry on.
 - stair on a `"2130"` bay, with `"stairWalkway"` of `"0.81"` or `"1.52"` · hop-ups 1 to 4
 
 **Ally Frame** — the aluminium mobile tower
-- bays: `"3000"` `"2500"` `"2400"` `"1800"` `"1300"` (millimetres; `"2500"` is the AU standard deck)
+- bays: `"3000"` `"2500"` `"2400"` `"2000"` `"1800"` `"1300"` (millimetres). `"3000"` and
+  `"2500"` are both everyday deck lengths — most of a run is built out of them; the shorter
+  bays close it out.
 - widths: `"0.7"` single (light, 225kg) · `"1.3"` double (medium, 450kg) · `"1.8"` triple (heavy, 675kg)
-- `"frameH"`: `"2.0"` `"1.5"` `"1.2"` `"1.0"` `"0.8"` — the frame section that stacks to the height
+- `"frameH"`: `"2.0"` the **4-rung** · `"1.5"` the **3-rung** · `"1.0"` the **2-rung**. Rungs
+  are at 500mm centres, so a frame is ordered by rung count and the metres follow from it.
 - `"frameBase"`: `"castors"` mobile · `"plates"` static on sole boards
 - `"frameExposure"`: `"sheltered"` (H ≤ 3 × Dmin) · `"exposed"` (H ≤ 2 × Dmin)
 - `"frameOutrig"`: `"auto"` sized to the ratio · `"0"` none · `"0.6"` `"1.0"` `"1.4"` metres each side
