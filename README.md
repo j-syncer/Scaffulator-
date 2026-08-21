@@ -837,3 +837,45 @@ array with no version field, so changing the shape of `runs` will break previous
 projects. Each run records its `system`, so a saved job reopens on the systems it was
 built with. Projects saved before multi-system support have no `system` field and fall
 back to Kwikstage.
+
+### Importing a file this app did not write
+
+A take-off now arrives as often from a model reading a photo of a drawing as it does from
+*Save*. That JSON says the right thing in the wrong words — `2400` or `"2.4m"` or `"8ft"`
+for the bay this app keys as `'8ft'`, a height of `4.5` instead of `"4.5"`, the whole
+thing wrapped in a code fence with a paragraph of explanation around it. None of it used
+to load, and because an unrecognised bay was dropped in silence, a nine-bay run arrived
+as three with nothing on screen to say why.
+
+Reading is three stages now, and the last is the strict check that was always there:
+
+1. `parseProjectText()` — text to an object. Forgives code fences, prose on either side,
+   `//` and `/* */` comments, trailing commas, smart quotes, single-quoted strings and
+   unquoted keys. Every repair is only kept if the result actually parses.
+2. `normaliseProject()` — that object to the exact shape *Save* writes. Sizes are matched
+   by key, by catalogue label, by either half of a label like `2.4m (8ft)`, by board
+   count, or as a length in millimetres, metres or feet; failing all of those, by the
+   nearest stocked size within `IMPORT_TOL_MM` (75mm). Two sizes equally close is not a
+   match — guessing between them would be inventing a quantity.
+3. `sanitiseRuns()` — unchanged, and still the only thing that decides what is allowed
+   into `runs`.
+
+So the tolerance is all in the reading. Nothing in the import path can put a bay, a size
+or a setting into a job that the app could not have produced itself.
+
+It also reads: a bare list of sizes as the bay list (`["2.4m","2.4m","1.8m"]`), `count` /
+`qty` on an entry (one line for nine bays), a wrapper object such as `{"project":{…}}`,
+a single run that was not put in a `runs` array, settings written straight on the run
+instead of under `settings`, and aliased field names — `topDeckHeight`, `boardedLifts`,
+`deckWidth`, `siteAddress`, `customer`. With no system named, the one that recognises
+most of the bay sizes is the one the file is taken to describe.
+
+**Everything it does differently is reported.** The toast counts the bays and runs
+loaded, names an inferred system, and counts what was snapped to a stocked size and what
+could not be read at all; the console carries the item-by-item detail, which is what you
+need to fix whatever produced the file.
+
+**Paste works too.** Copy the JSON and paste it anywhere on the page — no file, no
+download. Pasting into a field still types into the field, and text that is not a project
+is left for the browser to handle normally. The file picker accepts `.txt` as well as
+`.json`.

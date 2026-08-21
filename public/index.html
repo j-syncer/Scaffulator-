@@ -309,7 +309,7 @@
     </button>
     <label class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-2 px-3 rounded transition-colors cursor-pointer">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg><span class="hidden sm:inline">Load</span>
-      <input type="file" class="hidden" accept=".json" onchange="loadProject(event)">
+      <input type="file" class="hidden" accept=".json,.txt,.jsonc,application/json,text/plain" onchange="loadProject(event)">
     </label>
     <button onclick="window.print()" class="flex items-center gap-1.5 bg-amber-400 hover:bg-amber-300 text-slate-900 text-xs font-bold py-2 px-3 rounded transition-colors">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg><span class="hidden sm:inline">Print Manifest</span><span class="sm:hidden">Print</span>
@@ -2774,6 +2774,489 @@ function saveProject() {
   a.click();
   toast('Project saved!', false);
 }
+/* ============================================================
+   IMPORT — reading a file this app did not write
+   ------------------------------------------------------------
+   A take-off now arrives as often from a model reading a photo of a
+   drawing as it does from this app's own Save. That JSON says the
+   right thing in the wrong words: 2400 or "2.4m" or "8ft" for the
+   bay this app keys as '8ft', a height of 4.5 instead of "4.5", the
+   whole thing wrapped in ```json and a paragraph of explanation.
+   None of that used to load — an unrecognised bay was dropped in
+   silence, so a nine-bay run arrived as three.
+
+   Reading is three stages, and the last one is the strict check that
+   was always here:
+
+     1. parseProjectText()  text  → object. Forgives code fences,
+        prose either side, comments, trailing commas, smart quotes,
+        single quotes and unquoted keys.
+     2. normaliseProject()  object → the exact shape Save writes.
+        Sizes are matched by key, alias, millimetres, metres, feet or
+        catalogue label, and failing all of those by the nearest
+        stocked size within IMPORT_TOL_MM.
+     3. sanitiseRuns()      unchanged, and still the only thing that
+        decides what is allowed into `runs`.
+
+   So tolerance is all in the reading. Nothing here can put a bay,
+   a size or a setting into the job that the app could not have
+   produced itself, and every substitution it makes is counted and
+   reported rather than made quietly.
+   ============================================================ */
+
+// How far a stated size may sit from a stocked one and still be taken to mean
+// it. 75mm covers a drawing read as 2.44m for an 8ft bay, or a 2400 written
+// against a Ringlock job whose nearest ledger is 2430 — and stops well short
+// of the next size in any of the four systems.
+const IMPORT_TOL_MM = 75;
+
+function normKey(v) {
+  return String(v === undefined || v === null ? '' : v)
+    .toLowerCase()
+    .replace(/[‘’“”'`]/g, '')
+    .replace(/[–—]/g, '-')
+    .replace(/[^a-z0-9.\-]+/g, '');
+}
+
+function firstDefined(...vals) {
+  for (const v of vals) if (v !== undefined && v !== null && v !== '') return v;
+  return undefined;
+}
+
+// Case- and punctuation-insensitive property lookup, so siteAddress, site_address
+// and "Site Address" all answer to the same ask.
+function getAny(obj, names) {
+  if (!obj || typeof obj !== 'object') return undefined;
+  const keys = Object.keys(obj);
+  // In the order asked, not the order the object happens to list: the first
+  // name that matches wins, so `value` beats `label` and `type` is never
+  // mistaken for a size.
+  for (const want of names) {
+    const w = normKey(want);
+    for (const k of keys) {
+      const v = obj[k];
+      if (normKey(k) === w && v !== undefined && v !== null && v !== '') return v;
+    }
+  }
+  return undefined;
+}
+
+function toNumber(v, fallback = null) {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  const n = parseFloat(String(v === undefined || v === null ? '' : v).replace(/[^0-9.\-]/g, ''));
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toBool(v) {
+  if (typeof v === 'boolean') return v;
+  const s = normKey(v);
+  return s === '1' || s === 'true' || s === 'yes' || s === 'y' || s === 'on';
+}
+
+// Millimetres out of whatever the size was written as. A bare number under 20
+// is metres, because no scaffold component is 8mm long and plenty are 8m.
+function mmFrom(raw) {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw < 20 ? raw * 1000 : raw;
+  const s = normKey(raw);
+  if (!s) return null;
+  const n = parseFloat(s.replace(/^[^0-9.\-]*/, ''));
+  if (!Number.isFinite(n)) return null;
+  if (/ft|feet/.test(s) || /['′]/.test(String(raw))) return n * 304.8;
+  if (/cm/.test(s)) return n * 10;
+  if (/mm/.test(s)) return n;
+  if (/m/.test(s)) return n * 1000;
+  return n < 20 ? n * 1000 : n;
+}
+
+// The length an entry in one of the app's own tables stands for, whether it
+// carries it as .mm, as .transomMM, or only in its key.
+function entryMM(key, entry) {
+  if (entry && Number.isFinite(entry.mm)) return entry.mm;
+  if (entry && Number.isFinite(entry.transomMM)) return entry.transomMM;
+  const n = parseFloat(key);
+  return Number.isFinite(n) ? (n < 20 ? n * 1000 : n) : null;
+}
+
+// Everything a key should answer to: itself, its catalogue label, either half
+// of a label like "2.4m (8ft)", its board count, and its length written four
+// ways.
+function keyAliases(key, entry) {
+  const out = [String(key)];
+  const label = entry && entry.label;
+  if (label) {
+    out.push(label);
+    const m = String(label).match(/^([^()]+?)\s*\(([^)]+)\)\s*$/);
+    if (m) out.push(m[1], m[2]);
+    const board = String(label).match(/^(\d+)\s*-?\s*board/i);
+    if (board) out.push(`${board[1]}board`, `${board[1]}b`);
+  }
+  if (entry && Number.isFinite(entry.planks)) out.push(`${entry.planks}board`, `${entry.planks}b`);
+  if (entry && Number.isFinite(entry.decks)) out.push(`${entry.decks}deck`);
+  const mm = entryMM(key, entry);
+  if (mm !== null) {
+    const m = +(mm / 1000).toFixed(3);
+    out.push(String(Math.round(mm)), `${Math.round(mm)}mm`, `${m}m`, String(m));
+  }
+  return out;
+}
+
+// Resolves a written value to a key of `dict`: exact key, then any alias, then
+// the nearest stocked size within tolerance. Two sizes equally close is not a
+// match — guessing between them would be inventing a quantity.
+function resolveKey(dict, raw, tolMM = IMPORT_TOL_MM) {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (Object.prototype.hasOwnProperty.call(dict, raw)) return { key: String(raw), snapped: false };
+  const keys = Object.keys(dict);
+  const want = normKey(raw);
+  if (want) {
+    for (const k of keys) {
+      if (keyAliases(k, dict[k]).some((a) => normKey(a) === want)) return { key: k, snapped: false };
+    }
+  }
+  const mm = mmFrom(raw);
+  if (mm === null) return null;
+  const scored = keys
+    .map((k) => ({ k, mm: entryMM(k, dict[k]) }))
+    .filter((x) => x.mm !== null)
+    .map((x) => ({ k: x.k, mm: x.mm, d: Math.abs(x.mm - mm) }))
+    .sort((a, b) => a.d - b.d);
+  if (!scored.length || scored[0].d > tolMM) return null;
+  if (scored[1] && Math.abs(scored[1].d - scored[0].d) < 1e-9) return null;
+  return { key: scored[0].k, snapped: scored[0].d > 0.5, from: mm, to: scored[0].mm };
+}
+
+/* ---------------- text → object ---------------- */
+
+// Repairs the things that are not JSON but are obviously meant to be, in one
+// pass that knows when it is inside a string so it never edits content.
+function repairJSONText(t) {
+  let out = '';
+  let inStr = false;
+  let closer = '"';
+  let esc = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (inStr) {
+      if (esc) { out += c; esc = false; continue; }
+      if (c === '\\') { out += c; esc = true; continue; }
+      if (c === closer) { out += '"'; inStr = false; continue; }
+      if (c === '"') { out += '\\"'; continue; }      // a straight quote inside a '…' string
+      if (c === '\n' || c === '\r') { out += '\\n'; continue; } // a literal newline is not legal JSON
+      if (c === '\t') { out += '\\t'; continue; }
+      out += c;
+      continue;
+    }
+    if (c === '"' || c === "'" || c === '“' || c === '‘') {
+      inStr = true;
+      closer = c === '‘' ? '’' : c === '“' ? '”' : c;
+      out += '"';
+      continue;
+    }
+    if (c === '/' && t[i + 1] === '/') { while (i < t.length && t[i] !== '\n') i++; continue; }
+    if (c === '/' && t[i + 1] === '*') { i += 2; while (i < t.length && !(t[i] === '*' && t[i + 1] === '/')) i++; i++; continue; }
+    out += c;
+  }
+  return out
+    .replace(/,(\s*[}\]])/g, '$1')                               // trailing commas
+    .replace(/([{,]\s*)([A-Za-z_$][A-Za-z0-9_$ .-]*?)\s*:/g, (m, a, k) => `${a}"${k.trim()}":`) // bare keys
+    .replace(/\b(NaN|Infinity|-Infinity|undefined)\b/g, 'null');
+}
+
+// From the first bracket to the last, so an explanation either side of the
+// JSON is not a parse error.
+function sliceOutermost(t) {
+  const starts = [t.indexOf('{'), t.indexOf('[')].filter((i) => i >= 0);
+  const ends = [t.lastIndexOf('}'), t.lastIndexOf(']')];
+  const a = starts.length ? Math.min(...starts) : -1;
+  const b = Math.max(...ends);
+  return a >= 0 && b > a ? t.slice(a, b + 1) : null;
+}
+
+function parseProjectText(text) {
+  const raw = String(text === undefined || text === null ? '' : text).replace(/^﻿/, '');
+  const fenced = raw.match(/```(?:json5?|jsonc|js|javascript)?\s*([\s\S]*?)```/i);
+  const body = fenced ? fenced[1] : raw;
+  const tries = [body];
+  const sliced = sliceOutermost(body);
+  if (sliced && sliced !== body) tries.push(sliced);
+  // Repairs are only ever kept when they parse, so a repair that would have
+  // mangled something never gets used.
+  for (const t of tries.slice()) tries.push(repairJSONText(t));
+  for (const t of tries) {
+    try {
+      const out = JSON.parse(t);
+      if (out && typeof out === 'object') return out;
+    } catch { /* try the next form */ }
+  }
+  throw new Error('that is not JSON I can read');
+}
+
+/* ---------------- object → the shape Save writes ---------------- */
+
+const IMPORT_TYPE_WORDS = {
+  bay: 'bay', bays: 'bay', panel: 'bay', span: 'bay', component: 'bay',
+  gap: 'gap', void: 'gap', opening: 'gap', space: 'gap',
+  step: 'step', stepup: 'step', stepdown: 'step', stepupdown: 'step',
+  break: 'break', runbreak: 'break', join: 'break', newrun: 'break', endofrun: 'break',
+};
+
+// Which system a file means, by id or by name — "kwik stage", "AT-PAC",
+// "ringlock", "ally frame" all land somewhere sensible.
+function resolveSystem(raw) {
+  const want = normKey(raw);
+  if (!want) return null;
+  if (SYSTEMS[raw]) return SYSTEMS[raw].id;
+  for (const sy of Object.values(SYSTEMS)) {
+    if (normKey(sy.id) === want || normKey(sy.name) === want) return sy.id;
+  }
+  for (const sy of Object.values(SYSTEMS)) {
+    const n = normKey(sy.name);
+    if (want.includes(normKey(sy.id)) || n.includes(want) || want.includes(n)) return sy.id;
+  }
+  if (/ringlock|atpac|at-pac/.test(want)) return 'ringlock';
+  if (/frame|ally(?!.*kwik)/.test(want)) return 'allyframe';
+  if (/kwikally|allyround/.test(want)) return 'kwikally';
+  if (/kwik/.test(want)) return 'kwikstage';
+  return null;
+}
+
+// With no usable system named, the bays name it: whichever system recognises
+// most of them is the one the file is describing.
+function inferSystem(bayValues) {
+  let best = null;
+  for (const sy of Object.values(SYSTEMS)) {
+    let hits = 0;
+    for (const v of bayValues) {
+      const r = resolveKey(sy.bays, v, 0.5); // exact or alias only — no snapping
+      if (r) hits++;
+    }
+    if (!best || hits > best.hits) best = { id: sy.id, hits };
+  }
+  return best && best.hits > 0 ? best.id : null;
+}
+
+// One entry in the run's list. Returns an array because an entry is allowed to
+// say "5 of these", which is how a model summarises a drawing.
+function normaliseBayEntry(raw, sys, report) {
+  if (typeof raw === 'string' || typeof raw === 'number') raw = { type: 'bay', value: raw };
+  if (!raw || typeof raw !== 'object') return [];
+  const value = getAny(raw, ['value', 'size', 'length', 'bay', 'baySize', 'bayLength', 'mm', 'label', 'name']);
+  let type = normKey(getAny(raw, ['type', 'kind', 'item', 'element']));
+  type = IMPORT_TYPE_WORDS[type] || (type.startsWith('step') ? 'step' : IMPORT_TYPE_WORDS[type.replace(/s$/, '')] || '');
+  if (!type) {
+    if (getAny(raw, ['gap', 'gapMM']) !== undefined) type = 'gap';
+    else if (getAny(raw, ['step', 'direction']) !== undefined) type = 'step';
+    else if (value !== undefined) type = 'bay';
+    else return [];
+  }
+  const n = toNumber(getAny(raw, ['count', 'qty', 'quantity', 'number', 'n', 'repeat']), 1);
+  const count = Math.max(1, Math.min(500, Math.round(Number.isFinite(n) ? n : 1)));
+  const out = [];
+
+  if (type === 'break') {
+    out.push({ type: 'break' });
+  } else if (type === 'step') {
+    const word = normKey(firstDefined(getAny(raw, ['direction', 'step']), value, getAny(raw, ['type'])));
+    const num = toNumber(firstDefined(value, getAny(raw, ['step'])), null);
+    let dir = 0;
+    if (/down|-/.test(word) || (num !== null && num < 0)) dir = -1;
+    else if (/up/.test(word) || (num !== null && num > 0)) dir = 1;
+    if (!dir) { report.dropped.push('step with no up/down'); return []; }
+    for (let i = 0; i < count; i++) out.push({ type: 'step', value: dir });
+  } else if (type === 'gap') {
+    const mm = mmFrom(firstDefined(getAny(raw, ['gap', 'gapMM']), value));
+    if (mm === null || !(mm > 0)) { report.dropped.push(`gap ${JSON.stringify(value ?? null)}`); return []; }
+    for (let i = 0; i < count; i++) out.push({ type: 'gap', value: Math.round(mm) });
+  } else {
+    const hit = resolveKey(sys.bays, value);
+    if (!hit) { report.dropped.push(`bay ${JSON.stringify(value ?? null)}`); return []; }
+    if (hit.snapped) {
+      report.snapped.push(`${value} → ${sys.bays[hit.key].label}`);
+    }
+    const stair = toBool(firstDefined(getAny(raw, ['stair', 'stairTower', 'stairs']), false));
+    for (let i = 0; i < count; i++) {
+      const bay = { type: 'bay', value: hit.key };
+      if (stair) bay.stair = true;
+      out.push(bay);
+    }
+  }
+  report.kept += out.length;
+  return out;
+}
+
+// The run's own settings, wherever the file chose to put them and whatever it
+// chose to call them. Anything unreadable is simply left at its default.
+function normaliseSettings(raw, sysId, report) {
+  const sys = SYSTEMS[sysId] || SYSTEMS.kwikstage;
+  const s = { ...DEFAULT_SETTINGS, system: sys.id };
+  const width = resolveKey(sys.widths, getAny(raw, ['width', 'deckWidth', 'boards', 'boardsAcross', 'platformWidth']));
+  s.width = width ? width.key : defaultWidthKey(sys);
+  if (width && width.snapped) report.snapped.push(`deck width → ${sys.widths[width.key].label}`);
+
+  const h = mmFrom(getAny(raw, ['height', 'deckHeight', 'topDeckHeight', 'liftHeight', 'h']));
+  if (h !== null && h > 0) s.height = String(+(h / 1000).toFixed(3));
+
+  const lifts = toNumber(getAny(raw, ['lifts', 'boardedLifts', 'platforms', 'decks']), null);
+  if (lifts !== null) s.lifts = String(Math.max(1, Math.min(MAX_LIFTS, Math.round(lifts))));
+
+  const rail = getAny(raw, ['handrail', 'guardrail', 'topGuardrail']);
+  if (rail !== undefined) {
+    const rn = normKey(rail);
+    s.handrail = /double|2/.test(rn) ? '2' : '1';
+  }
+  const hop = getAny(raw, ['hopup', 'hopUp', 'sideHopup', 'console', 'bracket']);
+  if (hop !== undefined) {
+    const noKB = /nokick|nokb|_nk/.test(normKey(hop));
+    const boards = toNumber(hop, null);
+    const key = !boards ? '0' : `${Math.round(boards)}B${noKB ? '_NK' : ''}`;
+    const sel = document.getElementById('hopup');
+    const valid = sel ? Array.from(sel.options).some((o) => o.value === key) : false;
+    s.hopup = valid ? key : '0';
+  }
+  const clip = getAny(raw, ['clip', 'clipType', 'kbClip']);
+  if (clip !== undefined) s.clip = /spade/.test(normKey(clip)) ? 'Spade' : 'Wine Glass';
+
+  const piggy = getAny(raw, ['piggyback', 'piggyBack', 'outsideBay']);
+  if (piggy !== undefined) {
+    const hit = /^(0|none|no|false)$/.test(normKey(piggy)) ? null : resolveKey(sys.widths, piggy);
+    s.piggyback = hit ? hit.key : '0';
+  }
+  const stagger = getAny(raw, ['stagger', 'staggerStandards', 'staggered']);
+  if (stagger !== undefined) s.stagger = toBool(stagger) ? '1' : '0';
+
+  const ties = getAny(raw, ['ties', 'tieType', 'tie']);
+  if (ties !== undefined) {
+    const tn = normKey(ties);
+    if (/^(0|none|no|false)$/.test(tn)) s.ties = '0';
+    else {
+      const hit = Object.keys(TIE_TYPES).find(
+        (k) => normKey(k) === tn || normKey(TIE_TYPES[k].label).includes(tn) || tn.includes(normKey(k)),
+      );
+      s.ties = hit || '0';
+    }
+  }
+  const every = toNumber(getAny(raw, ['tieEvery', 'tieSpacing', 'tieEverySt']), null);
+  if (every !== null) s.tieEvery = String(Math.max(1, Math.min(3, Math.round(every))));
+
+  if (sys.model === 'frame') {
+    const fh = resolveKey(sys.frameHeights, getAny(raw, ['frameH', 'frameHeight', 'frame']));
+    s.frameH = fh ? fh.key : Object.keys(sys.frameHeights)[0];
+  }
+  if (sys.stairTower) {
+    const walk = resolveKey(sys.stairTower.walkways, getAny(raw, ['stairWalkway', 'walkway', 'stairWidth']));
+    if (walk) s.stairWalkway = walk.key;
+  }
+  return s;
+}
+
+function normaliseRun(raw, report) {
+  if (Array.isArray(raw)) raw = { bays: raw };
+  if (!raw || typeof raw !== 'object') return null;
+  const list = getAny(raw, ['bays', 'items', 'components', 'sequence', 'elements', 'entries']);
+  const bayList = Array.isArray(list) ? list : [];
+  // Settings are read from a settings object if there is one, and from the
+  // run's own body if there is not — a model tends to put height and width
+  // straight on the run.
+  const settingsSrc = { ...raw, ...(getAny(raw, ['settings', 'config', 'configuration', 'options']) || {}) };
+  const named = resolveSystem(getAny(settingsSrc, ['system', 'scaffoldSystem', 'type']));
+  const values = bayList
+    .map((b) => (typeof b === 'object' && b ? getAny(b, ['value', 'size', 'length', 'bay', 'mm', 'label']) : b))
+    .filter((v) => v !== undefined);
+  const sysId = named || inferSystem(values) || DEFAULT_SETTINGS.system;
+  if (!named && sysId !== DEFAULT_SETTINGS.system) report.inferredSystem = SYSTEMS[sysId].name;
+  const sys = SYSTEMS[sysId];
+  const settings = normaliseSettings(settingsSrc, sysId, report);
+  const bays = [];
+  for (const entry of bayList) bays.push(...normaliseBayEntry(entry, sys, report));
+  const turnRaw = normKey(getAny(raw, ['turn', 'direction', 'runDirection']));
+  const turn = /left/.test(turnRaw) ? 'left' : /right/.test(turnRaw) ? 'right' : 'straight';
+  return { bays, settings, turn };
+}
+
+function normaliseJobDetails(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const str = (v) => (typeof v === 'string' ? v : v === undefined || v === null ? '' : String(v));
+  return {
+    name: str(getAny(raw, ['name', 'jobName', 'job', 'title', 'reference', 'ref', 'project'])),
+    client: str(getAny(raw, ['client', 'customer', 'company', 'for'])),
+    address: str(getAny(raw, ['address', 'site', 'siteAddress', 'location'])),
+    by: str(getAny(raw, ['by', 'estimator', 'preparedBy', 'author', 'takeoffBy'])),
+    date: str(getAny(raw, ['date', 'jobDate', 'dated'])),
+  };
+}
+
+function normaliseProject(parsed) {
+  const report = { kept: 0, snapped: [], dropped: [], inferredSystem: null };
+  let src = parsed;
+  // Unwrap a wrapper — {project:{…}}, {data:{…}}, {result:{…}} — until the
+  // thing that actually holds runs or bays is in hand.
+  for (let i = 0; i < 5; i++) {
+    if (!src || typeof src !== 'object' || Array.isArray(src)) break;
+    if (getAny(src, ['runs', 'bays', 'items', 'components', 'sequence'])) break;
+    const inner = getAny(src, ['project', 'data', 'result', 'output', 'scaffold', 'scaffolding', 'plan', 'takeoff']);
+    if (!inner || typeof inner !== 'object') break;
+    src = inner;
+  }
+  let rawRuns;
+  if (Array.isArray(src)) {
+    // Either a list of runs, or — just as likely from a model — a bare list of
+    // bays that is the whole job.
+    const looksLikeRuns = src.some((r) => r && typeof r === 'object' && getAny(r, ['bays', 'items', 'components', 'sequence', 'settings']));
+    rawRuns = looksLikeRuns ? src : [{ bays: src }];
+  } else if (src && typeof src === 'object') {
+    const rs = getAny(src, ['runs', 'sections', 'legs']);
+    if (Array.isArray(rs)) rawRuns = rs;
+    else if (rs && typeof rs === 'object') rawRuns = Object.values(rs);
+    else rawRuns = [src];
+  }
+  if (!Array.isArray(rawRuns) || rawRuns.length === 0) throw new Error('no runs in that file');
+  const out = rawRuns.map((r) => normaliseRun(r, report)).filter(Boolean);
+  if (out.length === 0) throw new Error('no runs in that file');
+  const job = normaliseJobDetails(getAny(src, ['job', 'jobDetails', 'details', 'header']) || src);
+  return { runs: out, job, report };
+}
+
+// Loads project text from a file or the clipboard. The file's own numbers are
+// never touched — this only decides what the file was trying to say, and then
+// hands it to the same sanitiseRuns() a Save file goes through.
+function importProjectText(text, source = 'file') {
+  const before = runs;
+  try {
+    const parsed = parseProjectText(text);
+    const { runs: rawRuns, job: rawJob, report } = normaliseProject(parsed);
+    const cleaned = sanitiseRuns(rawRuns);
+    runs = cleaned;
+    if (rawJob && Object.values(rawJob).some((v) => v)) {
+      for (const k of Object.keys(job)) job[k] = typeof rawJob[k] === 'string' ? rawJob[k] : '';
+      loadJobFields();
+      renderPrintHead();
+    }
+    loadSettings(currentRun());
+    render();
+    const bays = runs.reduce((a, r) => a + r.bays.filter((b) => b.type === 'bay').length, 0);
+    const bits = [`${bays} bay${bays === 1 ? '' : 's'} in ${runs.length} run${runs.length === 1 ? '' : 's'}`];
+    if (report.inferredSystem) bits.push(`read as ${report.inferredSystem}`);
+    if (report.snapped.length) bits.push(`${report.snapped.length} snapped to stocked sizes`);
+    if (report.dropped.length) bits.push(`${report.dropped.length} unreadable`);
+    if (report.snapped.length || report.dropped.length) {
+      // The toast has room for the count; the console has room for the detail,
+      // which is what you need to fix the file that produced it.
+      console.info('Scaffulator import:', { snapped: report.snapped, dropped: report.dropped });
+    }
+    if (bays === 0) {
+      toast(`Loaded, but no bay was readable — sizes look like ${report.dropped.slice(0, 2).join(', ') || 'nothing this system stocks'}.`);
+    } else {
+      toast(`${source === 'paste' ? 'Pasted' : 'Loaded'} — ${bits.join(' · ')}.`, false);
+    }
+    return true;
+  } catch (err) {
+    runs = before; // leave the current job alone rather than half-loaded
+    loadSettings(currentRun());
+    render();
+    toast(`Could not read that: ${err.message}.`);
+    return false;
+  }
+}
 // Rebuilds a trusted `runs` array from whatever a project file contains,
 // dropping anything unrecognised. Files predating multi-system support have no
 // `system` field and load as Kwikstage.
@@ -2812,41 +3295,33 @@ function sanitiseRuns(data) {
   if (clean.length === 0) throw new Error('no usable runs');
   return clean;
 }
+// Files written before job details were added are a bare run array and newer
+// ones wrap the runs alongside the job; both, and anything a model produced
+// that meant one of them, go through importProjectText().
 function loadProject(ev) {
   const f = ev.target.files[0];
   if (!f) return;
   const r = new FileReader();
-  r.onload = (e) => {
-    const before = runs;
-    try {
-      const parsed = JSON.parse(e.target.result);
-      // Files written before job details were added are a bare run array;
-      // newer ones wrap the runs alongside the job. Read both.
-      const rawRuns = Array.isArray(parsed) ? parsed : parsed && parsed.runs;
-      const cleaned = sanitiseRuns(rawRuns);
-      const dropped = (Array.isArray(rawRuns) ? rawRuns.length : 0) - cleaned.length;
-      runs = cleaned;
-      if (parsed && parsed.job && typeof parsed.job === 'object') {
-        for (const k of Object.keys(job)) {
-          job[k] = typeof parsed.job[k] === 'string' ? parsed.job[k] : '';
-        }
-        loadJobFields();
-        renderPrintHead();
-      }
-      loadSettings(currentRun());
-      render();
-      toast(dropped > 0 ? `Project loaded — ${dropped} unreadable run(s) skipped.` : 'Project loaded!', false);
-    } catch (err) {
-      runs = before; // leave the current job untouched rather than half-loaded
-      loadSettings(currentRun());
-      render();
-      toast(`Could not load that file: ${err.message}.`);
-    }
-  };
+  r.onload = (e) => importProjectText(e.target.result, 'file');
   r.onerror = () => toast('Could not read that file.');
   r.readAsText(f);
   ev.target.value = '';
 }
+// Paste a project straight onto the page. A take-off written by something else
+// arrives as text in a chat window, and saving it to a file first to load it
+// back is a step with no purpose. Pasting into a field still types into the
+// field, and text that is not a project is left alone for the browser to
+// handle normally.
+document.addEventListener('paste', (ev) => {
+  const t = ev.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  const text = (ev.clipboardData || window.clipboardData || {}).getData
+    ? (ev.clipboardData || window.clipboardData).getData('text')
+    : '';
+  if (!text || text.length < 8 || !/[{[]/.test(text)) return;
+  ev.preventDefault();
+  importProjectText(text, 'paste');
+});
 /* ============================================================
    JOB DETAILS + AUTOSAVE
    ------------------------------------------------------------
