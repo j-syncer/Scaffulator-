@@ -2,7 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<!-- Installable: manifest + service worker. The engine is inline in this
+     file, so caching the document caches the calculator itself. -->
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Scaffulator">
+<meta name="mobile-web-app-capable" content="yes">
 <title data-id="th-modified">Kwik Stage Scaffolding calculator </title>
 <!--
   Utility CSS, built from this file's own markup with Tailwind 3.4 + the forms
@@ -79,6 +88,189 @@
 <meta property="og:image" content="https://scaffulator.com/og-image.jpg">
 <meta property="og:url" content="https://scaffulator.com/">
 <meta property="og:type" content="website">
+<!-- ═══════════════════════════════════════════════════════════════════
+     MOBILE MODE + PWA CHROME
+     Everything below is additive and scoped: with `body.mode-desktop`
+     not one of these rules matches anything, so the desktop layout,
+     its DOM and its CSS are exactly what they were. Hand-written
+     rather than Tailwind utilities, because the utility CSS above is
+     pre-compiled from the markup and cannot grow new classes without
+     a rebuild.
+     ═══════════════════════════════════════════════════════════════════ -->
+<style>
+  /* ---------- shown only in one mode ---------- */
+  .mobile-only { display: none; }
+  body.mode-mobile .mobile-only { display: block; }
+  body.mode-mobile .desktop-only { display: none; }
+
+  /* ---------- header mode switch (both modes) ---------- */
+  .mode-switch {
+    display: inline-flex; gap: 2px; padding: 2px;
+    background: #1e2a3a; border: 1px solid #2d3f55; border-radius: 8px;
+  }
+  .mode-switch button {
+    display: flex; align-items: center; gap: 5px;
+    /* 26px + the switch's own 2px padding and 1px border on each side comes to
+       exactly the 32px of the Save/Load/Print buttons beside it, so adding this
+       control leaves the desktop header the height it already was. */
+    min-height: 26px; padding: 4px 8px; border-radius: 6px;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 11px;
+    letter-spacing: .08em; text-transform: uppercase; color: #94a3b8;
+    transition: background-color .15s, color .15s;
+  }
+  .mode-switch button svg { width: 15px; height: 15px; }
+  .mode-switch button[aria-pressed="true"] { background: #fbbf24; color: #0f172a; }
+  .mode-switch .ms-label { display: none; }
+  @media (min-width: 480px) { .mode-switch .ms-label { display: inline; } }
+  #mode-auto {
+    font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .06em;
+    color: #64748b; text-transform: uppercase; padding: 4px 6px;
+  }
+  #mode-auto:hover { color: #fbbf24; }
+
+  /* ---------- PWA chrome ---------- */
+  #install-btn, #sync-pill, #offline-pill { display: none; }
+  #install-btn.on, #sync-pill.on, #offline-pill.on { display: flex; }
+  #install-btn {
+    align-items: center; gap: 5px; min-height: 32px; padding: 6px 9px; border-radius: 6px;
+    background: #4f46e5; color: #fff; font-size: 11px; font-weight: 700;
+  }
+  #install-btn:hover { background: #6366f1; }
+  #sync-pill, #offline-pill {
+    align-items: center; gap: 5px; padding: 4px 8px; border-radius: 999px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; white-space: nowrap;
+  }
+  #offline-pill { background: rgba(249,115,22,.12); border: 1px solid rgba(249,115,22,.4); color: #fdba74; }
+  #sync-pill { background: rgba(56,189,248,.12); border: 1px solid rgba(56,189,248,.4); color: #38bdf8; }
+
+  /* ---------- header on a phone ----------
+     The mode switch is two more controls in a bar that was already full, so in
+     mobile mode the title gives way to the badge rather than pushing Save,
+     Load and Print off the right-hand edge. */
+  body.mode-mobile header { gap: 6px; padding-left: 10px; padding-right: 10px; }
+  body.mode-mobile header > div:first-child { min-width: 0; }
+  body.mode-mobile header h1 { font-size: 16px; overflow: hidden; text-overflow: ellipsis; }
+  /* Thumb-sized once there is no mouse. */
+  body.mode-mobile .mode-switch button { min-height: 38px; padding: 6px 9px; }
+  @media (max-width: 460px) { body.mode-mobile header h1 { display: none; } }
+
+  /* ---------- mobile phase / view navigation ---------- */
+  #m-shell { display: none; }
+  body.mode-mobile #m-shell {
+    display: block; position: sticky; top: var(--hdr-h, 56px); z-index: 40;
+    background: #0d1117; border-bottom: 1px solid #2d3f55;
+  }
+  #m-tabs { display: flex; gap: 6px; padding: 8px 10px; }
+  .m-tab {
+    flex: 1 1 0; min-width: 0; min-height: 50px; padding: 6px 4px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+    background: #161d27; border: 1px solid #2d3f55; border-radius: 10px; color: #94a3b8;
+    font-family: 'Barlow Condensed', sans-serif; font-weight: 700; font-size: 12px;
+    letter-spacing: .05em; text-transform: uppercase; line-height: 1.1; text-align: center;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .m-tab .m-step { font-family: 'JetBrains Mono', monospace; font-size: 9px; color: #64748b; }
+  .m-tab[aria-selected="true"] { background: #fbbf24; border-color: #fbbf24; color: #0f172a; }
+  .m-tab[aria-selected="true"] .m-step { color: #0f172a; }
+  .m-tab:active { transform: scale(.98); }
+
+  #m-view-tabs { display: none; gap: 6px; padding: 0 10px 8px; overflow-x: auto; }
+  body.mode-mobile[data-phase="2"] #m-view-tabs { display: flex; }
+  .m-view {
+    flex: 0 0 auto; min-height: 40px; padding: 8px 14px; border-radius: 999px;
+    background: #161d27; border: 1px solid #2d3f55; color: #94a3b8;
+    font-size: 12px; font-weight: 700; white-space: nowrap;
+  }
+  .m-view[aria-selected="true"] { background: #1e2a3a; border-color: #fbbf24; color: #fbbf24; }
+  .m-view[disabled] { opacity: .35; }
+
+  /* ---------- mobile layout: one column, one phase at a time ---------- */
+  body.mode-mobile #layout-grid {
+    grid-template-columns: 1fr !important;
+    max-width: 760px; padding-bottom: calc(64px + env(safe-area-inset-bottom));
+  }
+  body.mode-mobile[data-phase="1"] #view-col,
+  body.mode-mobile[data-phase="1"] #metrics-col { display: none; }
+
+  body.mode-mobile[data-phase="2"] #config-col,
+  body.mode-mobile[data-phase="2"] #metrics-col,
+  body.mode-mobile[data-phase="2"] #gear-panel { display: none; }
+  /* One visualisation at a time — :not(.hidden) so a panel the engine has
+     switched off (no stair on this run) stays off. */
+  body.mode-mobile[data-phase="2"] #plan-panel,
+  body.mode-mobile[data-phase="2"] #elev-panel,
+  body.mode-mobile[data-phase="2"] #iso-panel,
+  body.mode-mobile[data-phase="2"] #stair-panel { display: none; }
+  body.mode-mobile[data-phase="2"][data-view="plan"]  #plan-panel:not(.hidden),
+  body.mode-mobile[data-phase="2"][data-view="section"] #elev-panel:not(.hidden),
+  body.mode-mobile[data-phase="2"][data-view="iso"]   #iso-panel:not(.hidden),
+  body.mode-mobile[data-phase="2"][data-view="stair"] #stair-panel:not(.hidden) { display: block; }
+
+  body.mode-mobile[data-phase="3"] #config-col,
+  body.mode-mobile[data-phase="3"] #plan-panel,
+  body.mode-mobile[data-phase="3"] #elev-panel,
+  body.mode-mobile[data-phase="3"] #iso-panel,
+  body.mode-mobile[data-phase="3"] #stair-panel { display: none; }
+
+  /* The drawings are generated at a desktop scale with an exact viewBox, so on
+     a phone they fit to the panel width instead of asking for a sideways
+     scroll. Nothing about how they are drawn changes — only how big the same
+     SVG is painted. */
+  body.mode-mobile #plan-view svg,
+  body.mode-mobile #elevation-view svg,
+  body.mode-mobile #iso-view svg,
+  body.mode-mobile #stair-view svg { max-width: 100%; height: auto; }
+
+  /* ---------- touch sizing ---------- */
+  /* 16px on inputs is the threshold below which iOS zooms the page on focus. */
+  body.mode-mobile .form-input,
+  body.mode-mobile .form-select { font-size: 16px !important; min-height: 46px; padding: 10px 12px !important; }
+  body.mode-mobile .form-checkbox { width: 22px; height: 22px; }
+  body.mode-mobile label.cursor-pointer { min-height: 44px; }
+  body.mode-mobile #bay-buttons button { min-height: 54px; font-size: 15px; }
+  body.mode-mobile #step-btns button,
+  body.mode-mobile #stair-btn { min-height: 48px; font-size: 14px; }
+  body.mode-mobile .max-w-screen-2xl > aside > div,
+  body.mode-mobile main > div { border-radius: 14px; }
+
+  /* ---------- select → increment / decrement stepper ---------- */
+  .stepper { display: none; }
+  body.mode-mobile .stepper { display: flex; align-items: stretch; gap: 8px; width: 100%; }
+  body.mode-mobile select[data-stepped] { display: none; }
+  .st-btn {
+    flex: 0 0 52px; min-height: 50px;
+    display: flex; align-items: center; justify-content: center;
+    background: #1e2a3a; border: 1px solid #2d3f55; border-radius: 10px;
+    color: #fbbf24; font-size: 24px; font-weight: 700; line-height: 1;
+    -webkit-user-select: none; user-select: none;
+  }
+  .st-btn:active { transform: scale(.96); background: #2d3f55; }
+  .st-btn[disabled] { color: #475569; background: #161d27; }
+  .st-val {
+    flex: 1 1 auto; min-width: 0; min-height: 50px;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    padding: 6px 8px; background: #161d27; border: 1px solid #2d3f55; border-radius: 10px;
+    color: #e2e8f0; font-size: 14px; font-weight: 600; line-height: 1.15;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  /* Numeric fields keep their keyboard — the buttons sit under the field and
+     nudge it by one step, which is the part that is hard with a gloved thumb. */
+  body.mode-mobile .stepper.num { margin-top: 8px; }
+  body.mode-mobile .stepper.num .st-btn { flex: 1 1 0; }
+
+  /* The phase nav and the mode switch are screen furniture, never paper. */
+  @media print {
+    #m-shell, .mode-switch, #mode-auto, #install-btn, #sync-pill, #offline-pill,
+    .stepper { display: none !important; }
+    /* Print Manifest has to print the manifest whichever phase is on screen,
+       so the paper output ignores the phase entirely. Everything else in the
+       centre column carries .no-print and stays off the page as before. */
+    body.mode-mobile #view-col,
+    body.mode-mobile #gear-panel,
+    body.mode-mobile #iso-panel { display: block !important; }
+    body.mode-mobile select[data-stepped] { display: block !important; }
+  }
+</style>
 </head>
 <body class="min-h-screen">
 
@@ -94,6 +286,24 @@
     </div>
   </div>
   <div class="flex items-center gap-2 flex-nowrap shrink-0">
+    <!-- Connection + upload queue. Both stay out of the way until they have
+         something to say. -->
+    <span id="offline-pill" title="Working offline — the calculator is fully local">OFFLINE</span>
+    <span id="sync-pill" title="Saved jobs waiting to upload"><span id="sync-count">0</span> QUEUED</span>
+    <button id="install-btn" onclick="installApp()" title="Install Scaffulator to the home screen">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v12m0 0l-4-4m4 4l4-4M4 20h16"></path></svg><span class="ms-label">Install</span>
+    </button>
+    <!-- Mobile / Desktop. Automatic on first load, and whichever the user picks
+         here overrides that from then on. -->
+    <div class="mode-switch" role="group" aria-label="Interface mode">
+      <button id="mode-mobile-btn" type="button" onclick="setMode('mobile')" aria-pressed="false" title="Mobile mode — one phase at a time, touch-sized controls">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 18h.01M8 21h8a1 1 0 001-1V4a1 1 0 00-1-1H8a1 1 0 00-1 1v16a1 1 0 001 1z"></path></svg><span class="ms-label">Mobile</span>
+      </button>
+      <button id="mode-desktop-btn" type="button" onclick="setMode('desktop')" aria-pressed="false" title="Desktop mode — the full three-column layout">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg><span class="ms-label">Desktop</span>
+      </button>
+    </div>
+    <button id="mode-auto" type="button" onclick="setMode('auto')" title="Go back to picking the mode automatically" style="display:none">Auto</button>
     <button onclick="saveProject()" class="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-white text-xs font-semibold py-2 px-3 rounded transition-colors">
       <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path></svg><span class="hidden sm:inline">Save</span>
     </button>
@@ -107,11 +317,36 @@
   </div>
 </header>
 
+<!-- ═══════════ MOBILE PHASE NAVIGATION (mobile mode only) ═══════════
+     Three sequential phases so a phone shows one job at a time instead of a
+     sidebar, four drawings and a manifest stacked into a scroll. The panels
+     themselves are the same elements the desktop uses — only their visibility
+     changes, so every renderer keeps drawing into the same containers. -->
+<div id="m-shell" class="no-print">
+  <nav id="m-tabs" role="tablist" aria-label="Take-off phases">
+    <button class="m-tab" type="button" role="tab" data-phase="1" aria-selected="true" onclick="setPhase('1')">
+      <span class="m-step">01</span>Input Parameters
+    </button>
+    <button class="m-tab" type="button" role="tab" data-phase="2" aria-selected="false" onclick="setPhase('2')">
+      <span class="m-step">02</span>Visualisations
+    </button>
+    <button class="m-tab" type="button" role="tab" data-phase="3" aria-selected="false" onclick="setPhase('3')">
+      <span class="m-step">03</span>Bill of Quantities
+    </button>
+  </nav>
+  <nav id="m-view-tabs" role="tablist" aria-label="Visualisation">
+    <button class="m-view" type="button" role="tab" data-view="plan" aria-selected="true" onclick="setView('plan')">2D Plan</button>
+    <button class="m-view" type="button" role="tab" data-view="section" aria-selected="false" onclick="setView('section')">Section</button>
+    <button class="m-view" type="button" role="tab" data-view="iso" aria-selected="false" onclick="setView('iso')">3D View</button>
+    <button class="m-view" type="button" role="tab" data-view="stair" aria-selected="false" onclick="setView('stair')">Stair Tower</button>
+  </nav>
+</div>
+
 <!-- ═══════════════════ LAYOUT ═══════════════════ -->
-<div class="max-w-screen-2xl mx-auto p-3 gap-3 grid grid-cols-1 lg:grid-cols-[270px_1fr_255px]">
+<div id="layout-grid" class="max-w-screen-2xl mx-auto p-3 gap-3 grid grid-cols-1 lg:grid-cols-[270px_1fr_255px]">
 
 <!-- ══ LEFT: Controls ══ -->
-<aside class="no-print space-y-3">
+<aside id="config-col" class="no-print space-y-3">
 
   <!-- System selector -->
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
@@ -311,13 +546,13 @@
 </aside>
 
 <!-- ══ CENTER: Visuals + Gear List ══ -->
-<main class="space-y-3 min-w-0">
+<main id="view-col" class="space-y-3 min-w-0">
 
   <!-- Summary badges -->
   <div id="run-summary" class="no-print flex flex-wrap gap-2 min-h-[28px] items-center"></div>
 
   <!-- Plan View -->
-  <div class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+  <div id="plan-panel" class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <div class="flex items-center justify-between mb-3">
       <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Plan View — Looking Down</h3>
       <span id="plan-length-label" class="mono text-xs text-amber-400"></span>
@@ -328,7 +563,7 @@
   </div>
 
   <!-- Elevation View -->
-  <div class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+  <div id="elev-panel" class="no-print bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <div class="flex items-center justify-between mb-3">
       <h3 class="cond font-bold text-xs uppercase tracking-widest text-slate-400">Section — Current Run</h3>
       <span id="elev-label" class="mono text-xs text-slate-500"></span>
@@ -363,7 +598,7 @@
   </div>
 
   <!-- Gear List -->
-  <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
+  <div id="gear-panel" class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <!-- Only appears on paper: a manifest with no job on it is not much use to
          a supplier or a filing cabinet. -->
     <div id="print-head" class="hidden print-show mb-4"></div>
@@ -388,7 +623,7 @@
 </main>
 
 <!-- ══ RIGHT: Metrics ══ -->
-<aside class="no-print space-y-3">
+<aside id="metrics-col" class="no-print space-y-3">
   <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400">Project Metrics</h3>
 
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4 text-center">
@@ -4502,6 +4737,421 @@ window.addEventListener('DOMContentLoaded', () => {
     toast('Picked up where you left off.', false);
   }
 });
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     MOBILE SHELL + PWA
+     ───────────────────────────────────────────────────────────────────────
+     A separate script on purpose: it does not touch the engine above it. It
+     only (a) flips two attributes on <body>, which the stylesheet in <head>
+     turns into the mobile layout, (b) drives the existing <select>s from
+     +/- buttons instead of a native dropdown, and (c) registers the service
+     worker. No calculation, no quantity and no renderer is reached from
+     here — the steppers write to the same controls a finger would and let
+     the app's own onchange handlers do the rest.
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+(function () {
+  'use strict';
+
+  /* ============================================================
+     MODE STATE — auto by default, user override wins and sticks
+     ============================================================ */
+  const MODE_KEY = 'scaffulator.mode.v1';   // 'auto' | 'mobile' | 'desktop'
+  const PHASE_KEY = 'scaffulator.phase.v1';
+  const VIEW_KEY = 'scaffulator.view.v1';
+  const MOBILE_MQ = window.matchMedia('(max-width: 900px)');
+
+  // Every storage call is wrapped: private browsing and a full quota both
+  // throw, and neither is a reason to stop the calculator.
+  function readStore(k, fallback) {
+    try { return localStorage.getItem(k) || fallback; } catch { return fallback; }
+  }
+  function writeStore(k, v) {
+    try { localStorage.setItem(k, v); } catch { /* ignore */ }
+  }
+
+  let modePref = readStore(MODE_KEY, 'auto');
+  if (modePref !== 'mobile' && modePref !== 'desktop') modePref = 'auto';
+
+  // Viewport first, because a 13" laptop shrunk to half a screen wants the
+  // mobile layout as much as a phone does. The UA/pointer test catches the
+  // tablet that reports a wide viewport but has no mouse.
+  function detectMobile() {
+    if (MOBILE_MQ.matches) return true;
+    const coarse = window.matchMedia('(pointer: coarse)').matches;
+    const ua = /Android|iPhone|iPad|iPod|Mobile|Silk|Kindle|BlackBerry|Opera Mini|IEMobile/i.test(navigator.userAgent);
+    return coarse && ua;
+  }
+
+  function effectiveMode() {
+    return modePref === 'auto' ? (detectMobile() ? 'mobile' : 'desktop') : modePref;
+  }
+
+  function applyMode() {
+    const mobile = effectiveMode() === 'mobile';
+    document.body.classList.toggle('mode-mobile', mobile);
+    document.body.classList.toggle('mode-desktop', !mobile);
+    const mb = document.getElementById('mode-mobile-btn');
+    const db = document.getElementById('mode-desktop-btn');
+    if (mb) mb.setAttribute('aria-pressed', String(mobile));
+    if (db) db.setAttribute('aria-pressed', String(!mobile));
+    const auto = document.getElementById('mode-auto');
+    if (auto) auto.style.display = modePref === 'auto' ? 'none' : '';
+    document.documentElement.style.setProperty(
+      '--hdr-h', (document.querySelector('header')?.offsetHeight || 56) + 'px');
+    if (mobile) { syncSteppers(); syncViewTabs(); }
+  }
+
+  window.setMode = function (mode) {
+    modePref = mode === 'mobile' || mode === 'desktop' ? mode : 'auto';
+    writeStore(MODE_KEY, modePref);
+    applyMode();
+    // Scroll back to the top: the phase the user lands on is rarely the one
+    // they were scrolled into on the other layout.
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  };
+
+  /* ============================================================
+     PHASES — 1 Input, 2 Visualisations, 3 Bill of Quantities
+     The stylesheet does the hiding; this only records which is on.
+     ============================================================ */
+  let phase = readStore(PHASE_KEY, '1');
+  if (!['1', '2', '3'].includes(phase)) phase = '1';
+  let view = readStore(VIEW_KEY, 'plan');
+  if (!['plan', 'section', 'iso', 'stair'].includes(view)) view = 'plan';
+
+  window.setPhase = function (p) {
+    phase = ['1', '2', '3'].includes(String(p)) ? String(p) : '1';
+    document.body.dataset.phase = phase;
+    document.querySelectorAll('#m-tabs .m-tab').forEach((t) => {
+      t.setAttribute('aria-selected', String(t.dataset.phase === phase));
+    });
+    writeStore(PHASE_KEY, phase);
+    if (phase === '2') syncViewTabs();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  window.setView = function (v) {
+    view = ['plan', 'section', 'iso', 'stair'].includes(v) ? v : 'plan';
+    document.body.dataset.view = view;
+    document.querySelectorAll('#m-view-tabs .m-view').forEach((t) => {
+      t.setAttribute('aria-selected', String(t.dataset.view === view));
+    });
+    writeStore(VIEW_KEY, view);
+  };
+
+  // The stair panel only exists when the current run carries a tower, so its
+  // tab follows the panel rather than offering an empty screen.
+  function syncViewTabs() {
+    const stairPanel = document.getElementById('stair-panel');
+    const tab = document.querySelector('#m-view-tabs .m-view[data-view="stair"]');
+    if (!tab || !stairPanel) return;
+    const off = stairPanel.classList.contains('hidden');
+    tab.disabled = off;
+    if (off && view === 'stair') window.setView('plan');
+  }
+
+  /* ============================================================
+     STEPPERS — a dropdown is a bad control with a glove on
+     ------------------------------------------------------------
+     Each managed <select> keeps being the source of truth. The stepper
+     moves its selection and fires the same `change` event the native
+     dropdown fires, so settingsChanged() / systemChanged() run exactly as
+     they always have. Number fields keep their keyboard and gain a pair of
+     buttons that nudge them by their own `step`.
+     ============================================================ */
+  const STEPPED_SELECTS = [
+    'system', 'width', 'frameH', 'lifts', 'handrail', 'hopup', 'clip',
+    'ties', 'tieEvery', 'piggyback', 'stairWalkway', 'break-type', 'break-turn',
+  ];
+  const STEPPED_NUMBERS = ['height', 'scaffolders'];
+
+  function optionsOf(sel) {
+    return Array.from(sel.options).filter((o) => !o.disabled && !o.hidden);
+  }
+
+  function stepSelect(sel, dir) {
+    const opts = optionsOf(sel);
+    if (!opts.length) return;
+    let i = opts.indexOf(sel.selectedOptions[0]);
+    if (i === -1) i = 0;
+    const next = Math.min(opts.length - 1, Math.max(0, i + dir));
+    if (opts[next] === sel.selectedOptions[0]) return;
+    sel.value = opts[next].value;
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    syncSteppers();
+  }
+
+  function stepNumber(input, dir) {
+    const step = parseFloat(input.step) || 1;
+    const cur = parseFloat(input.value);
+    let next = (Number.isFinite(cur) ? cur : (parseFloat(input.min) || 0)) + dir * step;
+    const min = parseFloat(input.min);
+    const max = parseFloat(input.max);
+    if (Number.isFinite(min)) next = Math.max(min, next);
+    if (Number.isFinite(max)) next = Math.min(max, next);
+    // Float steps land on 3.7000000000000006 without this.
+    const dp = (String(step).split('.')[1] || '').length;
+    input.value = dp ? next.toFixed(dp) : String(next);
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    syncSteppers();
+  }
+
+  function buildStepper(el, kind) {
+    const box = document.createElement('div');
+    box.className = 'stepper ' + kind;
+    box.dataset.for = el.id;
+    const label = (el.getAttribute('aria-label') || el.id).replace(/[-_]/g, ' ');
+    const minus = document.createElement('button');
+    minus.type = 'button';
+    minus.className = 'st-btn';
+    minus.textContent = '−';
+    minus.setAttribute('aria-label', 'Decrease ' + label);
+    const plus = document.createElement('button');
+    plus.type = 'button';
+    plus.className = 'st-btn';
+    plus.textContent = '+';
+    plus.setAttribute('aria-label', 'Increase ' + label);
+    const act = kind === 'sel' ? stepSelect : stepNumber;
+    minus.addEventListener('click', () => act(el, -1));
+    plus.addEventListener('click', () => act(el, 1));
+    if (kind === 'sel') {
+      const val = document.createElement('span');
+      val.className = 'st-val';
+      val.setAttribute('aria-live', 'polite');
+      box.append(minus, val, plus);
+      // An option list that gets rebuilt for another system has to be
+      // reflected straight away, or the readout names gear that is gone.
+      new MutationObserver(() => syncSteppers()).observe(el, { childList: true, subtree: true });
+    } else {
+      box.append(minus, plus);
+    }
+    el.dataset.stepped = '1';
+    el.insertAdjacentElement('afterend', box);
+  }
+
+  function syncSteppers() {
+    document.querySelectorAll('.stepper').forEach((box) => {
+      const el = document.getElementById(box.dataset.for);
+      if (!el) return;
+      const isSel = box.classList.contains('sel');
+      const minus = box.children[0];
+      const plus = box.children[isSel ? 2 : 1];
+      if (isSel) {
+        const opts = optionsOf(el);
+        const chosen = el.selectedOptions[0];
+        const i = chosen ? opts.indexOf(chosen) : -1;
+        box.children[1].textContent = chosen ? chosen.textContent.trim() : '—';
+        minus.disabled = i <= 0;
+        plus.disabled = i === -1 || i >= opts.length - 1;
+      } else {
+        const cur = parseFloat(el.value);
+        const min = parseFloat(el.min);
+        const max = parseFloat(el.max);
+        minus.disabled = Number.isFinite(cur) && Number.isFinite(min) && cur <= min;
+        plus.disabled = Number.isFinite(cur) && Number.isFinite(max) && cur >= max;
+      }
+    });
+  }
+
+  function installSteppers() {
+    for (const id of STEPPED_SELECTS) {
+      const el = document.getElementById(id);
+      if (el && !el.dataset.stepped) buildStepper(el, 'sel');
+    }
+    for (const id of STEPPED_NUMBERS) {
+      const el = document.getElementById(id);
+      if (el && !el.dataset.stepped) buildStepper(el, 'num');
+    }
+    syncSteppers();
+  }
+
+  // The app rebuilds its controls inside render() / loadSettings() /
+  // updateLiftOpts(). Wrapping them — rather than editing them — keeps the
+  // engine untouched while the readouts stay in step with the selects.
+  function after(name, fn) {
+    const orig = window[name];
+    if (typeof orig !== 'function') return;
+    window[name] = function () {
+      const out = orig.apply(this, arguments);
+      try { fn(); } catch { /* never let the chrome break the calculator */ }
+      return out;
+    };
+  }
+  after('render', () => { syncSteppers(); syncViewTabs(); });
+  after('loadSettings', syncSteppers);
+  after('updateLiftOpts', syncSteppers);
+  document.addEventListener('change', syncSteppers, true);
+
+  /* ============================================================
+     BACKGROUND SYNC — saved jobs upload when signal comes back
+     ------------------------------------------------------------
+     There is no upload endpoint by default: Scaffulator is served as static
+     assets with no server side. Point one at a collector with
+     Scaffulator.setSyncEndpoint('https://…') and every Save from then on is
+     also queued in IndexedDB and posted by the service worker once the
+     device is back on a connection. The file download itself is unchanged,
+     and happens offline exactly as before.
+     ============================================================ */
+  const ENDPOINT_KEY = 'scaffulator.sync.endpoint';
+  const DB_NAME = 'scaffulator-sync';
+  const DB_STORE = 'outbox';
+  const SYNC_TAG = 'scaffulator-project-sync';
+
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const rq = indexedDB.open(DB_NAME, 1);
+      rq.onupgradeneeded = () => {
+        const db = rq.result;
+        if (!db.objectStoreNames.contains(DB_STORE)) {
+          db.createObjectStore(DB_STORE, { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      rq.onsuccess = () => resolve(rq.result);
+      rq.onerror = () => reject(rq.error);
+    });
+  }
+
+  function withStore(mode, fn) {
+    return openDB().then((db) => new Promise((resolve, reject) => {
+      const t = db.transaction(DB_STORE, mode);
+      const rq = fn(t.objectStore(DB_STORE));
+      t.oncomplete = () => { db.close(); resolve(rq && rq.result); };
+      t.onerror = () => { db.close(); reject(t.error); };
+    }));
+  }
+
+  async function queueUpload(payload) {
+    const endpoint = readStore(ENDPOINT_KEY, '');
+    if (!endpoint) return;
+    await withStore('readwrite', (store) => store.add({
+      endpoint, payload, queuedAt: new Date().toISOString(),
+    }));
+    await refreshQueuePill();
+    const reg = await navigator.serviceWorker?.ready.catch(() => null);
+    if (reg && 'sync' in reg) {
+      try { await reg.sync.register(SYNC_TAG); return; } catch { /* fall through */ }
+    }
+    // Safari and Firefox have no Background Sync: drain on the online event
+    // instead, which is the same queue and the same worker code.
+    if (navigator.onLine) reg?.active?.postMessage({ type: 'flush-outbox' });
+  }
+
+  async function refreshQueuePill() {
+    const pill = document.getElementById('sync-pill');
+    if (!pill) return;
+    let n = 0;
+    try { n = (await withStore('readonly', (s) => s.count())) || 0; } catch { n = 0; }
+    document.getElementById('sync-count').textContent = String(n);
+    pill.classList.toggle('on', n > 0);
+  }
+
+  window.Scaffulator = window.Scaffulator || {};
+  window.Scaffulator.setSyncEndpoint = function (url) {
+    if (url) writeStore(ENDPOINT_KEY, String(url));
+    else { try { localStorage.removeItem(ENDPOINT_KEY); } catch { /* ignore */ } }
+    return readStore(ENDPOINT_KEY, '(none)');
+  };
+  window.Scaffulator.pendingUploads = () =>
+    withStore('readonly', (s) => s.count()).catch(() => 0);
+
+  // saveProject() still writes the file first and unchanged; the queue is a
+  // second copy, so a save works identically with no signal and no endpoint.
+  after('saveProject', () => {
+    try {
+      queueUpload({ savedAt: new Date().toISOString(), job, runs });
+    } catch { /* ignore */ }
+  });
+
+  /* ============================================================
+     CONNECTION + SERVICE WORKER
+     ============================================================ */
+  function refreshOnlinePill() {
+    const pill = document.getElementById('offline-pill');
+    if (pill) pill.classList.toggle('on', !navigator.onLine);
+  }
+  window.addEventListener('online', () => {
+    refreshOnlinePill();
+    navigator.serviceWorker?.ready
+      .then((reg) => reg.active?.postMessage({ type: 'flush-outbox' }))
+      .catch(() => {});
+  });
+  window.addEventListener('offline', refreshOnlinePill);
+
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch(() => {
+        // No worker means no offline cache — the calculator itself is
+        // unaffected, so this is deliberately silent.
+      });
+    });
+    navigator.serviceWorker.addEventListener('message', (e) => {
+      if (e.data && e.data.type === 'sync-uploaded') {
+        refreshQueuePill();
+        if (typeof window.toast === 'function') {
+          window.toast(`${e.data.count} saved job(s) uploaded.`, false);
+        }
+      }
+    });
+  }
+
+  /* ---------- install to home screen ---------- */
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('install-btn')?.classList.add('on');
+  });
+  window.installApp = async function () {
+    const btn = document.getElementById('install-btn');
+    if (!deferredPrompt) { btn?.classList.remove('on'); return; }
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice.catch(() => {});
+    deferredPrompt = null;
+    btn?.classList.remove('on');
+  };
+  window.addEventListener('appinstalled', () => {
+    deferredPrompt = null;
+    document.getElementById('install-btn')?.classList.remove('on');
+  });
+
+  /* ============================================================
+     BOOT — after the app's own DOMContentLoaded handler, so the
+     option lists it builds are already there to read.
+     ============================================================ */
+  function boot() {
+    document.body.dataset.phase = phase;
+    document.body.dataset.view = view;
+    window.setPhase(phase);
+    window.setView(view);
+    installSteppers();
+    applyMode();
+    refreshOnlinePill();
+    refreshQueuePill();
+    // The manifest shortcut lands here; start the phone on a clean sheet.
+    if (new URLSearchParams(location.search).get('action') === 'new'
+        && typeof window.resetAll === 'function') {
+      window.resetAll();
+      history.replaceState(null, '', location.pathname);
+    }
+  }
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+
+  // Automatic detection keeps following the viewport until the user picks a
+  // side; after that the pick is the answer, whatever the window does.
+  const onViewport = () => { if (modePref === 'auto') applyMode(); };
+  MOBILE_MQ.addEventListener('change', onViewport);
+  window.addEventListener('orientationchange', () => setTimeout(applyMode, 150));
+  window.addEventListener('resize', () => {
+    document.documentElement.style.setProperty(
+      '--hdr-h', (document.querySelector('header')?.offsetHeight || 56) + 'px');
+  });
+})();
 </script>
 </body>
 </html>

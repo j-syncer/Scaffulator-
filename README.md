@@ -39,11 +39,71 @@ itself. They are user input and are escaped before going into the page.
 **Phones are the primary target.** The header collapses to one line with icon-only buttons
 under `sm`, putting the bay buttons in the first screen.
 
+## Mobile mode and desktop mode
+
+The app runs in one of two modes, recorded as a class on `<body>`:
+
+* **`mode-desktop`** is the layout this app has always had — the configuration
+  sidebar, plan, section, 3D view, stair profile and manifest all on screen at once.
+  It is unchanged: no element moved, no class changed, and a screenshot of everything
+  below the header is pixel-for-pixel what it was. The one visible addition is the
+  mode switch in the header, sized to the height of the buttons beside it so the
+  header does not grow.
+* **`mode-mobile`** puts the same panels behind three sequential phase tabs —
+  **1 Input Parameters**, **2 Visualisations**, **3 Bill of Quantities** — with a second
+  row of tabs inside phase 2 for the 2D plan, section, 3D view and stair tower.
+  Only one drawing is on screen at a time, and each is scaled to fit the panel
+  rather than asking for a sideways scroll.
+
+**Which mode, and who decides.** On first load it is automatic: a viewport at or under
+900px, or a coarse pointer on a mobile user agent, gets mobile. The Mobile/Desktop
+switch in the header overrides that at any width and the choice is remembered
+(`scaffulator.mode.v1`); an **Auto** link appears next to it to hand the decision back to
+the viewport. Automatic detection keeps following the viewport until the user picks a
+side — after that the pick wins, whatever the window does.
+
+**Nothing is duplicated.** Mobile mode is a stylesheet and two `data-` attributes on
+`<body>`. The panels are the same elements with the same IDs, so every renderer keeps
+drawing into the same containers and no view has a second implementation to keep in
+step. Print is exempt from the phase rules: *Print Manifest* prints the manifest and the
+3D view from whichever phase is on screen.
+
+**Dropdowns become steppers.** In mobile mode every configuration `<select>` is hidden
+and driven by a −/+ pair with the current option spelled out between them; the number
+fields keep their keyboard and gain a step pair underneath. The `<select>` is still the
+state: a stepper moves its selection and fires the same `change` event a finger on the
+native dropdown fires, so `settingsChanged()` and the rest run exactly as before. No
+quantity, dimension or weight is reached from the mobile code at all.
+
+## Installable and offline
+
+`manifest.json` and `sw.js` make the calculator installable to a home screen and
+independent of signal — which is the point, because the jobs being measured are on
+sites without any.
+
+The engine, the markup and the utility CSS are all inside `index.html`, so caching that
+one document caches the calculator: geometry, renderers and all. The service worker
+serves navigations from the cache first and revalidates in the background, so the app
+opens instantly on one bar and opens at all on none. Icons, the manifest and the Google
+Fonts stylesheet are cached alongside it. **Bump `CACHE_VERSION` in `sw.js` whenever
+`index.html` changes**, or a client keeps serving the previous document until its
+background revalidate catches up.
+
+**Background sync.** Saving still writes the file first, offline or not. There is no
+upload endpoint by default — the site is static assets with no server side — but point
+one at a collector with `Scaffulator.setSyncEndpoint('https://…')` in the console and
+every save is also queued in IndexedDB and posted by the service worker once the device
+has a connection again. Browsers without Background Sync (Safari, Firefox) drain the
+same queue from the page's `online` event. A pill in the header counts what is waiting.
+
 ## Files
 
 | File | Purpose |
 | --- | --- |
 | `public/index.html` | The whole app — markup, styles, and the calculation engine |
+| `public/manifest.json` | Web App Manifest — name, icons, colours, home-screen install |
+| `public/sw.js` | Service worker — offline cache of the app shell, background sync of saved jobs |
+| `public/icons/` | Home-screen icons (192, 512, maskable 512, Apple touch) |
 | `public/favicon.ico` | Tab icon |
 | `public/og-image.jpg` | Social preview image referenced by the `og:image` meta tag |
 | `wrangler.toml` | Cloudflare Worker config — serves `public/` as static assets |

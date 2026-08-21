@@ -1,0 +1,45 @@
+{
+  "id": "/",
+  "name": "Scaffulator — Scaffold Gear Calculator",
+  "short_name": "Scaffulator",
+  "description": "Scaffold take-offs on site: plan, section and 3D views, plus a full bill of quantities. Works with no signal.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "any",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["productivity", "utilities", "business"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "New take-off",
+      "short_name": "New job",
+      "description": "Clear the current job and start a fresh run",
+      "url": "/?action=new",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}
