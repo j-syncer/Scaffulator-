@@ -377,6 +377,8 @@ section of the manifest (`BETA`, `PROVISIONAL DATA`, or both) and changes the fo
 catalogue's own; what is unfinished is the modelling around them — the stair tower
 framing, the bracing rules and the stair access geometry are still being worked through.
 
+**Kwikally has a 4.0m standard** — it is Kwikstage that does not.
+
 **Kwikally and Ally Frame are beta and provisional.** Their bay lengths, deck widths,
 frame heights and every weight are placeholders derived from typical aluminium practice,
 not from a supplier spec sheet. Correct them in the `SYSTEMS` entry and clear the flags
@@ -551,7 +553,15 @@ the frame rules described above.
   it is as long as the board that drops into it. Three 8ft bays with three working levels
   is twelve brackets and nine 2390 mm tie bars. A **one-board** hop-up is the exception
   and takes no tie bar: its bracket carries an end flange that holds the single board on.
-- **Standards** are stacked greedily from the largest enabled size down, so unchecking
+- **Staggering** (*Stagger Standards*, off by default) builds alternate columns to the same
+  height a different way, so no two adjacent standards join at the same level — the
+  manuals' "no two adjacent standards may be of the same length". `staggerPair()` returns
+  the two builds: a 4.5 m column is `3.0 + 1.5` or `2.5 + 2.0`, a 3.5 m is `3.0 + 0.5` or
+  `2.5 + 1.0`. It only moves the gear where a height has more than one build; a 3.0 m
+  column is a single 3.0 m standard, and staggering it means splitting it, which the pair
+  does. Where no alternative exists both columns fall back to the same build. Off, the
+  takeoff is byte-identical to before it existed.
+- **Standards** are stacked from the largest enabled size down, so unchecking
   sizes in *Available Standards* changes the mix. The sizes on offer come from the
   system's own `stdSizes`: AT-PAC Ringlock runs 0.5 m to 4.0 m (1-Star to 8-Star), while
   Kwikstage stops at 3.0 m — it has no 4.0 m standard. Kwikstage weights are linear at

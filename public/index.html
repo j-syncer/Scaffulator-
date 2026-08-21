@@ -153,6 +153,14 @@
         </select>
       </div>
     </div>
+    <div class="modular-only">
+      <label class="flex items-center gap-2.5 cursor-pointer">
+        <input type="checkbox" id="stagger" class="form-checkbox h-3.5 w-3.5 text-amber-400 rounded" onchange="settingsChanged()">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Stagger Standards</span>
+      </label>
+      <p class="text-[9px] text-slate-600 mt-1 leading-tight">Alternate columns are built to the same height a different way, so no two adjacent standards join at the same level. Only changes the gear where a column has more than one build.</p>
+    </div>
+
     <!-- Piggyback -->
     <div class="border-t border-[#2d3f55] pt-3 modular-only">
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Piggyback Bay <span class="text-teal-400">(Outside)</span></label>
@@ -623,9 +631,16 @@ const SYSTEMS = {
       faceBracesPerLift: 2,
       braceLiftM: 2.0,
     },
-    stdSizes: [3.0, 2.0, 1.5, 1.0, 0.5],
-    stdClr: { '3.0': '#0284c7', '2.0': '#ca8a04', 1.5: '#db2777', '1.0': '#7c3aed', 0.5: '#be123c' },
+    // Kwikally does make a 4.0m standard — it is Kwikstage that does not.
+    stdSizes: [4.0, 3.0, 2.0, 1.5, 1.0, 0.5],
+    stdClr: {
+      '4.0': '#ea580c', '3.0': '#0284c7', '2.0': '#ca8a04', 1.5: '#db2777',
+      '1.0': '#7c3aed', 0.5: '#be123c',
+    },
     weights: {
+      // Provisional like the rest of Kwikally: this follows the same ~2 kg/m
+      // the other lengths were estimated at.
+      'Standard (4.0m)': 8.5,
       'Standard (3.0m)': 6.5, 'Standard (2.0m)': 4.5, 'Standard (1.5m)': 3.5,
       'Standard (1.0m)': 2.5, 'Standard (0.5m)': 1.5,
       'Ledger (3000mm)': 5, 'Ledger (2500mm)': 4.5, 'Ledger (1800mm)': 3.5,
@@ -893,6 +908,7 @@ const DEFAULT_SETTINGS = {
   hopup: '0',
   clip: 'Wine Glass',
   piggyback: '0',
+  stagger: '0',
 };
 /* ============================================================
    STATE
@@ -942,11 +958,67 @@ function calcPhysics(targetH) {
     nomH: parseFloat((starSpan + STAR_PITCH_M).toFixed(3)),
   };
 }
+// One column of standards, bottom-up, as an ordered list of lengths.
+//
+// `avoidFirstM` forces a different standard at the FOOT of the column, which
+// is how a column is staggered against its neighbour: same height, joints in
+// different places. Returns null when the height cannot be made from the sizes
+// on hand at all, or when no alternative foot exists.
+function stdStackList(nomH, enabled, avoidFirstM) {
+  const target = Math.round(nomH / STAR_PITCH_M);
+  if (target <= 0) return [];
+  const sizes = [...(SYS.stdSizes || [])]
+    .filter((x) => enabled.includes(x))
+    .sort((a, b) => b - a);
+  const units = sizes.map((s) => Math.round(s / STAR_PITCH_M)).filter((u) => u > 0);
+  if (units.length === 0) return null;
+  // Fewest pieces that hit the height exactly.
+  const best = new Array(target + 1).fill(null);
+  best[0] = [];
+  for (let t = 1; t <= target; t++) {
+    for (const u of units) {
+      const prev = t - u >= 0 ? best[t - u] : null;
+      if (prev && (!best[t] || prev.length + 1 < best[t].length)) best[t] = [...prev, u];
+    }
+  }
+  const toList = (us) => us.sort((a, b) => b - a).map((u) => u * STAR_PITCH_M);
+  if (!avoidFirstM) return best[target] ? toList(best[target]) : null;
+  // Staggered: try each other size as the foot, keeping the fewest pieces.
+  let pick = null;
+  for (const u of units) {
+    if (Math.abs(u * STAR_PITCH_M - avoidFirstM) < 0.001) continue;
+    const rest = target - u >= 0 ? best[target - u] : null;
+    if (rest && (!pick || rest.length + 1 < pick.length)) pick = [u, ...rest];
+  }
+  if (!pick) return null;
+  // The forced foot stays at the bottom; the rest sit above it, largest first.
+  return [pick[0] * STAR_PITCH_M, ...toList(pick.slice(1))];
+}
+// The same column height built two ways, so neighbouring columns can be set
+// out with their joints in different places. `b` is null when the height has
+// only one composition — a single 3.0m standard cannot be staggered against
+// anything without changing what it is made of.
+function staggerPair(nomH, enabled) {
+  const a = stdStackList(nomH, enabled);
+  if (!a || a.length === 0) return { a, b: null };
+  return { a, b: stdStackList(nomH, enabled, a[0]) };
+}
+// A list of lengths as the {'Standard (3.0m)': n} map the takeoff counts in.
+function stackMap(list) {
+  const out = {};
+  for (const m of list || []) {
+    const k = `Standard (${m.toFixed(1)}m)`;
+    out[k] = (out[k] || 0) + 1;
+  }
+  return out;
+}
 function calcStdStack(nomH, enabled) {
+  const list = stdStackList(nomH, enabled);
+  if (list) return stackMap(list);
+  // No exact build from the sizes ticked — fall back to taking the largest
+  // that fit and rounding the remainder up, so the column still reaches.
   let rem = parseFloat(nomH.toFixed(3));
   const result = {};
-  // Longest first, and only from the sizes the active system actually makes —
-  // Kwikstage stops at 3.0m, Ringlock goes to 4.0m.
   const sizes = [...(SYS.stdSizes || [])].sort((a, b) => b - a);
   for (const s of sizes.filter((x) => enabled.includes(x))) {
     if (rem >= s - 0.001) {
@@ -957,8 +1029,11 @@ function calcStdStack(nomH, enabled) {
       }
     }
   }
-  if (rem > 0.01)
-    result['Standard (0.5m)'] = (result['Standard (0.5m)'] || 0) + Math.ceil(rem / 0.5);
+  if (rem > 0.01) {
+    const smallest = Math.min(...(SYS.stdSizes || [0.5]).filter((x) => enabled.includes(x)), 0.5);
+    const k = `Standard (${smallest.toFixed(1)}m)`;
+    result[k] = (result[k] || 0) + Math.ceil(rem / smallest);
+  }
   return result;
 }
 /* ------------------------------------------------------------
@@ -1318,8 +1393,25 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, numPos * 2);
   const innerStack = calcStdStack(nomH, enabled);
   const outerStack = calcStdStack(nomH + guardrailM, enabled);
-  for (const [k, v] of Object.entries(innerStack)) add(k, v * numPos);
-  for (const [k, v] of Object.entries(outerStack)) add(k, v * numPos);
+  // Staggering builds alternate columns to the same height a different way, so
+  // that neighbouring standards do not join at the same level. It only moves
+  // the gear where a height has more than one build — 4.5m is 3.0 + 1.5 or
+  // 2.5 + 2.0, but a 3.0m column is a 3.0m standard and nothing else, and
+  // there the pair falls back to the same build.
+  const staggered = run.settings.stagger === '1';
+  const addColumns = (totalM, count) => {
+    const pair = staggered ? staggerPair(totalM, enabled) : null;
+    if (!staggered || !pair || !pair.b) {
+      const flat = calcStdStack(totalM, enabled);
+      for (const [k, v] of Object.entries(flat)) add(k, v * count);
+      return;
+    }
+    const nA = Math.ceil(count / 2);
+    for (const [k, v] of Object.entries(stackMap(pair.a))) add(k, v * nA);
+    for (const [k, v] of Object.entries(stackMap(pair.b))) add(k, v * (count - nA));
+  };
+  addColumns(nomH, numPos);
+  addColumns(nomH + guardrailM, numPos);
   const guardRailsPB = handrail === '2' ? 4 : 2;
   const midRailsPB = 2 * Math.max(0, boardedLifts - 1);
   const ledgerPart = partName('ledger', 'Ledger');
@@ -1468,7 +1560,7 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   if (pbStr !== '0') {
     const pbSpec = SYS.widths[pbStr];
     if (pbSpec) {
-      for (const [k, v] of Object.entries(outerStack)) add(k, v * numPos);
+      addColumns(nomH + guardrailM, numPos);
       add(partName('baseJack', 'Base Jack (Screw Jack)'), numPos);
       add(partName('soleBoard', 'Sole Board'), numPos);
       if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, numPos);
@@ -1764,6 +1856,8 @@ function settingsChanged() {
   s.hopup = document.getElementById('hopup').value;
   s.clip = document.getElementById('clip').value;
   s.piggyback = document.getElementById('piggyback').value;
+  const stg = document.getElementById('stagger');
+  if (stg) s.stagger = stg.checked ? '1' : '0';
   s.system = document.getElementById('system').value;
   const fh = document.getElementById('frameH');
   if (fh && SYS.model === 'frame' && fh.value) s.frameH = fh.value;
@@ -1807,6 +1901,8 @@ function loadSettings(run) {
   // fallback back into the run, rather than leaving the select blank.
   s.hopup = setSelect('hopup', s.hopup || '0', '0');
   s.piggyback = setSelect('piggyback', s.piggyback || '0', '0');
+  const stgEl = document.getElementById('stagger');
+  if (stgEl) stgEl.checked = s.stagger === '1';
   updateLiftOpts();
 }
 /* ------------------------------------------------------------
@@ -2549,6 +2645,7 @@ function renderElevation() {
   if (label) {
     label.textContent =
       `Deck +${targetH}m · Jack ${Math.round(jackExt * 1000)}mm · Column ${starSpan}m (${nodeRef(1)}–${starAt(starSpan)}) · Step-down ${stepDown}` +
+      (run.settings.stagger === '1' ? ' · staggered' : '') +
       (hasStair && !SYS.stairTower ? ` · ${stairPlanSummary(starSpan)}` : '') +
       (scalesDiffer ? ' · width exaggerated' : '');
   }
