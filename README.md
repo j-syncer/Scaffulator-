@@ -472,11 +472,35 @@ bay's length onto a landing you turn on, with risers and treads stepped out in t
 rise colour and the last flight pinned to the access end so the top landing arrives where
 you can step off. The tower hangs off the **outer** face of its bay: that face stops being
 the outside of the run and becomes the inside of the stairway, which is the same reason the
-takeoff strips its guardrails. Its inner legs are the run's own outer standards, so only
-the length the tower adds above the run's guardrail is drawn over them — painting the whole
-leg grey would hide the build the colours are there to show. It is drawn last, because
-under this projection depth runs with `x + y` and the tower is further out in Y than
-anything else in the picture.
+takeoff strips its guardrails. Standing straight against the run its inner legs *are* the
+run's own outer standards, so only the length the tower adds above the run's guardrail is
+drawn over them — painting the whole leg grey would hide the build the colours are there to
+show; pushed clear by a hop-up or a piggyback it stands on all four of its own legs and is
+tied back to the run at every ring. It is drawn last, because under this projection depth
+runs with `x + y` and the tower is further out in Y than anything else in the picture.
+
+At the stair opening the part-width rails run into an **intermediate standard**, and it is
+drawn. That standard is a short one clipped straight onto the base ledger of the deck you
+are standing on rather than run up from the ground — which is how the takeoff bills it, one
+2.0 m stack per boarded lift — so it starts at deck level and carries the four stars the
+rails need. Without it the rails simply stopped in mid-air at the opening.
+
+**The cross-section is the elevation's.** Deck, then hop-up outboard of it, then the
+piggyback bay, then the stair tower, on the one axis and in the one order `renderElevation`
+lays them out. Taking the elevation's own layout rather than inventing a second one is what
+stops the two drawings disagreeing about what is bolted to which face — and it is why the
+stair tower moves out of the way when a hop-up is fitted instead of standing where the
+hop-up boards already are.
+
+**Hop-up** draws its console brackets — an arm out at each standard position and the
+diagonal back down to the leg, which is what a console bracket is — and the boards they
+carry. Guardrails then move out to the hop-up's edge, because the outermost face is the one
+you can fall off; the elevation rails to `oX + hopM` for the same reason. **Piggyback**
+shares the run's outer standards as its inner legs, so only its new outer row of columns is
+drawn as new steel, with transoms tying it back at every ring, its own decks, and its own
+rails on the face that is now the outside. Its rails follow the takeoff's own count —
+`numRings + (lifts − 1) + guardRails` per bay, so one rail at each lift below the top and
+the full set at the top, which is one fewer per lower lift than the run itself gets.
 
 **Runs can turn corners.** Most jobs are not one long line — they go round a building — so
 **Current Run Direction** turns the run you are working on relative to the one before it:
@@ -516,9 +540,25 @@ where that label actually ends, or a turned run's label gets cut off at the edge
 frame. A turned run tags itself `↰90°` / `↱90°` in amber, so the plan says which way it went
 rather than leaving you to infer it from the shape.
 
+**What ties one run to the next is drawn too.** A break's gear belongs to no single run — it
+spans two local frames — so it is the one thing in the 3D view set out in *world* space,
+which is also what lets it work unchanged whether the runs carry straight on or turn a
+corner. Every break takes bridging tube and right-angle couplers at the rail heights, the
+`2 × (lifts − 1) + 2` (or `+ 4`) the takeoff bills; on top of that the type chosen draws
+itself — **lap boards** laid across the join at each boarded lift, or an **end hop-up**'s
+console boards — and the join is named on the drawing rather than left to the gear list.
+The tube is drawn at its **stock 1.2 m length centred on the join**, overhanging both sides
+the way a coupled tube really does, because round a corner the two standards are barely
+50 mm apart and a tube drawn as the gap came out as a pair of dots. Which two columns the
+join is made of depends on the turn: carrying straight on it is outer line to outer line,
+round a corner it is the outer line of one run meeting the **inner** line of the next —
+that is what the corner *is*, and tubing outer-to-outer there would cut across the opening
+instead of closing it.
+
 The whole job is fitted to the page, and **it prints** — the screen colours are picked for a dark panel, so a print block restyles
 the members to ink on white (presentation attributes lose to CSS, so classing them is
-enough).
+enough), including the labels: jack heights are near-white for the dark panel and vanished
+on paper until the print block made every label ink too.
 
 **Plan view** looks down on the run, drawn to one scale (`PLAN_PX_PER_M`). Bays are tinted
 by size and dimensioned underneath, standards appear as circles at every position on both
