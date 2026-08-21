@@ -58,6 +58,10 @@
     #iso-view .iso-deck { fill:#cbd5e1 !important; stroke:#1f2937 !important; }
     #iso-view .iso-face { fill:#94a3b8 !important; stroke:#1f2937 !important; }
     #iso-view circle { fill:#1f2937 !important; }
+    /* The standard colours ARE the information — they stay colour on paper. */
+    #iso-view .iso-std { stroke-width:5 !important; }
+    #iso-view .iso-joint { stroke:#111827 !important; }
+    #iso-legend, #iso-legend div, #iso-legend span { color:#000 !important; }
   }
   /* Elevation */
   .elev-el { position:absolute; box-sizing:border-box; }
@@ -328,6 +332,7 @@
     <div class="bg-[#0d1117] rounded-lg border border-[#1e2a3a] overflow-auto p-3">
       <div id="iso-view"></div>
     </div>
+    <div id="iso-legend" class="mt-3 text-[10px] text-slate-400 leading-relaxed"></div>
   </div>
 
   <!-- Stair Tower — only rendered when the current run carries one -->
@@ -1106,6 +1111,32 @@ function stackMap(list) {
   }
   return out;
 }
+// Which standard sizes a run may build from. The checkboxes on screen describe
+// the system on screen, so a run on any other system falls back to that
+// system's full range — the same rule the takeoff uses.
+function enabledSizesFor(sysId) {
+  const uiSystem = currentRun().settings.system;
+  return sysId === uiSystem ? getEnabledSizes() : SYSTEMS[sysId].stdSizes || [];
+}
+// One column as an ordered, bottom-up list of lengths, for drawing. `alt` asks
+// for the staggered build — the same height made a different way — and falls
+// back to the plain one where the height has only a single composition.
+function stdColumnList(heightM, enabled, alt) {
+  if (alt) {
+    const pair = staggerPair(heightM, enabled);
+    if (pair.b && pair.b.length) return pair.b;
+    if (pair.a && pair.a.length) return pair.a;
+  } else {
+    const list = stdStackList(heightM, enabled);
+    if (list && list.length) return list;
+  }
+  // No exact build from the sizes ticked: fall back to what the takeoff bills,
+  // so the drawing never shows a column the gear list is not paying for.
+  const out = [];
+  for (const [k, n] of Object.entries(calcStdStack(heightM, enabled)))
+    for (let i = 0; i < n; i++) out.push(parseFloat(k.match(/[\d.]+/)[0]));
+  return out.sort((a, b) => b - a);
+}
 function calcStdStack(nomH, enabled) {
   const list = stdStackList(nomH, enabled);
   if (list) return stackMap(list);
@@ -1498,6 +1529,19 @@ function calcRunGear(run, enabled, treads) {
   useSystem(run.settings.system);
   return SYS.model === 'frame' ? calcFrameGear(run) : calcModularGear(run, enabled, treads);
 }
+// Which standard positions along a run carry a step. Position 0 is the start of
+// the first bay, position i the end of bay i; a step sits between two bays, so
+// the shared column at the end of the bay before it is the one that serves both
+// levels.
+function stepPositionSet(run, numPos) {
+  const out = new Set();
+  let pi = 0;
+  for (const item of run.bays) {
+    if (item.type === 'bay') pi++;
+    else if (item.type === 'step' && pi > 0 && pi < numPos) out.add(pi);
+  }
+  return out;
+}
 function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   const bayItems = run.bays.filter((b) => b.type === 'bay');
   if (bayItems.length === 0) return {};
@@ -1544,33 +1588,26 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   // 2.5 + 2.0, but a 3.0m column is a 3.0m standard and nothing else, and
   // there the pair falls back to the same build.
   const staggered = run.settings.stagger === '1';
-  const addColumns = (totalM, count) => {
-    const pair = staggered ? staggerPair(totalM, enabled) : null;
-    if (!staggered || !pair || !pair.b) {
-      const flat = calcStdStack(totalM, enabled);
-      for (const [k, v] of Object.entries(flat)) add(k, v * count);
-      return;
-    }
-    const nA = Math.ceil(count / 2);
-    for (const [k, v] of Object.entries(stackMap(pair.a))) add(k, v * nA);
-    for (const [k, v] of Object.entries(stackMap(pair.b))) add(k, v * (count - nA));
-  };
   // A step position's standards serve BOTH levels: their feet are on the lower
   // ground and their heads have to reach the upper deck's guardrail, so those
   // columns are one node taller. Everything else on the run is unaffected —
   // both the base and the deck move together, so a stepped bay needs no more
   // gear than a level one.
-  const stepCount = Math.min(
-    numPos,
-    run.bays.filter((b) => b.type === 'step').length
-  );
-  const levelPos = numPos - stepCount;
-  addColumns(nomH, levelPos);
-  addColumns(nomH + guardrailM, levelPos);
-  if (stepCount > 0) {
-    addColumns(nomH + STAR_PITCH_M, stepCount);
-    addColumns(nomH + guardrailM + STAR_PITCH_M, stepCount);
-  }
+  const stepPositions = stepPositionSet(run, numPos);
+  // Columns are counted by walking the run rather than in height buckets,
+  // because staggering is a fact about NEIGHBOURS: alternate positions build
+  // the same height a different way so the joints do not line up. Bucketing
+  // level and stepped columns separately and halving each split them at the
+  // wrong places and billed a mix no run is actually built from.
+  const addColumns = (extraM) => {
+    for (let i = 0; i < numPos; i++) {
+      const h = nomH + extraM + (stepPositions.has(i) ? STAR_PITCH_M : 0);
+      for (const [k, v] of Object.entries(stackMap(stdColumnList(h, enabled, staggered && i % 2 === 1))))
+        add(k, v);
+    }
+  };
+  addColumns(0);
+  addColumns(guardrailM);
   const guardRailsPB = handrail === '2' ? 4 : 2;
   const midRailsPB = 2 * Math.max(0, boardedLifts - 1);
   const ledgerPart = partName('ledger', 'Ledger');
@@ -1608,7 +1645,7 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   // position — the previous bay's stay exactly where they are.
   add(
     `${partName('transom', 'Transom')} (${wSpec.transomMM}mm)`,
-    (numPos + stepCount) * numRings
+    (numPos + stepPositions.size) * numRings
   );
   // Kwikstage decks its kickboard as an extra plank; a system with a dedicated
   // toe board part bills that instead.
@@ -1745,7 +1782,7 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
   if (pbStr !== '0') {
     const pbSpec = SYS.widths[pbStr];
     if (pbSpec) {
-      addColumns(nomH + guardrailM, numPos);
+      addColumns(guardrailM);
       add(partName('baseJack', 'Base Jack (Screw Jack)'), numPos);
       add(partName('soleBoard', 'Sole Board'), numPos);
       if (SYS.parts && SYS.parts.baseCollar) add(SYS.parts.baseCollar, numPos);
@@ -3060,6 +3097,7 @@ function drawStandards(svg, yOf, x, stack, startYm, opacity = 1, V = 40) {
   const keys = Object.keys(stack).sort(
     (a, b) => parseFloat(b.match(/[\d.]+/)[0]) - parseFloat(a.match(/[\d.]+/)[0])
   );
+  const joints = [];
   for (const k of keys) {
     const sM = parseFloat(k.match(/[\d.]+/)[0]);
     const color = SYS.stdClr[sM.toFixed(1)] || '#64748b';
@@ -3068,8 +3106,19 @@ function drawStandards(svg, yOf, x, stack, startYm, opacity = 1, V = 40) {
       el('rect', { x: x - 3.5, y: yTop, width: 7, height: Math.max(yBot - yTop, 1),
         fill: color, opacity, rx: 1.5, stroke: '#0d1117', 'stroke-width': 0.8 }, svg);
       cur += sM;
+      joints.push(cur);
     }
   }
+  // Where one standard ends and the next begins. Two 3.0m standards stacked are
+  // one unbroken band of the same colour otherwise, and the joint is exactly
+  // what the colours are there to show — so it gets a collar wider than the
+  // standard, not a shared edge.
+  joints.slice(0, -1).forEach((h) => {
+    el('rect', { x: x - 5, y: yOf(h) - 2, width: 10, height: 4,
+      fill: '#0b1017', opacity, rx: 1 }, svg);
+    el('rect', { x: x - 5, y: yOf(h) - 0.6, width: 10, height: 1.2,
+      fill: '#f1f5f9', opacity }, svg);
+  });
   // The spigot: the 300mm of the top standard above its last ring, drawn narrow
   // because on every standard below this one it is swallowed by the next.
   const topRing = parseFloat((cur - SPIGOT_M).toFixed(3));
@@ -3203,23 +3252,50 @@ function isoRunModel(run, x0) {
   let x = x0;
   let lvl = 0;
   let prevPost = null;
+  // A post carries the level of its own ground (`foot`) and the level its head
+  // has to reach (`top`). They differ only at a step, whose standards stand on
+  // the lower ground and carry the upper deck — which is exactly the column the
+  // takeoff bills one node taller.
+  // `idx` is the column's position along the run — the same index the takeoff
+  // counts by, so the parity that decides a staggered build is the same in the
+  // drawing and in the gear list.
+  let pi = 0;
+  const post = (px, l, i) => ({ x: px, lvl: l, foot: l, top: l, idx: i });
   for (const item of run.bays) {
-    if (item.type === 'step') { lvl += item.value * STAR_PITCH_M; continue; }
+    if (item.type === 'step') {
+      lvl += item.value * STAR_PITCH_M;
+      if (prevPost) {
+        prevPost.foot = Math.min(prevPost.foot, lvl);
+        prevPost.top = Math.max(prevPost.top, lvl);
+        prevPost.step = true;
+      }
+      continue;
+    }
     if (item.type === 'gap') { x += item.value / 1000; prevPost = null; continue; }
     if (item.type === 'break') { x += 0.26; prevPost = null; continue; }
     if (item.type !== 'bay') continue;
     const len = sys.bays[item.value].mm / 1000;
-    if (!prevPost) { prevPost = { x: x + gapM / 2, lvl }; posts.push(prevPost); }
-    const next = { x: prevPost.x + len, lvl };
+    if (!prevPost) { prevPost = post(x + gapM / 2, lvl, pi); posts.push(prevPost); }
+    const next = post(prevPost.x + len, lvl, ++pi);
     posts.push(next);
     decks.push({ x0: prevPost.x, x1: next.x, lvl, clr: sys.bays[item.value].clr });
     x = next.x + gapM;
-    prevPost = { x: x, lvl };
-    posts.push(prevPost);
-    posts.pop(); // the gap post is the next bay's start; keep the list clean
-    prevPost = { x: next.x, lvl };
+    prevPost = next;
   }
-  return { sys, plan, widthM, guardM, posts, decks, endX: x, levels: plan.levels };
+  // Column builds, so the drawing shows what the stack is actually made of.
+  // Staggering alternates along the run, so the alternate build goes to every
+  // other position — the same rule the takeoff counts by.
+  const enabled = enabledSizesFor(sys.id);
+  const alt = run.settings.stagger === '1';
+  const uniq = [...new Map(posts.map((p) => [`${p.x.toFixed(3)}|${p.foot}`, p])).values()]
+    .sort((a, b) => a.x - b.x);
+  for (const p of uniq) {
+    const extra = p.top - p.foot;
+    const b = alt && p.idx % 2 === 1;
+    p.inner = stdColumnList(plan.nomH + extra, enabled, b);
+    p.outer = stdColumnList(plan.nomH + guardM + extra, enabled, b);
+  }
+  return { sys, plan, widthM, guardM, posts: uniq, decks, endX: x, levels: plan.levels };
 }
 function renderIso() {
   const panel = document.getElementById('iso-panel');
@@ -3245,7 +3321,7 @@ function renderIso() {
   for (const m of models) {
     const zTop = m.plan.gTFS + m.plan.starSpan + m.guardM + 0.6;
     for (const p of m.posts) for (const y of [0, m.widthM])
-      for (const z of [0, zTop + p.lvl]) pts.push(isoPt(p.x, y, z, 1));
+      for (const z of [p.foot, zTop + p.top]) pts.push(isoPt(p.x, y, z, 1));
   }
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
   const bx = [Math.min(...xs), Math.max(...xs)], by = [Math.min(...ys), Math.max(...ys)];
@@ -3269,32 +3345,58 @@ function renderIso() {
       'stroke-width': 0.8, opacity: op === undefined ? 1 : op }, svg);
 
   for (const m of models) {
-    const { plan, widthM, guardM, posts, decks } = m;
+    const { sys, plan, widthM, guardM, posts, decks } = m;
     const rings = plan.levels.map((l) => l.m);
     const boarded = plan.working.map((l) => l.m);
     const topZ = (lvl) => plan.gTFS + plan.starSpan + lvl;
-    const uniq = [...new Map(posts.map((p) => [`${p.x.toFixed(3)}|${p.lvl}`, p])).values()]
-      .sort((a, b) => a.x - b.x);
+    // Each size gets its own colour, the same one the elevation and the
+    // Available Standards panel use, so a stack reads as its build.
+    const clrOf = (sM) => (sys.stdClr || {})[sM.toFixed(1)] || '#64748b';
 
-    // Sole boards on the ground.
-    for (const p of uniq) for (const y of [0, widthM]) {
-      const a = P(p.x - 0.16, y - 0.14, 0), b = P(p.x + 0.16, y - 0.14, 0);
-      const cc = P(p.x + 0.16, y + 0.14, 0), d = P(p.x - 0.16, y + 0.14, 0);
+    // Sole boards, on whatever ground that post stands on — a step moves the
+    // ground with the deck, which is the whole difference between a step and
+    // the bit of fall a jack takes up.
+    for (const p of posts) for (const y of [0, widthM]) {
+      const a = P(p.x - 0.16, y - 0.14, p.foot), b = P(p.x + 0.16, y - 0.14, p.foot);
+      const cc = P(p.x + 0.16, y + 0.14, p.foot), d = P(p.x - 0.16, y + 0.14, p.foot);
       quad(a, b, cc, d, '#334155', '#475569', 0.75);
     }
+    // One column, drawn as what it is made of: the jack up to the foot of the
+    // steel, then a segment per standard in its colour, with the joints marked.
+    const column = (p, y, list, dim) => {
+      const footZ = p.foot + plan.gTFS - RING_FROM_FOOT_M;
+      line(P(p.x, y, p.foot), P(p.x, y, footZ), dim ? '#3f5064' : '#7c8ea3', 2.2, 1);
+      let cur = footZ;
+      list.forEach((sM, i) => {
+        line(P(p.x, y, cur), P(p.x, y, cur + sM), clrOf(sM), 4.4, dim ? 0.5 : 1, 'iso-std');
+        cur += sM;
+        // The joint, drawn as the collar it is. Two 3.0m standards on top of
+        // each other are one unbroken band of blue otherwise, and where one
+        // stops and the next starts is the thing you are reading the column
+        // for — so it gets a dark sleeve with a bright line through it, wider
+        // than the standard, rather than a dot lost in the colour.
+        if (i < list.length - 1) {
+          const a = P(p.x, y, cur - 0.055), b = P(p.x, y, cur + 0.055);
+          line(a, b, '#0b1017', 7.5, dim ? 0.75 : 1, 'iso-joint');
+          line(P(p.x, y, cur - 0.005), P(p.x, y, cur + 0.005),
+            dim ? '#8ea3ba' : '#f1f5f9', 7.5, dim ? 0.8 : 1, 'iso-joint');
+        }
+      });
+    };
     // FAR row (against the structure) — standards, ledgers, guardrails.
     // `rails` is the outer face only. Guardrails go on the outside of a run —
     // the inside faces the structure — and the takeoff has only ever billed one
     // face's worth, so drawing them on both was the picture disagreeing with
     // the gear list rather than the other way round.
     const rowGear = (y, dim, rails) => {
-      for (const p of uniq) {
-        line(P(p.x, y, 0), P(p.x, y, topZ(p.lvl) + (rails ? guardM : 0)),
-          dim ? '#46617f' : '#9fb3c8', 3);
-        for (const r of rings)
-          el('circle', { cx: P(p.x, y, plan.gTFS + r + p.lvl)[0],
-            cy: P(p.x, y, plan.gTFS + r + p.lvl)[1], r: 1.6,
-            fill: dim ? '#31465e' : '#94a3b8' }, svg);
+      for (const p of posts) {
+        column(p, y, rails ? p.outer : p.inner, dim);
+        // A step column carries both levels, so it wears both sets of rings.
+        for (const lv of p.step ? [p.foot, p.top] : [p.lvl])
+          for (const r of rings)
+            el('circle', { cx: P(p.x, y, plan.gTFS + r + lv)[0],
+              cy: P(p.x, y, plan.gTFS + r + lv)[1], r: 1.6,
+              fill: dim ? '#31465e' : '#e2e8f0', opacity: dim ? 1 : 0.9 }, svg);
       }
       for (const d of decks) {
         for (const r of rings)
@@ -3308,7 +3410,7 @@ function renderIso() {
     };
     rowGear(0, true, false);
     // Transoms across, at every ring.
-    for (const p of uniq) for (const r of rings)
+    for (const p of posts) for (const r of rings)
       line(P(p.x, 0, plan.gTFS + r + p.lvl), P(p.x, widthM, plan.gTFS + r + p.lvl), '#61758c', 1.6);
     // Decks, drawn ON the ring rather than in it. Boards sit on the transom,
     // which sits on the ring, so the slab is lifted a board's thickness and
@@ -3327,8 +3429,42 @@ function renderIso() {
     }
     rowGear(widthM, false, true);
   }
+  renderIsoLegend(models);
   const bays = runs.reduce((n, r) => n + r.bays.filter((b) => b.type === 'bay').length, 0);
   if (label) label.textContent = `${bays} bay${bays === 1 ? '' : 's'} · ${models.length} run${models.length === 1 ? '' : 's'} · isometric, to scale`;
+}
+// What the colours mean, and what the columns are actually built from. A stack
+// is read off the drawing by its bands, so the legend has to name both the size
+// behind each colour and the build — "3.0 + 1.5" — that the bands spell out.
+function renderIsoLegend(models) {
+  const box = document.getElementById('iso-legend');
+  if (!box) return;
+  const count = {};
+  const builds = { inner: new Set(), outer: new Set() };
+  let clr = {};
+  for (const m of models) {
+    clr = { ...clr, ...(m.sys.stdClr || {}) };
+    for (const p of m.posts) {
+      for (const which of ['inner', 'outer']) {
+        for (const sM of p[which]) count[sM.toFixed(1)] = (count[sM.toFixed(1)] || 0) + 1;
+        builds[which].add(p[which].map((v) => v.toFixed(1)).join(' + '));
+      }
+    }
+  }
+  const sizes = Object.keys(count).sort((a, b) => parseFloat(b) - parseFloat(a));
+  if (!sizes.length) { box.innerHTML = ''; return; }
+  const swatch = (k) =>
+    `<span class="inline-flex items-center gap-1 mr-3 whitespace-nowrap">` +
+    `<span style="display:inline-block;width:9px;height:14px;border-radius:2px;` +
+    `background:${clr[k] || '#64748b'};border:1px solid #0d1117;"></span>` +
+    `<span class="mono">${parseFloat(k).toFixed(1)}m</span>` +
+    `<span class="text-slate-500">×${count[k]}</span></span>`;
+  const list = (set) => [...set].filter(Boolean).map((b) => `<span class="mono">${escapeHTML(b)}</span>`).join(' or ');
+  box.innerHTML =
+    `<div class="flex flex-wrap items-center">${sizes.map(swatch).join('')}</div>` +
+    `<div class="mt-1 text-slate-500">Columns — inside ${list(builds.inner)}` +
+    ` · outside ${list(builds.outer)}` +
+    ` <span class="text-slate-600">(the outside runs guardrail-height taller; a step column is one node taller again)</span></div>`;
 }
 function renderStairView() {
   const panel = document.getElementById('stair-panel');

@@ -430,6 +430,18 @@ X runs along the job, Y across the deck, Z up. It draws the far row, then the tr
 decking, then the near row, which is enough of a painter's order for a structure this
 regular. Steps show as the level change they are.
 
+**Standards are drawn as what they are made of.** Each column is a stack of segments in
+the size colours the elevation and the *Available Standards* panel already use — Kwikstage
+blue 3.0 m, green 2.5 m, amber 2.0 m, pink 1.5 m and so on — so a column reads as its
+build: `3.0 + 3.0 + 0.5` is two blue bands and a short crimson one. Under the drawing a
+legend names each colour, counts it, and spells out the builds in use. Every joint wears a
+**collar**: a dark sleeve wider than the standard with a bright line through it, because
+two 3.0 m standards stacked are otherwise one unbroken band of blue and where one stops and
+the next starts is the thing the colours are there to show. With *Stagger Standards* on,
+neighbouring columns visibly break at different heights, which is the whole point of it.
+The jack below the steel is drawn separately, and the counts in the legend are the same
+numbers the gear list bills.
+
 Two things it is deliberately careful about, because the drawing has to agree with the
 takeoff rather than the other way round. **Guardrails are drawn on the outer face only** —
 the inner face is the one against the structure, and the gear list has only ever billed one
@@ -588,6 +600,10 @@ the frame rules described above.
   exactly where they are; the step adds, it does not move. The plan view marks each step with the running level,
   and the section caption reports the deck range across the run.
 
+  In the 3D view a step moves the **ground** with the deck — sole boards after a step stand
+  a node higher — and the step column, standing on the lower ground and reaching the upper
+  deck, is drawn the node taller that the takeoff bills it.
+
   Frame systems have no nodes to step by — an Ally Frame lift is whatever frame you stack —
   so the step buttons are hidden there rather than billing a half-metre nothing can be
   built at.
@@ -624,6 +640,14 @@ the frame rules described above.
   column is a single 3.0 m standard, and staggering it means splitting it, which the pair
   does. Where no alternative exists both columns fall back to the same build. Off, the
   takeoff is byte-identical to before it existed.
+
+  Columns are counted by **walking the run position by position**, not in height buckets,
+  because staggering is a fact about *neighbours*: position 0 gets one build, position 1
+  the other, and so on along the run. Counting level and stepped columns as two separate
+  buckets and halving each split them at the wrong places and billed a mix no run is
+  actually built from — the total steel was right, the piece mix was not. `stepPositionSet()`
+  names the positions a step lands on, and the 3D view draws from the same walk, so the
+  bands you read off a column in the picture are the standards in the gear list.
 - **Standards** are stacked from the largest enabled size down, so unchecking
   sizes in *Available Standards* changes the mix. The sizes on offer come from the
   system's own `stdSizes`: AT-PAC Ringlock runs 0.5 m to 4.0 m (1-Star to 8-Star), while
