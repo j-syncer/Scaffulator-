@@ -1284,7 +1284,6 @@ const ALLY_WEIGHTS = (() => {
     'Base Plate (Adjustable)': 3.2,
     'Sole Board': 2.0,
     'Coupling Pin': 0.35,
-    'Locking Clip': 0.15,
     'Guardrail Post': 3.0,
     // Sized off the widest width, since it spans the frame rather than the bay.
     'Toe Board (End)': 2.9,
@@ -2960,7 +2959,9 @@ function calcFrameGear(run) {
 
   // ── Frames ────────────────────────────────────────────────────────────────
   // One end frame per position per level, joined to the one below by a spigot
-  // pin and a lock clip on each of its two legs. Billed by SECTION, and now
+  // pin on each of its two legs — the pin itself, not the lock clip that
+  // secures it, which is a fitting welded onto the frame's own foot rather
+  // than a loose part anyone orders separately. Billed by SECTION, and now
   // per POSITION rather than once for the whole run — a run standing half on
   // a roof has a genuinely different mix at the ground end than the roof
   // end, and summing each position's own stack is what makes that show up
@@ -2977,7 +2978,6 @@ function calcFrameGear(run) {
     add(`Frame ${frameRungLabel(k)} (${h.toFixed(1)}m x ${widthM.toFixed(1)}m)`, n);
   }
   add('Coupling Pin', jointPairs * 2);
-  add('Locking Clip', jointPairs * 2);
 
   // ── Bracing ───────────────────────────────────────────────────────────────
   // The tri-directional matrix: a plan brace on the flat at the base, which is
@@ -6817,7 +6817,7 @@ function renderGearList() {
     { name: 'Bracing & Tie Bars', keys: ['End Brace', 'Face Brace', 'Tie Bar', 'Bay Brace'] },
     { name: 'Stair Access Tower', keys: ['Stair Tread', 'Stair Handrail', 'Stair Stringer', 'Step Down'] },
     { name: 'Tubes & Couplers (Run Joints)', keys: ['Tube', 'Coupler', 'Right Angle'] },
-    { name: 'Frames & Pins', keys: ['Frame ', 'Coupling Pin', 'Locking Clip'] },
+    { name: 'Frames & Pins', keys: ['Frame ', 'Coupling Pin'] },
     { name: 'Braces', keys: ['Horizontal Brace', 'Diagonal Brace'] },
     { name: 'Legs & Base Plates', keys: ['Adjustable Leg', 'Base Plate'] },
     { name: 'Guardrails & Toe Boards', keys: ['Guardrail', 'Toe Board ('] },
@@ -7536,8 +7536,34 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('offline', refreshOnlinePill);
 
   if ('serviceWorker' in navigator) {
+    // A cache-first shell means a bug fix pushed to the site does nothing for
+    // anyone already running the app until they close every tab of it — the
+    // standard PWA update trap, and exactly why a fix could ship and a user
+    // testing in an already-open tab would still see the old broken build.
+    // So the new worker is told to take over the moment it has finished
+    // installing, rather than sitting in "waiting" for a full close/reopen,
+    // and the page reloads itself once it does — safe because everything
+    // typed in is autosaved to localStorage continuously and restored on
+    // load, so a reload loses nothing.
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(() => {
+      navigator.serviceWorker.register('/sw.js').then((reg) => {
+        if (reg.waiting) reg.waiting.postMessage({ type: 'skip-waiting' });
+        reg.addEventListener('updatefound', () => {
+          const nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', () => {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              nw.postMessage({ type: 'skip-waiting' });
+            }
+          });
+        });
+      }).catch(() => {
         // No worker means no offline cache — the calculator itself is
         // unaffected, so this is deliberately silent.
       });
