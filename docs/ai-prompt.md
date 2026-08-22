@@ -38,15 +38,32 @@ walk it:
     {"type":"gap","value":600}                    a 600mm gap in the run (millimetres)
     {"type":"step","value":1}                     step UP one node from here on
     {"type":"step","value":-1}                    step DOWN one node from here on
+    {"type":"ground","value":3.1}                 Ally Frame only — ground RISES 3.1m from here on
+    {"type":"ground","value":-3.1}                Ally Frame only — ground FALLS 3.1m from here on
     {"type":"break","value":"none"}               the run ends here and joins the next
 
 **Bays** are the ledger length between two standards. Do not add anything for the
 standards themselves — the app adds their width to the overall length.
 
-**Steps** follow the ground. One entry is ONE node, which is 0.5m — so a 2m fall along
-the run is four separate step entries with bays between them, not one entry of 4. A step
-must come after at least one bay, and two steps cannot sit next to each other. Ally Frame
-steps by frame height instead and does not take step entries at all.
+**Steps** follow the ground on a **modular** run. One entry is ONE node, which is 0.5m
+— so a 2m fall along the run is four separate step entries with bays between them, not
+one entry of 4. A step must come after at least one bay, and two steps cannot sit next
+to each other. Ally Frame does not take step entries at all — it has **`"ground"`**
+instead, and the two work in opposite directions on purpose:
+
+A modular step follows the ground: the deck moves with it, and the height above the
+LOCAL ground stays the same on both sides. Use it for a scaffold walking down a slope.
+
+Ally Frame's `"ground"` does the opposite: the DECK STAYS FLAT — one continuous working
+height — and it is the frame stack that gets shorter where the ground is higher and
+taller where it is lower. Use it for a run standing part on a roof or a platform, where
+the working surface has to stay level but the structure underneath does not reach as
+far. The value is a real elevation change in METRES, not a node count — the ground can
+jump by a whole storey — and it only ever applies going FORWARD from where it sits in
+the list, exactly like a step. Put it before the first bay of the section whose ground
+is different, not after the last bay of the section before it. Height and lifts still
+describe the flat deck as a whole; the app solves each affected position's own stack
+to reach it.
 
 **Breaks** end a run. `value` decides what is billed at the join, so pick the one the
 drawing shows:
@@ -126,7 +143,7 @@ listed and carry on.
 - `"frameOutrig"`: `"auto"` sized to the ratio · `"0"` none · `"0.6"` `"1.0"` `"1.4"` metres each side
 - `"frameTied"`: `"0"` freestanding · `"1"` tied in, which takes it out of the ratio
 - `"frameRungPitch"`: `"450"` | `"400"` — millimetres between rung centres, drawing only
-- no steps, no hop-ups, no piggyback and no stair tower
+- ground steps instead of node steps (see `"ground"` above) · no hop-ups, no piggyback and no stair tower
 
 ## settings, per run
 
@@ -220,3 +237,30 @@ The bay lengths sum to 10.8m — three 3.0m bays and one 1.8m bay to land on the
 — still **one** run, no break, because nothing in the drawing shows the tower stopping
 partway along. A break only belongs here if the drawing showed two separate towers butted
 together, or the run turning a corner.
+
+## A third example — Ally Frame, one run, the ground itself steps
+
+    {
+      "job": { "name": "Tower 1" },
+      "runs": [
+        {
+          "turn": "straight",
+          "settings": { "system": "allyframe", "height": 6.7, "lifts": 1, "width": "1.3",
+                        "frameBase": "plates", "frameTied": "1" },
+          "bays": [
+            { "type": "ground", "value": 3.1 },
+            { "type": "bay", "value": "2500", "count": 5 },
+            { "type": "ground", "value": -3.1 },
+            { "type": "bay", "value": "2500", "count": 2 }
+          ]
+        }
+      ]
+    }
+
+A tower running along a roof edge: the first `"ground"` entry, BEFORE any bay, says the
+whole run starts 3.1m higher than true ground — so the first 5 bays (standing on the roof)
+solve a short stack. The second `"ground"` entry brings it back down 3.1m for the last 2
+bays (standing on true ground below), which solve a tall stack instead. `"height": 6.7` is
+the ONE flat deck the whole run reaches either way — never adjust it for the step, that is
+exactly what `"ground"` is for. Still one run: the tower never stops, it just changes what
+it is standing on partway along.

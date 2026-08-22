@@ -567,6 +567,14 @@
       </div>
       <p id="step-note" class="text-[9px] text-slate-600 mt-1 leading-tight"></p>
     </div>
+    <div class="frame-only hidden">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ground Step From Here (m)</label>
+      <div class="flex gap-2">
+        <input type="number" id="ground-m" step="0.1" placeholder="+3.1 rises, -3.1 falls" class="form-input w-full">
+        <button onclick="addGroundStep()" class="bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg whitespace-nowrap transition-colors">Add</button>
+      </div>
+      <p class="text-[9px] text-slate-600 mt-1 leading-tight">For a real change in what the tower stands on — half the run on a roof, say — not a drift the leg would absorb. Positive: the ground from here is higher, so less frame is needed; negative: lower, so more is.</p>
+    </div>
     <div>
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Break / Join Type</label>
       <select id="break-type" class="form-select w-full">
@@ -829,15 +837,32 @@ walk it:
     {"type":"gap","value":600}                    a 600mm gap in the run (millimetres)
     {"type":"step","value":1}                     step UP one node from here on
     {"type":"step","value":-1}                    step DOWN one node from here on
+    {"type":"ground","value":3.1}                 Ally Frame only — ground RISES 3.1m from here on
+    {"type":"ground","value":-3.1}                Ally Frame only — ground FALLS 3.1m from here on
     {"type":"break","value":"none"}               the run ends here and joins the next
 
 Bays are the ledger length between two standards. Do not add anything for the
 standards themselves — the app adds their width to the overall length.
 
-Steps follow the ground. One entry is ONE node, which is 0.5m — so a 2m fall along
-the run is four separate step entries with bays between them, not one entry of 4. A step
-must come after at least one bay, and two steps cannot sit next to each other. Ally Frame
-steps by frame height instead and does not take step entries at all.
+Steps follow the ground on a MODULAR run. One entry is ONE node, which is 0.5m — so a
+2m fall along the run is four separate step entries with bays between them, not one entry
+of 4. A step must come after at least one bay, and two steps cannot sit next to each
+other. Ally Frame does not take step entries at all — it has "ground" instead, and the
+two work in opposite directions on purpose:
+
+A modular step follows the ground: the deck moves with it, and the height above the
+LOCAL ground stays the same on both sides. Use it for a scaffold walking down a slope.
+
+Ally Frame's "ground" does the opposite: the DECK STAYS FLAT — one continuous working
+height — and it is the frame stack that gets shorter where the ground is higher and
+taller where it is lower. Use it for a run standing part on a roof or a platform, where
+the working surface has to stay level but the structure underneath does not reach as
+far. The value is a real elevation change in METRES, not a node count — the ground can
+jump by a whole storey — and it only ever applies going FORWARD from where it sits in
+the list, exactly like a step. Put it before the first bay of the section whose ground
+is different, not after the last bay of the section before it. Height and lifts still
+describe the flat deck as a whole; the app solves each affected position's own stack
+to reach it.
 
 Breaks end a run. value decides what is billed at the join, so pick the one the
 drawing shows:
@@ -916,7 +941,7 @@ Ally Frame — the aluminium mobile tower
 - "frameOutrig": "auto" sized to the ratio | "0" none | "0.6" "1.0" "1.4" metres each side
 - "frameTied": "0" freestanding | "1" tied to the structure
 - "frameRungPitch": "450" | "400" — millimetres between rung centres, drawing only
-- no steps, no hop-ups, no piggyback and no stair tower
+- ground steps instead of node steps (see "ground" above) · no hop-ups, no piggyback and no stair tower
 
 ## settings, per run
 
@@ -1009,7 +1034,34 @@ the steel actually stopping and starting again.
 The bay lengths sum to 10.8m — three 3.0m bays and one 1.8m bay to land on the wall
 — still ONE run, no break, because nothing in the drawing shows the tower stopping partway
 along. A break only belongs here if the drawing showed two separate towers butted together,
-or the run turning a corner.</script>
+or the run turning a corner.
+
+## A third example — Ally Frame, one run, the ground itself steps
+
+    {
+      "job": { "name": "Tower 1" },
+      "runs": [
+        {
+          "turn": "straight",
+          "settings": { "system": "allyframe", "height": 6.7, "lifts": 1, "width": "1.3",
+                        "frameBase": "plates", "frameTied": "1" },
+          "bays": [
+            { "type": "ground", "value": 3.1 },
+            { "type": "bay", "value": "2500", "count": 5 },
+            { "type": "ground", "value": -3.1 },
+            { "type": "bay", "value": "2500", "count": 2 }
+          ]
+        }
+      ]
+    }
+
+A tower running along a roof edge: the first "ground" entry, BEFORE any bay, says the
+whole run starts 3.1m higher than true ground — so the first 5 bays (standing on the roof)
+solve a short stack. The second "ground" entry brings it back down 3.1m for the last 2
+bays (standing on true ground below), which solve a tall stack instead. "height": 6.7 is
+the ONE flat deck the whole run reaches either way — never adjust it for the step, that is
+exactly what "ground" is for. Still one run: the tower never stops, it just changes what
+it is standing on partway along.</script>
 
 <div id="toasts" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
 
@@ -2639,6 +2691,56 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
 // The foot the tower stands on: castors for a mobile tower, plates for a
 // static one. minM/maxM are the stem wound down and wound out — a 200mm
 // castor with 400mm of adjustment stands 0.2m to 0.6m.
+// The ground a frame run's positions actually stand on, one entry per
+// STANDARD POSITION (numBays + 1 of them). A "ground" bay entry is an
+// absolute elevation change — the ground RISES this many metres from here
+// on if positive, FALLS if negative — not a small node-quantised step like
+// the modular systems use, because a frame job's ground can jump by a whole
+// storey (half the run standing on a roof) rather than drift a slope. It is
+// meaningless to a modular run and is simply never read there, the same way
+// a modular "step" is never read on a frame run.
+//
+// This is the OPPOSITE relationship to a modular step: there, the deck
+// follows the ground and the height above local ground stays constant. Here
+// the DECK STAYS FLAT — the same target height everywhere — and it is the
+// REQUIRED STACK that shrinks where the ground is higher and grows where it
+// is lower, because less (or more) structure is needed to reach the same
+// absolute deck from a different starting point.
+function frameGroundWalk(run) {
+  const offsets = [];
+  let g = 0;
+  for (const item of run.bays) {
+    if (item.type === 'ground') { g += item.value; continue; }
+    if (item.type !== 'bay') continue;
+    if (offsets.length === 0) offsets.push(g);
+    offsets.push(g);
+  }
+  return offsets;
+}
+// One resolved stack per DISTINCT ground offset the run actually uses, plus
+// which offset applies to each position — the thing frameStability(),
+// calcFrameGear() and the 3D view all need, computed once so they cannot
+// disagree about where the ground steps.
+function frameGroundGroups(run, sys = SYS) {
+  const base = frameBaseSpec(run, sys);
+  const enabled = enabledFrameSizesFor(sys.id);
+  const deckTargetH = runTargetHeight(run);
+  const offsets = frameGroundWalk(run);
+  const byOffset = new Map();
+  for (const o of offsets) {
+    if (byOffset.has(o)) continue;
+    byOffset.set(o, calcFramePhysics(deckTargetH - o, enabled, base, sys));
+  }
+  const posGroups = offsets.map((o) => byOffset.get(o));
+  // The worst case — tallest actual reach — is what governs the overturning
+  // ratio (the tallest freestanding column is the one that can tip) and is
+  // the representative stack the section view and the height note show,
+  // matching how this run was always summarised before ground steps existed.
+  let worst = posGroups[0] || calcFramePhysics(deckTargetH, enabled, base, sys);
+  for (const p of posGroups) if (p.actualH > worst.actualH) worst = p;
+  return { base, enabled, deckTargetH, offsets, posGroups, worst,
+    stepped: new Set(offsets).size > 1 };
+}
 function frameBaseSpec(run, sys = SYS) {
   const bases = sys.bases || {};
   return bases[run.settings.frameBase] || bases.castors || Object.values(bases)[0] ||
@@ -2770,9 +2872,15 @@ function pickOutrigger(bareM, needM, sys = SYS) {
 }
 function frameStability(run, sys = SYS) {
   const st = sys.stability || {};
-  const base = frameBaseSpec(run, sys);
-  const enabled = enabledFrameSizesFor(sys.id);
-  const phy = calcFramePhysics(runTargetHeight(run), enabled, base, sys);
+  // One resolved stack per ground offset the run actually uses. Everything
+  // below still reads a single "phy" — the WORST CASE (tallest reach) — so
+  // every existing caller (the section view, the height note, the ratio
+  // itself) keeps seeing one representative answer, exactly as before ground
+  // steps existed. calcFrameGear() and the 3D view read groups.posGroups
+  // directly for the per-position detail this single summary throws away.
+  const groups = frameGroundGroups(run, sys);
+  const { base, enabled, deckTargetH } = groups;
+  const phy = groups.worst;
   const wSpec = sys.widths[run.settings.width] || Object.values(sys.widths)[0];
   const widthM = (wSpec.transomMM || 700) / 1000;
   const lengthM = frameRunLengthM(run, sys);
@@ -2811,6 +2919,9 @@ function frameStability(run, sys = SYS) {
     // The two legal thresholds that change who may touch the thing.
     swms: platformH > (st.swmsFallM || 2.0),
     hrwl: platformH > (st.hrwlPlatformM || 4.0),
+    // The per-position detail a flat single stack cannot carry: one physics
+    // result per standing position, and whether the ground moves at all.
+    posGroups: groups.posGroups, deckTargetH, enabled, stepped: groups.stepped,
   };
 }
 function calcFrameGear(run) {
@@ -2819,14 +2930,15 @@ function calcFrameGear(run) {
   const { width, lifts, handrail } = run.settings;
   const requestedLifts = Math.max(1, parseInt(lifts) || 1);
   const stab = frameStability(run);
-  const { frameLevels, base, frameStack } = stab;
-  // The stack, grouped into how many of each section it uses — a real tower
-  // built from a mix, not one size repeated, so this is what the frame line
-  // items, the diagonals and the ladder are all billed against below.
-  const byFrame = {};
-  for (const k of frameStack) byFrame[k] = (byFrame[k] || 0) + 1;
-  // Platforms can only sit where a frame level ends.
-  const boardedLifts = Math.max(1, Math.min(requestedLifts, frameLevels));
+  const { base, posGroups } = stab;
+  // The run can only board as many lifts as its SHORTEST standing position
+  // supports — a working platform has to be continuously supported across
+  // the whole run's width at that level, and the roof-side positions may
+  // simply not have a frame that low. The tallest group still governs the
+  // stability ratio (frameStability's own job); this is the separate,
+  // narrower question of what can actually be decked.
+  const minLevels = Math.min(...posGroups.map((p) => p.frameLevels));
+  const boardedLifts = Math.max(1, Math.min(requestedLifts, minLevels));
   const wSpec = SYS.widths[width] || Object.values(SYS.widths)[0];
   const widthM = (wSpec.transomMM || 700) / 1000;
   const numBays = bayItems.length;
@@ -2848,22 +2960,38 @@ function calcFrameGear(run) {
 
   // ── Frames ────────────────────────────────────────────────────────────────
   // One end frame per position per level, joined to the one below by a spigot
-  // pin and a lock clip on each of its two legs. Billed by SECTION — a stack
-  // of two 4-rungs and a 3-rung bills as two line items, not three of one —
-  // by rung count first, the way the frame is ordered, with the dimensions
-  // after it so the yard can still tell a single-width from a double.
+  // pin and a lock clip on each of its two legs. Billed by SECTION, and now
+  // per POSITION rather than once for the whole run — a run standing half on
+  // a roof has a genuinely different mix at the ground end than the roof
+  // end, and summing each position's own stack is what makes that show up
+  // as two different Frame line items rather than one uniform stack scaled
+  // by numPos.
+  const byFrame = {};
+  let jointPairs = 0;
+  for (const p of posGroups) {
+    for (const k of p.frameStack) byFrame[k] = (byFrame[k] || 0) + 1;
+    jointPairs += Math.max(0, p.frameLevels - 1);
+  }
   for (const [k, n] of Object.entries(byFrame)) {
     const h = SYS.frameHeights[k];
-    add(`Frame ${frameRungLabel(k)} (${h.toFixed(1)}m x ${widthM.toFixed(1)}m)`, numPos * n);
+    add(`Frame ${frameRungLabel(k)} (${h.toFixed(1)}m x ${widthM.toFixed(1)}m)`, n);
   }
-  add('Coupling Pin', numPos * Math.max(0, frameLevels - 1) * 2);
-  add('Locking Clip', numPos * Math.max(0, frameLevels - 1) * 2);
+  add('Coupling Pin', jointPairs * 2);
+  add('Locking Clip', jointPairs * 2);
 
   // ── Bracing ───────────────────────────────────────────────────────────────
   // The tri-directional matrix: a plan brace on the flat at the base, which is
   // what stops the rectangle racking into a parallelogram; horizontal braces
   // as ledgers on both faces at every level; and a diagonal on each face per
   // level, which is what carries the wind and the shear off the top deck.
+  //
+  // A horizontal or diagonal brace connects the SAME level on two
+  // NEIGHBOURING frames, so where the ground steps, only the levels both
+  // sides actually have can be braced together — the shorter position's own
+  // full stack, since the decks align from the top and everything below that
+  // is common to both. The taller side's levels below that point brace
+  // against its own neighbour on the far side instead, or stand alone at the
+  // open end.
   //
   // The diagonal is the one member whose own length depends on the section it
   // braces — it runs corner to corner across that level, so a level built
@@ -2877,17 +3005,17 @@ function calcFrameGear(run) {
   const faces = stab.tied ? 1 : 2;
   const guardPerBay = (handrail === '2' ? 4 : 2) * faces;
   const midRailsPerBay = 2 * Math.max(0, boardedLifts - 1) * faces;
-  for (const [type, count] of Object.entries(byType)) {
-    const mm = SYS.bays[type].mm;
-    add(`Plan Brace (${mm}mm)`, count);
-    add(`Horizontal Brace (${mm}mm)`, count * frameLevels * 2);
-    for (const [k, n] of Object.entries(byFrame)) {
-      add(`Diagonal Brace ${frameRungLabel(k)} (${mm}mm)`, count * n * 2);
-    }
-    add(`Alloy Platform (${mm}mm)`, count * wSpec.decks * boardedLifts);
-    add(`Guardrail (${mm}mm)`, count * (guardPerBay + midRailsPerBay));
-    add(`Toe Board (${mm}mm)`, count * boardedLifts * faces);
-  }
+  bayItems.forEach((item, b) => {
+    const mm = SYS.bays[item.value].mm;
+    const pA = posGroups[b], pB = posGroups[b + 1];
+    const braced = pA.frameLevels <= pB.frameLevels ? pA : pB;
+    add(`Plan Brace (${mm}mm)`, 1);
+    add(`Horizontal Brace (${mm}mm)`, braced.frameLevels * 2);
+    for (const k of braced.frameStack) add(`Diagonal Brace ${frameRungLabel(k)} (${mm}mm)`, 2);
+    add(`Alloy Platform (${mm}mm)`, wSpec.decks * boardedLifts);
+    add(`Guardrail (${mm}mm)`, guardPerBay + midRailsPerBay);
+    add(`Toe Board (${mm}mm)`, boardedLifts * faces);
+  });
   // Decking: the climb has to come up INSIDE the tower, through a trapdoor, so
   // one deck unit per boarded lift is an access deck rather than a plain one.
   // One per lift, not one per bay — you climb the tower in one place. It is
@@ -2916,8 +3044,12 @@ function calcFrameGear(run) {
   // what tips them over. One ladder segment per frame level, hooked through
   // the trapdoors, sized to that level's own section — a 2-rung level takes a
   // shorter segment than a 4-rung one — so the climb is inside the guardrails
-  // the whole way up.
-  for (const [k, n] of Object.entries(byFrame)) {
+  // the whole way up. Climbed at the ONE position the ladder bay stands at,
+  // so it is billed against that position's own stack, not every position's.
+  const ladderPos = posGroups[0];
+  const ladderByFrame = {};
+  for (const k of ladderPos.frameStack) ladderByFrame[k] = (ladderByFrame[k] || 0) + 1;
+  for (const [k, n] of Object.entries(ladderByFrame)) {
     add(`Access Ladder (${SYS.frameHeights[k].toFixed(1)}m)`, n);
   }
 
@@ -2928,9 +3060,11 @@ function calcFrameGear(run) {
 
   // ── Ties ──────────────────────────────────────────────────────────────────
   // A tied tower stops being freestanding, which is the other way out of the
-  // ratio. Tied at every second frame position, every second level.
+  // ratio. Tied at every second frame position, every second level — sized
+  // off the tallest (worst-case) stack, since that is the one the ratio
+  // itself is judged against.
   if (stab.tied) {
-    const levels = Math.max(1, Math.ceil(frameLevels / 2));
+    const levels = Math.max(1, Math.ceil(stab.frameLevels / 2));
     add('Wall Tie Bracket', Math.max(2, Math.ceil(numPos / 2)) * levels);
   }
 
@@ -3034,7 +3168,7 @@ function addStep(dir) {
   const run = currentRun();
   useSystem(run.settings.system);
   if (SYS.model === 'frame') {
-    toast(`${SYS.name} steps by frame height, not by node — not modelled.`);
+    toast(`${SYS.name} does not step by node — use Ground Step for a real change in elevation.`);
     return;
   }
   if (!run.bays.some((b) => b.type === 'bay')) {
@@ -3050,6 +3184,32 @@ function addStep(dir) {
     return;
   }
   run.bays.push({ type: 'step', value: dir > 0 ? 1 : -1 });
+  render();
+}
+// A real elevation change — the ground itself changing what the tower
+// stands on, half a run on a roof say — not a small drift a node-based step
+// would absorb. Frame-model only, and unlike addStep() it takes any nonzero
+// metres rather than a fixed increment, because a frame's ground can jump by
+// a whole storey.
+function addGroundStep() {
+  const run = currentRun();
+  useSystem(run.settings.system);
+  if (SYS.model !== 'frame') {
+    toast(`${SYS.name} steps by node — use Step Up/Down instead of Ground Step.`);
+    return;
+  }
+  if (!run.bays.some((b) => b.type === 'bay')) {
+    toast('Add a bay before stepping the ground — it applies to the bays after it.');
+    return;
+  }
+  const el = document.getElementById('ground-m');
+  const v = parseFloat(el.value);
+  if (!Number.isFinite(v) || v === 0) {
+    toast('Enter how many metres the ground rises (+) or falls (-) from here.');
+    return;
+  }
+  run.bays.push({ type: 'ground', value: v });
+  el.value = '';
   render();
 }
 function addBreak() {
@@ -3887,6 +4047,10 @@ const IMPORT_TYPE_WORDS = {
   gap: 'gap', void: 'gap', opening: 'gap', space: 'gap',
   step: 'step', stepup: 'step', stepdown: 'step', stepupdown: 'step',
   break: 'break', runbreak: 'break', join: 'break', newrun: 'break', endofrun: 'break',
+  // A frame run's ground changing elevation by a real amount (standing half
+  // on a roof), not a modular step's fixed node — see normaliseBayEntry.
+  ground: 'ground', groundlevel: 'ground', groundstep: 'ground',
+  elevationchange: 'ground',
 };
 
 // Which system a file means, by id or by name — "kwik stage", "AT-PAC",
@@ -3935,6 +4099,7 @@ function normaliseBayEntry(raw, sys, report) {
   if (!type) {
     if (getAny(raw, ['gap', 'gapMM']) !== undefined) type = 'gap';
     else if (getAny(raw, ['step', 'direction']) !== undefined) type = 'step';
+    else if (getAny(raw, ['ground', 'elevationChange']) !== undefined) type = 'ground';
     else if (value !== undefined) type = 'bay';
     else return [];
   }
@@ -3958,6 +4123,13 @@ function normaliseBayEntry(raw, sys, report) {
     const mm = mmFrom(firstDefined(getAny(raw, ['gap', 'gapMM']), value));
     if (mm === null || !(mm > 0)) { report.dropped.push(`gap ${JSON.stringify(value ?? null)}`); return []; }
     for (let i = 0; i < count; i++) out.push({ type: 'gap', value: Math.round(mm) });
+  } else if (type === 'ground') {
+    // Metres, not millimetres and not a node count — a frame run's ground can
+    // jump by a whole storey, so this reads a real elevation figure rather
+    // than snapping to any stocked size.
+    const m = toNumber(firstDefined(getAny(raw, ['ground', 'elevationChange']), value), null);
+    if (m === null || m === 0) { report.dropped.push(`ground change ${JSON.stringify(value ?? null)}`); return []; }
+    out.push({ type: 'ground', value: m });
   } else {
     const hit = resolveKey(sys.bays, value);
     if (!hit) { report.dropped.push(`bay ${JSON.stringify(value ?? null)}`); return []; }
@@ -4193,6 +4365,11 @@ function sanitiseRuns(data) {
         if (b.type === 'bay') return !!sys.bays[b.value];
         if (b.type === 'gap') return Number.isFinite(b.value) && b.value > 0;
         if (b.type === 'step') return b.value === 1 || b.value === -1;
+        // A frame run's ground can jump by a real elevation, not a node at a
+        // time, so unlike "step" this takes any nonzero metres — only ever
+        // acted on by a frame-model run, the same way "step" only ever is by
+        // a modular one; harmless and simply unread on the other model.
+        if (b.type === 'ground') return Number.isFinite(b.value) && b.value !== 0;
         return b.type === 'break';
       });
       // Two steps at the same position is more than one node at a time, which
@@ -5091,7 +5268,12 @@ function renderFrameElevation(c, run) {
       `Deck +${actualH.toFixed(2)}m · ${composeTxt || 'no frames'} · ${base.mobile ? 'castor' : 'plate'} ${Math.round(legExt * 1000)}mm` +
       (stab.exact ? '' : ` · nearest to ${targetH}m`) +
       (armM ? ` · ${armM.toFixed(1)}m outriggers → Dmin ${stab.effMin.toFixed(2)}m` : '') +
-      ` · ${ratioTxt}`;
+      ` · ${ratioTxt}` +
+      // A section is one cross-section; a ground step is a LENGTHWISE fact,
+      // so this can only ever show the worst case (tallest) build here — the
+      // one the ratio is judged against. The 3D view is where every
+      // position's own actual build is drawn.
+      (stab.stepped ? ' · ground steps along this run — worst case shown, see 3D view' : '');
   }
   // ── The foot ──────────────────────────────────────────────────────────────
   for (const x of [iX, oX]) {
@@ -5269,9 +5451,13 @@ function isoFrameModel(run, prev, sys) {
   const bays = run.bays.filter((b) => b.type === 'bay');
   if (!bays.length) return null;
   const stab = frameStability(run, sys);
-  const { frameLevels, gTFS, stackH, frameStack } = stab;
+  const { frameLevels, gTFS, stackH, frameStack, posGroups, deckTargetH } = stab;
   const requested = Math.max(1, parseInt(run.settings.lifts) || 1);
-  const boardedLifts = Math.max(1, Math.min(requested, frameLevels));
+  // The run can only board as many lifts as its shortest standing position
+  // reaches — the same rule calcFrameGear bills by, so the picture and the
+  // gear list never disagree about how many platforms exist.
+  const minLevels = Math.min(...posGroups.map((p) => p.frameLevels));
+  const boardedLifts = Math.max(1, Math.min(requested, minLevels));
   const wSpec = sys.widths[run.settings.width] || Object.values(sys.widths)[0];
   const widthM = (wSpec.transomMM || 700) / 1000;
   const guardM = run.settings.handrail === '2' ? 2.0 : 1.0;
@@ -5280,6 +5466,10 @@ function isoFrameModel(run, prev, sys) {
   // frame, so level i sits at the cumulative height of every section stacked
   // up to and including it — not a uniform i × frameH, since the stack the
   // physics solver hands back is a MIX of sections, not one size repeated.
+  // This is the WORST CASE (tallest) stack's own levels — the reference the
+  // deck's own absolute height is drawn from, and the one used to space any
+  // INTERMEDIATE boarded lifts, since two position groups built from
+  // different sections will not always divide the same way below the top.
   const levelsM = [];
   let cum = 0;
   for (const k of frameStack) { cum += sys.frameHeights[k]; levelsM.push(cum); }
@@ -5290,7 +5480,31 @@ function isoFrameModel(run, prev, sys) {
   let x = 0;
   let prevPost = null;
   let pi = 0;
-  const post = (px, i) => ({ x: px, lvl: 0, foot: 0, top: 0, idx: i });
+  // Each post carries its OWN position group — its own ground offset, its
+  // own solved stack, its own leg extension — because that is the entire
+  // point of a ground step: two positions a couple of bays apart can be
+  // built from genuinely different sections to reach the same flat deck.
+  // groundZ is that position's local ground relative to the run's own
+  // reference (0 = wherever the run's own target height was measured from);
+  // everything the drawing puts on this post is offset by it, the same way
+  // a modular run offsets a stepped column by its own accumulated level.
+  const post = (px, i) => {
+    const grp = posGroups[i] || posGroups[posGroups.length - 1];
+    const localLevelsM = [];
+    let c = 0;
+    for (const k of grp.frameStack) { c += sys.frameHeights[k]; localLevelsM.push(c); }
+    // groundZ can be negative — a position can stand BELOW the run's own
+    // reference ground, not just above it — so it doubles as foot/top for
+    // the shared fit code in renderIso(), which reads p.foot as the lowest
+    // point a post can be at. A frame post is a single point, not a stepped
+    // column's range, so foot and top are the same value here.
+    const groundZ = deckTargetH - grp.actualH;
+    return {
+      x: px, idx: i, lvl: 0, foot: groundZ, top: groundZ, groundZ,
+      frameStack: grp.frameStack, frameLevels: grp.frameLevels,
+      gTFS: grp.gTFS, levelsM: localLevelsM,
+    };
+  };
   for (const item of run.bays) {
     if (item.type === 'gap') { x += item.value / 1000; prevPost = null; continue; }
     if (item.type === 'break') { x += 0.26; prevPost = null; continue; }
@@ -5333,12 +5547,15 @@ function isoFrameModel(run, prev, sys) {
     // zero rather than an undefined.
     sideBoards: 0, hopM: 0, pbSpec: null, pbM: 0, pbY0: widthM, stair: null,
     // The modular-shaped view of the same thing, for the fit and the breaks.
+    // Ground-stepped or not, this is the WORST CASE — the reference the deck
+    // itself is drawn from and the tallest extent the fit has to account for.
     plan: {
       gTFS, starSpan: stackH,
       levels: levelsM.map((m) => ({ m })),
       working: boardedM.map((m) => ({ m })),
     },
     stab, frameStack, frameLevels, boardedLifts, levelsM, boardedM, boardedKeys,
+    deckTargetH, stepped: stab.stepped,
     // The real rung-to-rung pitch (400/450mm, manufacturer's choice), not the
     // DP's own internal 0.5m solving unit — see frameRungPitchM().
     rungPitch: frameRungPitchM(run, sys),
@@ -5352,50 +5569,79 @@ function isoFrameModel(run, prev, sys) {
 // projection runs with x + y, so: outriggers and the far (y=0) face first,
 // then the frames across, then the decks, then the near (y=widthM) face.
 function drawIsoFrameRun(m, P, line, quad, text, svg) {
-  const { widthM, guardM, posts, decks, plan, frameStack, frameLevels, stab } = m;
-  const gTFS = plan.gTFS;
+  const { widthM, guardM, posts, decks, stab } = m;
   const BOARD_T = 0.07;
   const topLvl = m.boardedM[m.boardedM.length - 1];
   const faces = stab.tied ? [widthM] : [0, widthM];
-  // Cumulative level heights, bottom of each level alongside its top — the
-  // same walk the section view does — so drawing one level's own section
-  // only ever needs levelZ[i] and levelZ[i+1], whatever that level is built
-  // from.
-  const levelZ = [0];
-  for (const k of frameStack) levelZ.push(levelZ[levelZ.length - 1] + m.sys.frameHeights[k]);
   const clrOf = (k) => (m.sys.frameClr || {})[k] || '#38bdf8';
+  const rungOffset = m.sys.geom.rungOffsetM ?? m.rungPitch;
+  // Canonical world Z for a boarded level, from m.boardedM — the WORST CASE
+  // (tallest) group's own levels. The top board always lands exactly on the
+  // run's own flat deckTargetH, by construction, whichever position it is
+  // drawn over; anything below that (an intermediate lift, on a run that
+  // both steps its ground AND carries more than one lift) is spaced using
+  // the worst case's own gaps as a stand-in, since two different position
+  // groups are not guaranteed to divide identically below the top. The
+  // common case — one boarded lift, which is all this run needs — is always
+  // exact regardless.
+  const deckZ = (lv) => m.deckTargetH - (topLvl - lv);
+  const findPost = (x) => posts.find((p) => Math.abs(p.x - x) < 0.001);
+
   // ── The foot ──────────────────────────────────────────────────────────────
   for (const p of posts) for (const y of [0, widthM]) {
-    const a = P(p.x - 0.14, y - 0.12, 0), b = P(p.x + 0.14, y - 0.12, 0);
-    const cc = P(p.x + 0.14, y + 0.12, 0), d = P(p.x - 0.14, y + 0.12, 0);
+    const gz = p.groundZ;
+    const a = P(p.x - 0.14, y - 0.12, gz), b = P(p.x + 0.14, y - 0.12, gz);
+    const cc = P(p.x + 0.14, y + 0.12, gz), d = P(p.x - 0.14, y + 0.12, gz);
     if (m.base.mobile) {
       // A braked castor reads as a dark puck with a bright rim.
       quad(a, b, cc, d, '#0f2b33', '#22d3ee', 0.95);
     } else {
       // A plate on a sole board.
-      quad(P(p.x - 0.22, y - 0.16, 0), P(p.x + 0.22, y - 0.16, 0),
-        P(p.x + 0.22, y + 0.16, 0), P(p.x - 0.22, y + 0.16, 0), '#3f2d1a', '#a16207', 0.85);
+      quad(P(p.x - 0.22, y - 0.16, gz), P(p.x + 0.22, y - 0.16, gz),
+        P(p.x + 0.22, y + 0.16, gz), P(p.x - 0.22, y + 0.16, gz), '#3f2d1a', '#a16207', 0.85);
       quad(a, b, cc, d, '#334155', '#94a3b8', 0.9);
     }
     // The adjustable stem up to the foot of the first frame.
-    line(P(p.x, y, 0), P(p.x, y, gTFS), '#7c8ea3', 2.4, 1);
+    line(P(p.x, y, gz), P(p.x, y, gz + p.gTFS), '#7c8ea3', 2.4, 1);
+  }
+  // The ground itself, where it steps between two neighbouring positions —
+  // drawn as a riser so the picture shows the actual change in level (half
+  // the run standing on a roof, say) rather than two disconnected towers
+  // that happen to share a deck.
+  if (m.stepped) {
+    for (let i = 0; i < posts.length - 1; i++) {
+      const p0 = posts[i], p1 = posts[i + 1];
+      const rise = p1.groundZ - p0.groundZ;
+      if (Math.abs(rise) < 0.001) continue;
+      for (const y of [0, widthM]) {
+        quad(P(p0.x, y, p0.groundZ), P(p1.x, y, p0.groundZ),
+          P(p1.x, y, p1.groundZ), P(p0.x, y, p1.groundZ), '#1e293b', '#475569', 0.7);
+      }
+      text(P((p0.x + p1.x) / 2, widthM + 0.1, Math.max(p0.groundZ, p1.groundZ) + 0.15),
+        `GROUND ${rise > 0 ? '+' : ''}${rise.toFixed(1)}m`,
+        { size: 7, fill: '#94a3b8', weight: 700, anchor: 'middle' });
+    }
   }
   // ── Outriggers ────────────────────────────────────────────────────────────
-  // Clamped to the corner legs and splayed out to the ground on both sides.
-  // Drawn before the structure: they are further out in y than the run itself
-  // on one side and further back on the other, and painting them first is what
-  // keeps the frames reading in front of the arms rather than behind them.
+  // Clamped to the corner legs and splayed out to the ground on both sides —
+  // each end's OWN ground, which is not always the same ground the other end
+  // stands on. Drawn before the structure: they are further out in y than
+  // the run itself on one side and further back on the other, and painting
+  // them first is what keeps the frames reading in front of the arms rather
+  // than behind them.
   if (m.armM > 0 && posts.length) {
-    const clampH = frameStack.length ? m.sys.frameHeights[frameStack[0]] : 2.0;
-    const clampZ = Math.min(gTFS + clampH * 0.9, gTFS + plan.starSpan);
-    const ends = [posts[0], posts[posts.length - 1]];
-    for (const p of ends) for (const [y, dir] of [[0, -1], [widthM, 1]]) {
-      line(P(p.x, y, clampZ), P(p.x, y + dir * m.armM, 0), '#f59e0b', 2.2, 0.95);
-      quad(P(p.x - 0.1, y + dir * m.armM - 0.08, 0), P(p.x + 0.1, y + dir * m.armM - 0.08, 0),
-        P(p.x + 0.1, y + dir * m.armM + 0.08, 0), P(p.x - 0.1, y + dir * m.armM + 0.08, 0),
-        '#78350f', '#f59e0b', 0.95);
+    for (const p of [posts[0], posts[posts.length - 1]]) {
+      const clampH = p.frameStack.length ? m.sys.frameHeights[p.frameStack[0]] : 2.0;
+      const ownTop = p.groundZ + p.gTFS + (p.levelsM[p.levelsM.length - 1] || 0);
+      const clampZ = Math.min(p.groundZ + p.gTFS + clampH * 0.9, ownTop);
+      for (const [y, dir] of [[0, -1], [widthM, 1]]) {
+        line(P(p.x, y, clampZ), P(p.x, y + dir * m.armM, p.groundZ), '#f59e0b', 2.2, 0.95);
+        quad(P(p.x - 0.1, y + dir * m.armM - 0.08, p.groundZ), P(p.x + 0.1, y + dir * m.armM - 0.08, p.groundZ),
+          P(p.x + 0.1, y + dir * m.armM + 0.08, p.groundZ), P(p.x - 0.1, y + dir * m.armM + 0.08, p.groundZ),
+          '#78350f', '#f59e0b', 0.95);
+      }
     }
-    text(P(posts[0].x, widthM + m.armM + 0.12, 0.1), `OUTRIGGERS ${m.armM.toFixed(1)}m`,
+    text(P(posts[0].x, widthM + m.armM + 0.12, posts[0].groundZ + 0.1), `OUTRIGGERS ${m.armM.toFixed(1)}m`,
       { size: 7, fill: '#f59e0b', weight: 800, anchor: 'start' });
   }
   // ── One face of the run: legs, braces, rails ──────────────────────────────
@@ -5407,9 +5653,13 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
       // spigot joint marked — the same way a modular column reads as its
       // standards, because it is the same question: what is this made of. A
       // run mixing a 4-rung and a 3-rung draws two different colours here,
-      // exactly like a modular column mixing two standard lengths.
-      frameStack.forEach((k, i) => {
-        const z0 = gTFS + levelZ[i], z1 = gTFS + levelZ[i + 1];
+      // exactly like a modular column mixing two standard lengths — and now
+      // each POST reads its own local stack, so a run standing half on a
+      // roof draws a visibly shorter, differently-coloured leg there than it
+      // does at the ground end.
+      p.frameStack.forEach((k, i) => {
+        const z0 = p.groundZ + p.gTFS + (i > 0 ? p.levelsM[i - 1] : 0);
+        const z1 = p.groundZ + p.gTFS + p.levelsM[i];
         line(P(p.x, y, z0), P(p.x, y, z1), clrOf(k), 4.2, op, 'iso-std');
         if (i > 0) {
           line(P(p.x, y, z0 - 0.05), P(p.x, y, z0 + 0.05), '#0b1017', 7, op, 'iso-joint');
@@ -5419,41 +5669,50 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
     }
     for (const d of decks) {
       // Horizontal braces act as the ledgers of a frame tower: one on each
-      // face at every frame level, which is what the takeoff bills.
-      for (const lv of m.levelsM)
-        line(P(d.x0, y, gTFS + lv), P(d.x1, y, gTFS + lv), '#94a3b8', 1.7, op);
+      // face at every SHARED level. Where the ground steps, that is not
+      // every level either side has — a brace can only connect the same
+      // level on two neighbouring frames, so only the levels the SHORTER
+      // side actually reaches are shared, aligned from the top since the
+      // deck is what lines the two sides up in the first place.
+      const pA = findPost(d.x0), pB = findPost(d.x1);
+      const shortSide = pA.frameLevels <= pB.frameLevels ? pA : pB;
+      const worldZs = shortSide.levelsM.map((lv) => shortSide.groundZ + shortSide.gTFS + lv);
+      for (const z of worldZs) line(P(d.x0, y, z), P(d.x1, y, z), '#94a3b8', 1.7, op);
       // Diagonals, cascading up the face — the triangles that carry the wind
       // and the shear off the top deck. Alternating direction level by level
       // is what a braced face actually looks like; each one spans its OWN
-      // level's real height, not a uniform assumption, so a short section's
-      // diagonal reads visibly shallower than a tall one's.
-      m.levelsM.forEach((lv, i) => {
+      // level's real height (the shorter side's own section there), not a
+      // uniform assumption, so a short section's diagonal reads visibly
+      // shallower than a tall one's.
+      let lo = shortSide.groundZ + shortSide.gTFS;
+      worldZs.forEach((z, i) => {
         const up = i % 2 === 0;
-        const lo = i > 0 ? m.levelsM[i - 1] : 0;
-        line(P(up ? d.x0 : d.x1, y, gTFS + lo), P(up ? d.x1 : d.x0, y, gTFS + lv),
-          '#60a5fa', 1.5, dim ? 0.45 : 0.85);
+        line(P(up ? d.x0 : d.x1, y, lo), P(up ? d.x1 : d.x0, y, z), '#60a5fa', 1.5, dim ? 0.45 : 0.85);
+        lo = z;
       });
       if (dim && !stab.tied) return;
     }
   };
   // ── Plan brace ────────────────────────────────────────────────────────────
-  // Corner to corner across the base on the flat. Nothing else stops the
-  // rectangle racking into a parallelogram, which is why it is drawn at all.
+  // Corner to corner across the base on the flat, on each position's own
+  // ground. Nothing else stops the rectangle racking into a parallelogram,
+  // which is why it is drawn at all.
   for (const d of decks) {
-    line(P(d.x0, 0, gTFS + 0.05), P(d.x1, widthM, gTFS + 0.05), '#a78bfa', 1.6, 0.9);
+    const pA = findPost(d.x0);
+    line(P(d.x0, 0, pA.groundZ + pA.gTFS + 0.05), P(d.x1, widthM, pA.groundZ + pA.gTFS + 0.05), '#a78bfa', 1.6, 0.9);
   }
   faceGear(0, true);
   // ── The frames themselves ─────────────────────────────────────────────────
   // An end frame spans the WIDTH of the run, and it is a ladder: a rung every
   // rungPitch, this manufacturer's own 400 or 450mm. Those rungs are the
-  // system's node — the brace snaps to one and the
-  // deck lands on one — so they are drawn rather than implied. Each level's
-  // own section decides its own rung count, so a 3-rung level draws three and
-  // a 4-rung level draws four, not the same count copied down the stack.
-  const rungOffset = m.sys.geom.rungOffsetM ?? m.rungPitch;
+  // system's node — the brace snaps to one and the deck lands on one — so
+  // they are drawn rather than implied. Each level's own section decides its
+  // own rung count, so a 3-rung level draws three and a 4-rung level draws
+  // four, not the same count copied down the stack — and each POST now
+  // walks its OWN stack, the same as the legs above.
   for (const p of posts) {
-    frameStack.forEach((k, i) => {
-      const z0 = gTFS + levelZ[i];
+    p.frameStack.forEach((k, i) => {
+      const z0 = p.groundZ + p.gTFS + (i > 0 ? p.levelsM[i - 1] : 0);
       const nRungs = (m.sys.frameRungs || {})[k] || Math.max(1, Math.round(m.sys.frameHeights[k] / m.rungPitch));
       // The real weld pattern, not the rungs evenly divided across the frame's
       // own length: 340mm to the first, then this manufacturer's own pitch.
@@ -5467,7 +5726,7 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
   }
   // ── Decks ─────────────────────────────────────────────────────────────────
   for (const d of decks) for (const lv of m.boardedM) {
-    const z = gTFS + lv, t = z + BOARD_T;
+    const z = deckZ(lv), t = z + BOARD_T;
     const top = lv === topLvl;
     quad(P(d.x0, 0, t), P(d.x1, 0, t), P(d.x1, widthM, t), P(d.x0, widthM, t),
       top ? '#64748b' : '#475569', '#cbd5e1', 0.95, 'iso-deck');
@@ -5488,12 +5747,15 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
   // ── Internal access ladder ────────────────────────────────────────────────
   // Run up inside the tower, through the trapdoors, from the ground to the top
   // boarded deck. Drawn because it is the difference between a compliant tower
-  // and one someone climbs the outside of.
+  // and one someone climbs the outside of. Stands on whatever ground the
+  // ladder's OWN bay is actually built on.
   if (decks.length) {
     const lx = decks[0].x0 + 0.42, ly = 0.35;
-    line(P(lx - 0.09, ly, 0), P(lx - 0.09, ly, gTFS + topLvl), '#fbbf24', 1.5, 0.75);
-    line(P(lx + 0.09, ly, 0), P(lx + 0.09, ly, gTFS + topLvl), '#fbbf24', 1.5, 0.75);
-    for (let z = 0.25; z < gTFS + topLvl; z += 0.25)
+    const ladderBase = posts[0].groundZ;
+    const ladderTop = deckZ(topLvl);
+    line(P(lx - 0.09, ly, ladderBase), P(lx - 0.09, ly, ladderTop), '#fbbf24', 1.5, 0.75);
+    line(P(lx + 0.09, ly, ladderBase), P(lx + 0.09, ly, ladderTop), '#fbbf24', 1.5, 0.75);
+    for (let z = ladderBase + 0.25; z < ladderTop; z += 0.25)
       line(P(lx - 0.09, ly, z), P(lx + 0.09, ly, z), '#fbbf24', 1, 0.6);
   }
   faceGear(widthM, false);
@@ -5503,12 +5765,14 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
   // same rule the takeoff counts by, so the picture and the gear list agree.
   // The posts first. Above the top deck the frame stack has ended, so there is
   // no leg left for a rail to clip to — that is what the guardrail post the
-  // takeoff bills is for, and without it drawn the rails hang in mid-air.
+  // takeoff bills is for, and without it drawn the rails hang in mid-air. The
+  // top deck is the one level guaranteed the same everywhere, so this needs
+  // no per-post lookup.
   for (const p of posts) for (const y of faces) {
-    line(P(p.x, y, gTFS + topLvl), P(p.x, y, gTFS + topLvl + guardM), '#cbd5e1', 2.4, 0.9, 'iso-std');
+    line(P(p.x, y, deckZ(topLvl)), P(p.x, y, deckZ(topLvl) + guardM), '#cbd5e1', 2.4, 0.9, 'iso-std');
   }
   for (const d of decks) for (const lv of m.boardedM) {
-    const z = gTFS + lv;
+    const z = deckZ(lv);
     const isTop = lv === topLvl;
     for (const y of faces) {
       for (const rh of isTop && guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
@@ -5524,7 +5788,7 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
   // board — which is what the takeoff bills across the width.
   if (posts.length) {
     for (const p of [posts[0], posts[posts.length - 1]]) for (const lv of m.boardedM) {
-      const z = gTFS + lv;
+      const z = deckZ(lv);
       const isTop = lv === topLvl;
       for (const rh of isTop && guardM === 2 ? [0.5, 1, 1.5, 2] : [0.5, 1])
         line(P(p.x, 0, z + rh), P(p.x, widthM, z + rh), '#fbbf24', isTop ? 1.8 : 1.4, 0.95, 'iso-rail');
@@ -5535,7 +5799,7 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
   }
   // ── The label the whole drawing is really about ───────────────────────────
   if (decks.length) {
-    const zLab = gTFS + topLvl + guardM + 0.6;
+    const zLab = deckZ(topLvl) + guardM + 0.6;
     const over = !stab.tied && stab.over;
     text(P(decks[0].x0, widthM, zLab),
       `${stab.duty.toUpperCase()} ${stab.swl}kg · H/D ${(stab.platformH / stab.effMin).toFixed(2)}:1` +
@@ -6262,22 +6526,36 @@ function renderIsoLegend(models) {
     // and the colours come from frameClr rather than stdClr.
     if (m.frame) {
       clr = { ...clr, ...(m.sys.frameClr || {}) };
-      // A frame run's stack is a MIX of sections, not one repeated, so it is
-      // counted the same way a modular column's build is — one entry per
-      // distinct size actually used.
+      // A frame run's stack is a MIX of sections, not one repeated — and now
+      // not even the SAME mix at every position, when the ground itself
+      // steps. Counted per ACTUAL post rather than the worst-case stack
+      // times a post count, so the swatch totals are the real ones the gear
+      // list bills, not an assumption that every position matches the
+      // tallest.
       const byK = {};
-      for (const k of m.frameStack) byK[k] = (byK[k] || 0) + 1;
+      for (const p of m.posts) for (const k of p.frameStack) byK[k] = (byK[k] || 0) + 1;
       for (const [k, n] of Object.entries(byK)) {
-        count[k] = (count[k] || 0) + m.posts.length * n;
+        count[k] = (count[k] || 0) + n;
         // A frame swatch is labelled by its rung count, not its metres.
         sizeName[k] = frameRungLabel(k, m.sys);
       }
-      const compose = Object.entries(byK)
-        .sort((a, b) => (m.sys.frameHeights[b[0]] || 0) - (m.sys.frameHeights[a[0]] || 0))
-        .map(([k, n]) => `${n} × ${frameRungLabel(k, m.sys)}`)
-        .join(' + ');
+      const composeOf = (stack) => {
+        const b = {};
+        for (const k of stack) b[k] = (b[k] || 0) + 1;
+        return Object.entries(b)
+          .sort((a, c) => (m.sys.frameHeights[c[0]] || 0) - (m.sys.frameHeights[a[0]] || 0))
+          .map(([k, n]) => `${n} × ${frameRungLabel(k, m.sys)}`)
+          .join(' + ') || 'no frames';
+      };
+      // Not every position is the same build once the ground steps, so the
+      // note names every DISTINCT one on this run rather than implying a
+      // single uniform stack the picture itself does not show.
+      const distinct = [...new Map(m.posts.map((p) => [p.frameStack.join('+'), p])).values()];
+      const compose = distinct.length > 1
+        ? distinct.map((p) => composeOf(p.frameStack)).join(' · or · ')
+        : composeOf(m.posts[0] ? m.posts[0].frameStack : []);
       frameNotes.push(
-        `${compose || 'no frames'} per position` +
+        `${compose}${distinct.length > 1 ? ' (ground steps)' : ' per position'}` +
         ` · ${m.base.mobile ? 'castors' : 'plates'}` +
         (m.armM ? ` · ${m.armM.toFixed(1)}m outriggers` : ''));
       continue;
