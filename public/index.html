@@ -5687,7 +5687,7 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
       let lo = shortSide.groundZ + shortSide.gTFS;
       worldZs.forEach((z, i) => {
         const up = i % 2 === 0;
-        line(P(up ? d.x0 : d.x1, y, lo), P(up ? d.x1 : d.x0, y, z), '#60a5fa', 1.5, dim ? 0.45 : 0.85);
+        line(P(up ? d.x0 : d.x1, y, lo), P(up ? d.x1 : d.x0, y, z), '#cbd5e1', 1.5, dim ? 0.45 : 0.85);
         lo = z;
       });
       if (dim && !stab.tied) return;
@@ -5699,7 +5699,7 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
   // which is why it is drawn at all.
   for (const d of decks) {
     const pA = findPost(d.x0);
-    line(P(d.x0, 0, pA.groundZ + pA.gTFS + 0.05), P(d.x1, widthM, pA.groundZ + pA.gTFS + 0.05), '#a78bfa', 1.6, 0.9);
+    line(P(d.x0, 0, pA.groundZ + pA.gTFS + 0.05), P(d.x1, widthM, pA.groundZ + pA.gTFS + 0.05), '#f9a8d4', 1.6, 0.9);
   }
   faceGear(0, true);
   // ── The frames themselves ─────────────────────────────────────────────────
@@ -5759,6 +5759,26 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
       line(P(lx - 0.09, ly, z), P(lx + 0.09, ly, z), '#fbbf24', 1, 0.6);
   }
   faceGear(widthM, false);
+  // ── Frame size labels ─────────────────────────────────────────────────────
+  // Colour alone does not read reliably when one section in the mix is a
+  // fraction of the stack's total height — a single 1-Rung topping out a
+  // 6.7m tower is a sliver of blue-then-orange easy to miss at a glance. So
+  // the actual composition is spelled out in text too, on the corner legs:
+  // the first post always (what this run is mostly built from), and the
+  // LAST post as well whenever it reads a different mix — which is exactly
+  // when the ground has stepped and the whole point is that the two ends
+  // are NOT built the same.
+  const labelPosts = posts.length > 1 && posts[0].frameStack.join('+') !== posts[posts.length - 1].frameStack.join('+')
+    ? [posts[0], posts[posts.length - 1]]
+    : [posts[0]];
+  for (const p of labelPosts.filter(Boolean)) {
+    p.frameStack.forEach((k, i) => {
+      const z0 = p.groundZ + p.gTFS + (i > 0 ? p.levelsM[i - 1] : 0);
+      const z1 = p.groundZ + p.gTFS + p.levelsM[i];
+      text(P(p.x + 0.2, widthM, (z0 + z1) / 2), frameRungLabel(k, m.sys),
+        { size: 6.5, fill: clrOf(k), weight: 800, anchor: 'start' });
+    });
+  }
   // ── Guardrails and toe boards ─────────────────────────────────────────────
   // On BOTH faces of a freestanding tower — there is no building against either
   // of them — and on the outer face only once the run is tied in. That is the
