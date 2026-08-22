@@ -430,6 +430,31 @@ Two takeoff models exist, selected by each system's `model` field:
   that travel and reports the height it actually reached, which is not always the one that
   was asked for.
 
+  **The stack is a MIX of sections, not one size repeated.** A real tower is built the way
+  a rigger reaches for whichever piece lands the job closest to the mark — two 4-rungs and
+  a 3-rung to clear a height a run of 4-rungs alone would either fall short of or overshoot
+  by half a metre. `frameStackList()` solves that mix with the same fewest-pieces DP
+  `stdStackList()` runs for a modular standard column, just in RUNG units (the frame's own
+  500 mm pitch) and keyed by section rather than by length; `calcFramePhysics()` searches
+  the stem's own travel window for the tallest height any ticked combination of sections
+  can build exactly, so an odd height gets built from a mix instead of overshooting the way
+  a single repeated size would. Which sections may be used comes from checkboxes in an
+  *Available Frame Sizes* panel — the frame-system twin of the modular *Available
+  Standards* panel, read live by `enabledFrameSizesFor()` the same way `enabledSizesFor()`
+  reads the standards checkboxes. Turn a size off and the rest re-solve around it; turn
+  every size off and the engine falls back to the tallest one on offer rather than refuse
+  to answer.
+
+  Every part that depends on which section a level is built from is billed and drawn per
+  section, not per run: the frame line item (`Frame 4-Rung (2.0m x 1.3m)`), the diagonal
+  brace (whose own length depends on the level's height — `Diagonal Brace 3-Rung (2500mm)`
+  is a different length and a different weight from the 4-Rung version of the same bay),
+  and the internal access ladder segment. The section elevation and the 3D isometric view
+  both walk the solved stack level by level rather than assuming a uniform height, and
+  colour each level by its own section — a run built from a 4-rung, a 4-rung and a 3-rung
+  draws as two colours banded up the leg, exactly the way a modular column's mixed
+  standards read.
+
   **Stability is part of the takeoff, not a footnote to it.** A freestanding tower resists
   overturning with footprint alone, so `frameStability()` solves the height-to-base ratio
   before the gear list is written: AS/NZS puts the top platform at H ≤ 3 × Dmin, and the
@@ -475,9 +500,10 @@ follow the AS/NZS 1576 suite and the Australian ranges that publish them — APA
 500 mm centres, so the stocked sections are the 4-rung (2.0 m), the 3-rung (1.5 m) and the
 2-rung (1.0 m) — the names APAC and the AU ranges list them under. `frameHeights` is keyed
 in metres because that is what the height solver stacks; `frameRungs` supplies the name, and
-`frameName()` / `frameRungLabel()` compose it once so the dropdown, the section header, the
-3D legend and the gear list (`Frame 4-Rung (2.0m x 1.3m)`) all say it the same way. A yard
-stocking another section adds one entry to each of those two maps.
+`frameName()` / `frameRungLabel()` compose it once so the *Available Frame Sizes* checkbox
+panel, the section header, the 3D legend and the gear list (`Frame 4-Rung (2.0m x 1.3m)`)
+all say it the same way. A yard stocking another section adds one entry to each of those
+two maps and it appears everywhere else on its own.
 
 **Bay lengths are 3.0, 2.5, 2.4, 2.0, 1.8 and 1.3 m.** The 3.0 m and 2.5 m decks are both
 everyday lengths — most of a run is built out of them, and auto-fill packs from 3.0 m down —

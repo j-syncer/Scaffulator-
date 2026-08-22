@@ -117,8 +117,10 @@ listed and carry on.
   `"2500"` are both everyday deck lengths — most of a run is built out of them; the shorter
   bays close it out.
 - widths: `"0.7"` single (light, 225kg) · `"1.3"` double (medium, 450kg) · `"1.8"` triple (heavy, 675kg)
-- `"frameH"`: `"2.0"` the **4-rung** · `"1.5"` the **3-rung** · `"1.0"` the **2-rung**. Rungs
-  are at 500mm centres, so a frame is ordered by rung count and the metres follow from it.
+- Sections stocked: `"2.0"` the **4-rung** · `"1.5"` the **3-rung** · `"1.0"` the **2-rung**.
+  A tower is usually built from a **mix** of these to land on the deck height, not one size
+  repeated — the app solves that mix itself, so there is no setting for it; just give the
+  height.
 - `"frameBase"`: `"castors"` mobile · `"plates"` static on sole boards
 - `"frameExposure"`: `"sheltered"` (H ≤ 3 × Dmin) · `"exposed"` (H ≤ 2 × Dmin)
 - `"frameOutrig"`: `"auto"` sized to the ratio · `"0"` none · `"0.6"` `"1.0"` `"1.4"` metres each side
@@ -141,7 +143,6 @@ listed and carry on.
     "stagger"       "0" | "1" — stagger the standard joints
     "ties"          "0" none | "bracket" | "ftie" | "reveal" | "box"
     "tieEvery"      1 every standard | 2 every 2nd (Acrow) | 3 every 3rd (Waco)
-    "frameH"        Ally Frame only — the frame section that stacks to the height
     "frameBase"     Ally Frame only — "castors" (mobile) | "plates" (static)
     "frameExposure" Ally Frame only — "sheltered" | "exposed"; picks the 3:1 or 2:1 ratio
     "frameOutrig"   Ally Frame only — "auto" | "0" | a projection in metres each side
@@ -204,7 +205,7 @@ the steel actually stopping and starting again.
         {
           "turn": "straight",
           "settings": { "system": "allyframe", "height": 6.0, "lifts": 2, "width": "1.3",
-                        "frameH": "2.0", "frameBase": "castors", "frameExposure": "sheltered" },
+                        "frameBase": "castors", "frameExposure": "sheltered" },
           "bays": [
             { "type": "bay", "value": "3000", "count": 3 },
             { "type": "bay", "value": "1800" }
