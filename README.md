@@ -470,30 +470,35 @@ Two takeoff models exist, selected by each system's `model` field:
   Risk Construction Work and needs a SWMS; a platform over 4.0 m may only be erected,
   altered or dismantled under a scaffolding High Risk Work Licence.
 
-  **The ground itself can step, and the deck does not move when it does.** A `"ground"`
-  bay entry — Ally Frame only — is a real elevation change in metres, not a node count:
-  standing half a run on a roof is a whole storey, not a drift the adjustable stem could
-  ever absorb. It is the mirror image of a modular `"step"`: there, the deck follows the
-  ground and the height above LOCAL ground stays constant; here, the deck stays flat and
-  it is the REQUIRED STACK that shrinks where the ground is higher and grows where it is
-  lower. `frameGroundWalk()` reads the accumulated offset at every standard position;
-  `frameGroundGroups()` solves one stack per distinct offset the run actually uses (most
-  runs have exactly one, so nothing changes for them) and hands `frameStability()` the
-  worst case — the tallest reach, which is what the overturning ratio has to be judged
-  against — while `posGroups` carries every position's own real answer through to
-  `calcFrameGear()` and the 3D view.
+  **The ground itself can step, and the deck does not move when it does.** A bay's own
+  `"leg"` — Ally Frame only — is the real height, in metres, from that leg's own foot to
+  the flat deck: standing half a run on a roof is a whole storey, not a drift the
+  adjustable stem could ever absorb. It is entered directly on the bay whose leading leg
+  is the first one standing at a different height, sticky forward until a later bay gives
+  a new one — there is no separate step control for it, adding a bay with a `leg` value is
+  the whole action. It is the mirror image of a modular `"step"`: there, the deck follows
+  the ground and the height above LOCAL ground stays constant; here, the deck stays flat
+  and it is the REQUIRED STACK that shrinks where the ground is higher (a shorter `leg`)
+  and grows where it is lower (a taller one). `frameGroundWalk()` reads each position's own
+  `leg` (sticky-forward, defaulting to the run's `height` until the first bay overrides it)
+  and converts it to an offset from that `height`, purely so `frameGroundGroups()` — which
+  solves one stack per distinct offset the run actually uses (most runs have exactly one,
+  so nothing changes for them) and hands `frameStability()` the worst case, the tallest
+  reach the overturning ratio has to be judged against, while `posGroups` carries every
+  position's own real answer through to `calcFrameGear()` and the 3D view — never needed to
+  change when the leg height moved off a typed step and onto the bay itself.
 
   Everything that depends on which position it is billed against follows the position,
   not the run: the frame sections themselves (summed from every position's own stack, not
-  the worst case repeated `numPos` times), the coupling pins and lock clips, and the
-  access ladder (billed against wherever the ladder bay itself actually stands). Bracing
-  is billed per BAY at whatever levels the two neighbouring positions actually SHARE — a
-  brace connects the same level on two frames, so only the shorter side's own full stack,
-  aligned from the top since that is what the flat deck lines the two sides up on. The 3D
-  view is the one place a step is actually drawn — a section is a single cross-section and
-  can only show the worst case, with a note pointing to the 3D view for the rest — where
-  each post reads its own local stack and colour, and the ground itself is drawn as a
-  riser between the two positions that step, labelled with the change.
+  the worst case repeated `numPos` times), the coupling pins, and the access ladder (billed
+  against wherever the ladder bay itself actually stands). Bracing is billed per BAY at
+  whatever levels the two neighbouring positions actually SHARE — a brace connects the same
+  level on two frames, so only the shorter side's own full stack, aligned from the top
+  since that is what the flat deck lines the two sides up on. The 3D view is the one place
+  a step is actually drawn — a section is a single cross-section and can only show the
+  worst case, with a note pointing to the 3D view for the rest — where each post reads its
+  own local stack and colour, labelled with its own section composition, and the ground
+  itself is drawn as a riser between the two positions that step, labelled with the change.
 
 Runs may use different systems in one job. Quantities are bucketed per system, because the
 same component name (`Ledger (3000mm)`) means different weights in different systems, and

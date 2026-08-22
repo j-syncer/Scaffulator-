@@ -423,6 +423,11 @@
   <!-- Bay Buttons — generated from the active system -->
   <div class="bg-[#161d27] border border-[#2d3f55] rounded-xl p-4">
     <h3 class="cond font-bold text-xs uppercase tracking-widest text-amber-400 mb-3">Add Bays — Current Run</h3>
+    <div id="leg-height-row" class="frame-only hidden mb-3">
+      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Leg Height Here (m)</label>
+      <input type="number" id="leg-m" step="0.1" placeholder="blank = same as Deck Height" class="form-input w-full">
+      <p class="text-[9px] text-slate-600 mt-1 leading-tight">How tall THIS leg stands to reach the flat deck — set it before adding a bay and it carries forward until you change it again. Leave blank while the ground is level; only fill it in where a leg is genuinely shorter or taller, like half the run standing on a roof.</p>
+    </div>
     <div id="bay-buttons" class="space-y-2"></div>
   </div>
 
@@ -566,14 +571,6 @@
         <button onclick="addStep(-1)" class="flex-1 bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg transition-colors">Step Down</button>
       </div>
       <p id="step-note" class="text-[9px] text-slate-600 mt-1 leading-tight"></p>
-    </div>
-    <div class="frame-only hidden">
-      <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Ground Step From Here (m)</label>
-      <div class="flex gap-2">
-        <input type="number" id="ground-m" step="0.1" placeholder="+3.1 rises, -3.1 falls" class="form-input w-full">
-        <button onclick="addGroundStep()" class="bg-slate-600 hover:bg-slate-500 text-white text-xs font-bold py-2 px-3 rounded-lg whitespace-nowrap transition-colors">Add</button>
-      </div>
-      <p class="text-[9px] text-slate-600 mt-1 leading-tight">For a real change in what the tower stands on — half the run on a roof, say — not a drift the leg would absorb. Positive: the ground from here is higher, so less frame is needed; negative: lower, so more is.</p>
     </div>
     <div>
       <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Break / Join Type</label>
@@ -834,11 +831,10 @@ walk it:
     {"type":"bay","value":"8ft"}                  one bay
     {"type":"bay","value":"8ft","count":9}        nine of them, instead of nine lines
     {"type":"bay","value":"8ft","stair":true}     the bay the stair tower hangs off
+    {"type":"bay","value":"3000","leg":3.6}       Ally Frame only — THIS leg stands 3.6m to the deck
     {"type":"gap","value":600}                    a 600mm gap in the run (millimetres)
     {"type":"step","value":1}                     step UP one node from here on
     {"type":"step","value":-1}                    step DOWN one node from here on
-    {"type":"ground","value":3.1}                 Ally Frame only — ground RISES 3.1m from here on
-    {"type":"ground","value":-3.1}                Ally Frame only — ground FALLS 3.1m from here on
     {"type":"break","value":"none"}               the run ends here and joins the next
 
 Bays are the ledger length between two standards. Do not add anything for the
@@ -847,22 +843,24 @@ standards themselves — the app adds their width to the overall length.
 Steps follow the ground on a MODULAR run. One entry is ONE node, which is 0.5m — so a
 2m fall along the run is four separate step entries with bays between them, not one entry
 of 4. A step must come after at least one bay, and two steps cannot sit next to each
-other. Ally Frame does not take step entries at all — it has "ground" instead, and the
-two work in opposite directions on purpose:
+other. Ally Frame does not take step entries at all — a bay's own "leg" does the
+equivalent job, and the two work in opposite directions on purpose:
 
 A modular step follows the ground: the deck moves with it, and the height above the
 LOCAL ground stays the same on both sides. Use it for a scaffold walking down a slope.
 
-Ally Frame's "ground" does the opposite: the DECK STAYS FLAT — one continuous working
-height — and it is the frame stack that gets shorter where the ground is higher and
-taller where it is lower. Use it for a run standing part on a roof or a platform, where
-the working surface has to stay level but the structure underneath does not reach as
-far. The value is a real elevation change in METRES, not a node count — the ground can
-jump by a whole storey — and it only ever applies going FORWARD from where it sits in
-the list, exactly like a step. Put it before the first bay of the section whose ground
-is different, not after the last bay of the section before it. Height and lifts still
-describe the flat deck as a whole; the app solves each affected position's own stack
-to reach it.
+Ally Frame's "leg" does the opposite: the DECK STAYS FLAT — one continuous working
+height — and it is the frame stack under each leg that gets shorter where the ground is
+higher and taller where it is lower. Use it for a run standing part on a roof or a
+platform, where the working surface has to stay level but the structure underneath does
+not reach as far. The value is the real height in METRES from that leg's own foot to the
+flat deck — not an offset, not a node count, just how tall that leg stands — and it is
+STICKY: put it on the bay whose leading leg is the first one standing at a different
+height, and every bay after it keeps that same leg height until a later bay gives a new
+one. A bay with no "leg" just keeps whatever height the run is already standing at —
+Height on its own, until the first bay that overrides it. Do not put "leg" on every
+single bay — only on the ones where the height actually changes; that is what makes the
+run readable as "3 bays at one height, then it changes" rather than a wall of numbers.
 
 Breaks end a run. value decides what is billed at the join, so pick the one the
 drawing shows:
@@ -941,7 +939,7 @@ Ally Frame — the aluminium mobile tower
 - "frameOutrig": "auto" sized to the ratio | "0" none | "0.6" "1.0" "1.4" metres each side
 - "frameTied": "0" freestanding | "1" tied to the structure
 - "frameRungPitch": "450" | "400" — millimetres between rung centres, drawing only
-- ground steps instead of node steps (see "ground" above) · no hop-ups, no piggyback and no stair tower
+- a bay's own "leg" instead of node steps (see "leg" above) · no hop-ups, no piggyback and no stair tower
 
 ## settings, per run
 
@@ -1046,22 +1044,23 @@ or the run turning a corner.
           "settings": { "system": "allyframe", "height": 6.7, "lifts": 1, "width": "1.3",
                         "frameBase": "plates", "frameTied": "1" },
           "bays": [
-            { "type": "ground", "value": 3.1 },
-            { "type": "bay", "value": "2500", "count": 5 },
-            { "type": "ground", "value": -3.1 },
-            { "type": "bay", "value": "2500", "count": 2 }
+            { "type": "bay", "value": "2500", "leg": 3.6, "count": 5 },
+            { "type": "bay", "value": "2500", "leg": 6.7, "count": 2 }
           ]
         }
       ]
     }
 
-A tower running along a roof edge: the first "ground" entry, BEFORE any bay, says the
-whole run starts 3.1m higher than true ground — so the first 5 bays (standing on the roof)
-solve a short stack. The second "ground" entry brings it back down 3.1m for the last 2
-bays (standing on true ground below), which solve a tall stack instead. "height": 6.7 is
-the ONE flat deck the whole run reaches either way — never adjust it for the step, that is
-exactly what "ground" is for. Still one run: the tower never stops, it just changes what
-it is standing on partway along.</script>
+A tower running along a roof edge: the first bay's "leg": 3.6 says the run starts on the
+roof, where each leg only has to stand 3.6m to reach the deck — sticky, so all 5 bays on
+the roof solve that same short stack without repeating it on every one of them. The 6th
+bay's "leg": 6.7 brings it back down to true ground, where each leg there has to stand
+the full 6.7m — the last 2 bays solve that tall stack instead. "height": 6.7 is the ONE
+flat deck the whole run reaches either way, and it doubles as what a bay with no "leg" of
+its own would stand on — which is exactly why the ground-side bays still need their own
+"leg": 6.7 even though it matches the deck height: without it they would keep inheriting
+3.6 from the roof section before them. Still one run: the tower never stops, it just
+changes what it is standing on partway along.</script>
 
 <div id="toasts" class="fixed bottom-4 right-4 z-50 space-y-2 pointer-events-none"></div>
 
@@ -2691,29 +2690,36 @@ function calcModularGear(run, enabled, treads = enabledTreadRises()) {
 // static one. minM/maxM are the stem wound down and wound out — a 200mm
 // castor with 400mm of adjustment stands 0.2m to 0.6m.
 // The ground a frame run's positions actually stand on, one entry per
-// STANDARD POSITION (numBays + 1 of them). A "ground" bay entry is an
-// absolute elevation change — the ground RISES this many metres from here
-// on if positive, FALLS if negative — not a small node-quantised step like
-// the modular systems use, because a frame job's ground can jump by a whole
-// storey (half the run standing on a roof) rather than drift a slope. It is
-// meaningless to a modular run and is simply never read there, the same way
-// a modular "step" is never read on a frame run.
+// STANDARD POSITION (numBays + 1 of them), read straight off each bay's own
+// `leg` — how tall THAT leg stands to reach the flat deck, entered on the
+// bay itself rather than as a separate step inserted into the list. `leg` is
+// sticky: a bay that does not carry one stands on whatever the last bay that
+// did carry one set, and a run where no bay ever sets it is just the plain
+// flat-ground case, standing at the run's own Deck Height everywhere. This
+// is meaningless to a modular run and is simply never read there, the same
+// way a modular "step" is never read on a frame run.
 //
 // This is the OPPOSITE relationship to a modular step: there, the deck
 // follows the ground and the height above local ground stays constant. Here
 // the DECK STAYS FLAT — the same target height everywhere — and it is the
-// REQUIRED STACK that shrinks where the ground is higher and grows where it
-// is lower, because less (or more) structure is needed to reach the same
-// absolute deck from a different starting point.
+// REQUIRED STACK that shrinks where the ground is higher (a shorter leg
+// entered) and grows where it is lower (a taller leg entered), because less
+// (or more) structure is needed to reach the same absolute deck from a
+// different starting point. Returned as an OFFSET from the run's Deck
+// Height, in the units frameGroundGroups() already expects, purely so
+// everything downstream of this function — frameGroundGroups(),
+// frameStability(), calcFrameGear(), the 3D view — needed no change at all
+// when the leg height moved from a typed step onto the bay itself.
 function frameGroundWalk(run) {
+  const deckTargetH = runTargetHeight(run);
   const offsets = [];
-  let g = 0;
+  let leg = deckTargetH;
   for (const item of run.bays) {
-    if (item.type === 'ground') { g += item.value; continue; }
     if (item.type !== 'bay') continue;
-    if (offsets.length === 0) offsets.push(g);
-    offsets.push(g);
+    if (Number.isFinite(item.leg) && item.leg > 0) leg = item.leg;
+    offsets.push(deckTargetH - leg);
   }
+  if (offsets.length) offsets.push(offsets[offsets.length - 1]);
   return offsets;
 }
 // One resolved stack per DISTINCT ground offset the run actually uses, plus
@@ -3144,8 +3150,36 @@ function readySystemNames() {
    USER ACTIONS — bays, gaps, breaks, stairs, settings, save/load
    ============================================================ */
 const currentRun = () => runs[runs.length - 1];
+// The leg height every bay so far has settled on, sticky-forward from
+// whichever bay last carried its own — the same rule frameGroundWalk() reads
+// back once the bay is actually in the list. Used here just to decide
+// whether the "Leg Height Here" field is telling us anything NEW: typing the
+// same height the run is already standing on should not litter every bay
+// with a redundant leg value.
+function currentLegHeightM(run) {
+  useSystem(run.settings.system);
+  let leg = runTargetHeight(run);
+  for (const item of run.bays) {
+    if (item.type === 'bay' && Number.isFinite(item.leg) && item.leg > 0) leg = item.leg;
+  }
+  return leg;
+}
 function addBay(type) {
-  currentRun().bays.push({ type: 'bay', value: type, stair: false });
+  const run = currentRun();
+  const bay = { type: 'bay', value: type, stair: false };
+  // Frame-only: the field is how tall THIS leg needs to stand to reach the
+  // flat deck, read at the moment the bay is added rather than through a
+  // separate step. Only recorded when it actually changes something, so a
+  // level run — the overwhelming majority — never carries a leg value at
+  // all and the field can stay blank for the whole job.
+  if (SYS.model === 'frame') {
+    const el = document.getElementById('leg-m');
+    const v = el ? parseFloat(el.value) : NaN;
+    if (Number.isFinite(v) && v > 0 && Math.abs(v - currentLegHeightM(run)) > 1e-6) {
+      bay.leg = v;
+    }
+  }
+  run.bays.push(bay);
   render();
 }
 function addGap() {
@@ -3191,27 +3225,6 @@ function addStep(dir) {
 // would absorb. Frame-model only, and unlike addStep() it takes any nonzero
 // metres rather than a fixed increment, because a frame's ground can jump by
 // a whole storey.
-function addGroundStep() {
-  const run = currentRun();
-  useSystem(run.settings.system);
-  if (SYS.model !== 'frame') {
-    toast(`${SYS.name} steps by node — use Step Up/Down instead of Ground Step.`);
-    return;
-  }
-  if (!run.bays.some((b) => b.type === 'bay')) {
-    toast('Add a bay before stepping the ground — it applies to the bays after it.');
-    return;
-  }
-  const el = document.getElementById('ground-m');
-  const v = parseFloat(el.value);
-  if (!Number.isFinite(v) || v === 0) {
-    toast('Enter how many metres the ground rises (+) or falls (-) from here.');
-    return;
-  }
-  run.bays.push({ type: 'ground', value: v });
-  el.value = '';
-  render();
-}
 function addBreak() {
   const bt = document.getElementById('break-type').value;
   const cur = currentRun();
@@ -4047,10 +4060,6 @@ const IMPORT_TYPE_WORDS = {
   gap: 'gap', void: 'gap', opening: 'gap', space: 'gap',
   step: 'step', stepup: 'step', stepdown: 'step', stepupdown: 'step',
   break: 'break', runbreak: 'break', join: 'break', newrun: 'break', endofrun: 'break',
-  // A frame run's ground changing elevation by a real amount (standing half
-  // on a roof), not a modular step's fixed node — see normaliseBayEntry.
-  ground: 'ground', groundlevel: 'ground', groundstep: 'ground',
-  elevationchange: 'ground',
 };
 
 // Which system a file means, by id or by name — "kwik stage", "AT-PAC",
@@ -4099,7 +4108,6 @@ function normaliseBayEntry(raw, sys, report) {
   if (!type) {
     if (getAny(raw, ['gap', 'gapMM']) !== undefined) type = 'gap';
     else if (getAny(raw, ['step', 'direction']) !== undefined) type = 'step';
-    else if (getAny(raw, ['ground', 'elevationChange']) !== undefined) type = 'ground';
     else if (value !== undefined) type = 'bay';
     else return [];
   }
@@ -4123,13 +4131,6 @@ function normaliseBayEntry(raw, sys, report) {
     const mm = mmFrom(firstDefined(getAny(raw, ['gap', 'gapMM']), value));
     if (mm === null || !(mm > 0)) { report.dropped.push(`gap ${JSON.stringify(value ?? null)}`); return []; }
     for (let i = 0; i < count; i++) out.push({ type: 'gap', value: Math.round(mm) });
-  } else if (type === 'ground') {
-    // Metres, not millimetres and not a node count — a frame run's ground can
-    // jump by a whole storey, so this reads a real elevation figure rather
-    // than snapping to any stocked size.
-    const m = toNumber(firstDefined(getAny(raw, ['ground', 'elevationChange']), value), null);
-    if (m === null || m === 0) { report.dropped.push(`ground change ${JSON.stringify(value ?? null)}`); return []; }
-    out.push({ type: 'ground', value: m });
   } else {
     const hit = resolveKey(sys.bays, value);
     if (!hit) { report.dropped.push(`bay ${JSON.stringify(value ?? null)}`); return []; }
@@ -4137,9 +4138,16 @@ function normaliseBayEntry(raw, sys, report) {
       report.snapped.push(`${value} → ${sys.bays[hit.key].label}`);
     }
     const stair = toBool(firstDefined(getAny(raw, ['stair', 'stairTower', 'stairs']), false));
+    // Ally Frame only: how tall THIS leg stands to reach the flat deck —
+    // metres, not millimetres, and not a node count, since a frame run's
+    // ground can jump by a whole storey (half the run on a roof). Sticky
+    // from here on, the same as typing it into the "Leg Height Here" field
+    // before adding the bay by hand.
+    const leg = toNumber(getAny(raw, ['leg', 'legHeight', 'legM', 'groundLeg', 'standHeight']), null);
     for (let i = 0; i < count; i++) {
       const bay = { type: 'bay', value: hit.key };
       if (stair) bay.stair = true;
+      if (leg !== null && leg > 0) bay.leg = leg;
       out.push(bay);
     }
   }
@@ -4365,13 +4373,17 @@ function sanitiseRuns(data) {
         if (b.type === 'bay') return !!sys.bays[b.value];
         if (b.type === 'gap') return Number.isFinite(b.value) && b.value > 0;
         if (b.type === 'step') return b.value === 1 || b.value === -1;
-        // A frame run's ground can jump by a real elevation, not a node at a
-        // time, so unlike "step" this takes any nonzero metres — only ever
-        // acted on by a frame-model run, the same way "step" only ever is by
-        // a modular one; harmless and simply unread on the other model.
-        if (b.type === 'ground') return Number.isFinite(b.value) && b.value !== 0;
         return b.type === 'break';
       });
+      // A bay's own `leg` — how tall it stands to reach the flat deck — is a
+      // frame-only, positive-metres reading; a bad or borrowed value (a
+      // modular run's bay carrying one, say) is simply dropped rather than
+      // left to confuse a solver that never reads it anyway.
+      for (const b of bays) {
+        if (b.type === 'bay' && !(sys.model === 'frame' && Number.isFinite(b.leg) && b.leg > 0)) {
+          delete b.leg;
+        }
+      }
       // Two steps at the same position is more than one node at a time, which
       // is not allowed — keep the first and drop the rest.
       for (let n = bays.length - 1; n > 0; n--) {

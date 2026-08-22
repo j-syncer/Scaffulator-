@@ -35,11 +35,10 @@ walk it:
     {"type":"bay","value":"8ft"}                  one bay
     {"type":"bay","value":"8ft","count":9}        nine of them, instead of nine lines
     {"type":"bay","value":"8ft","stair":true}     the bay the stair tower hangs off
+    {"type":"bay","value":"3000","leg":3.6}       Ally Frame only — THIS leg stands 3.6m to the deck
     {"type":"gap","value":600}                    a 600mm gap in the run (millimetres)
     {"type":"step","value":1}                     step UP one node from here on
     {"type":"step","value":-1}                    step DOWN one node from here on
-    {"type":"ground","value":3.1}                 Ally Frame only — ground RISES 3.1m from here on
-    {"type":"ground","value":-3.1}                Ally Frame only — ground FALLS 3.1m from here on
     {"type":"break","value":"none"}               the run ends here and joins the next
 
 **Bays** are the ledger length between two standards. Do not add anything for the
@@ -48,22 +47,24 @@ standards themselves — the app adds their width to the overall length.
 **Steps** follow the ground on a **modular** run. One entry is ONE node, which is 0.5m
 — so a 2m fall along the run is four separate step entries with bays between them, not
 one entry of 4. A step must come after at least one bay, and two steps cannot sit next
-to each other. Ally Frame does not take step entries at all — it has **`"ground"`**
-instead, and the two work in opposite directions on purpose:
+to each other. Ally Frame does not take step entries at all — a bay's own **`"leg"`**
+does the equivalent job, and the two work in opposite directions on purpose:
 
 A modular step follows the ground: the deck moves with it, and the height above the
 LOCAL ground stays the same on both sides. Use it for a scaffold walking down a slope.
 
-Ally Frame's `"ground"` does the opposite: the DECK STAYS FLAT — one continuous working
-height — and it is the frame stack that gets shorter where the ground is higher and
-taller where it is lower. Use it for a run standing part on a roof or a platform, where
-the working surface has to stay level but the structure underneath does not reach as
-far. The value is a real elevation change in METRES, not a node count — the ground can
-jump by a whole storey — and it only ever applies going FORWARD from where it sits in
-the list, exactly like a step. Put it before the first bay of the section whose ground
-is different, not after the last bay of the section before it. Height and lifts still
-describe the flat deck as a whole; the app solves each affected position's own stack
-to reach it.
+Ally Frame's `"leg"` does the opposite: the DECK STAYS FLAT — one continuous working
+height — and it is the frame stack under each leg that gets shorter where the ground is
+higher and taller where it is lower. Use it for a run standing part on a roof or a
+platform, where the working surface has to stay level but the structure underneath does
+not reach as far. The value is the real height in METRES from that leg's own foot to the
+flat deck — not an offset, not a node count, just how tall that leg stands — and it is
+**sticky**: put it on the bay whose leading leg is the first one standing at a different
+height, and every bay after it keeps that same leg height until a later bay gives a new
+one. A bay with no `"leg"` just keeps whatever height the run is already standing at —
+`height` on its own, until the first bay that overrides it. Do not put `"leg"` on every
+single bay — only on the ones where the height actually changes; that is what makes the
+run readable as "3 bays at one height, then it changes" rather than a wall of numbers.
 
 **Breaks** end a run. `value` decides what is billed at the join, so pick the one the
 drawing shows:
@@ -143,7 +144,7 @@ listed and carry on.
 - `"frameOutrig"`: `"auto"` sized to the ratio · `"0"` none · `"0.6"` `"1.0"` `"1.4"` metres each side
 - `"frameTied"`: `"0"` freestanding · `"1"` tied in, which takes it out of the ratio
 - `"frameRungPitch"`: `"450"` | `"400"` — millimetres between rung centres, drawing only
-- ground steps instead of node steps (see `"ground"` above) · no hop-ups, no piggyback and no stair tower
+- a bay's own `"leg"` instead of node steps (see `"leg"` above) · no hop-ups, no piggyback and no stair tower
 
 ## settings, per run
 
@@ -248,19 +249,20 @@ together, or the run turning a corner.
           "settings": { "system": "allyframe", "height": 6.7, "lifts": 1, "width": "1.3",
                         "frameBase": "plates", "frameTied": "1" },
           "bays": [
-            { "type": "ground", "value": 3.1 },
-            { "type": "bay", "value": "2500", "count": 5 },
-            { "type": "ground", "value": -3.1 },
-            { "type": "bay", "value": "2500", "count": 2 }
+            { "type": "bay", "value": "2500", "leg": 3.6, "count": 5 },
+            { "type": "bay", "value": "2500", "leg": 6.7, "count": 2 }
           ]
         }
       ]
     }
 
-A tower running along a roof edge: the first `"ground"` entry, BEFORE any bay, says the
-whole run starts 3.1m higher than true ground — so the first 5 bays (standing on the roof)
-solve a short stack. The second `"ground"` entry brings it back down 3.1m for the last 2
-bays (standing on true ground below), which solve a tall stack instead. `"height": 6.7` is
-the ONE flat deck the whole run reaches either way — never adjust it for the step, that is
-exactly what `"ground"` is for. Still one run: the tower never stops, it just changes what
-it is standing on partway along.
+A tower running along a roof edge: the first bay's `"leg": 3.6` says the run starts on
+the roof, where each leg only has to stand 3.6m to reach the deck — sticky, so all 5 bays
+on the roof solve that same short stack without repeating it on every one of them. The
+6th bay's `"leg": 6.7` brings it back down to true ground, where each leg there has to
+stand the full 6.7m — the last 2 bays solve that tall stack instead. `"height": 6.7` is
+the ONE flat deck the whole run reaches either way, and it doubles as what a bay with no
+`"leg"` of its own would stand on — which is exactly why the ground-side bays still need
+their own `"leg": 6.7` even though it matches the deck height: without it they would keep
+inheriting 3.6 from the roof section before them. Still one run: the tower never stops,
+it just changes what it is standing on partway along.
