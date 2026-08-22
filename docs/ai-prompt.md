@@ -117,14 +117,15 @@ listed and carry on.
   `"2500"` are both everyday deck lengths — most of a run is built out of them; the shorter
   bays close it out.
 - widths: `"0.7"` single (light, 225kg) · `"1.3"` double (medium, 450kg) · `"1.8"` triple (heavy, 675kg)
-- Sections stocked: `"2.0"` the **4-rung** · `"1.5"` the **3-rung** · `"1.0"` the **2-rung**.
-  A tower is usually built from a **mix** of these to land on the deck height, not one size
-  repeated — the app solves that mix itself, so there is no setting for it; just give the
-  height.
+- Sections stocked: `"2.0"` the **4-rung** · `"1.5"` the **3-rung** · `"1.0"` the
+  **2-rung** · `"0.5"` the **1-rung**. A tower is usually built from a **mix** of these to
+  land on the deck height, not one size repeated — the app solves that mix itself, so there
+  is no setting for it; just give the height.
 - `"frameBase"`: `"castors"` mobile · `"plates"` static on sole boards
 - `"frameExposure"`: `"sheltered"` (H ≤ 3 × Dmin) · `"exposed"` (H ≤ 2 × Dmin)
 - `"frameOutrig"`: `"auto"` sized to the ratio · `"0"` none · `"0.6"` `"1.0"` `"1.4"` metres each side
 - `"frameTied"`: `"0"` freestanding · `"1"` tied in, which takes it out of the ratio
+- `"frameRungPitch"`: `"450"` | `"400"` — millimetres between rung centres, drawing only
 - no steps, no hop-ups, no piggyback and no stair tower
 
 ## settings, per run
@@ -147,6 +148,7 @@ listed and carry on.
     "frameExposure" Ally Frame only — "sheltered" | "exposed"; picks the 3:1 or 2:1 ratio
     "frameOutrig"   Ally Frame only — "auto" | "0" | a projection in metres each side
     "frameTied"     Ally Frame only — "1" if tied in, which takes it out of the ratio
+    "frameRungPitch" Ally Frame only — "450" | "400"mm rung spacing; drawing only, no effect on quantities
     "stairWalkway"  Ringlock only
 
 Leave out anything the drawing does not show — every setting has a sensible default.

@@ -459,6 +459,12 @@
           <select id="frameOutrig" class="form-select w-full" onchange="settingsChanged()"></select>
         </div>
       </div>
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Rung Spacing</label>
+        <!-- Options are generated per system by buildFrameRungPitchOpts(). -->
+        <select id="frameRungPitch" class="form-select w-full" onchange="settingsChanged()"></select>
+        <p class="text-[9px] text-slate-600 mt-1 leading-tight">340mm from the foot to the first rung, then this pitch centre to centre the rest of the way — drawing only, it changes nothing in the gear list.</p>
+      </div>
       <label class="flex items-center gap-2.5 cursor-pointer">
         <input type="checkbox" id="frameTied" class="form-checkbox h-3.5 w-3.5 text-amber-400 rounded" onchange="settingsChanged()">
         <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Tied to Structure</span>
@@ -901,13 +907,15 @@ Ally Frame — the aluminium mobile tower
 - bays: "3000" "2500" "2400" "2000" "1800" "1300" (millimetres). 3.0m and 2.5m are both
   everyday deck lengths — most of a run is built out of them; the shorter bays close it out.
 - widths: "0.7" single (light, 225kg) · "1.3" double (medium, 450kg) · "1.8" triple (heavy, 675kg)
-- Sections stocked: "2.0" the 4-rung · "1.5" the 3-rung · "1.0" the 2-rung. A tower is
-  usually built from a MIX of these to land on the deck height, not one size repeated —
-  the app solves that mix itself, so there is no setting for it; just give the height.
+- Sections stocked: "2.0" the 4-rung · "1.5" the 3-rung · "1.0" the 2-rung · "0.5" the
+  1-rung. A tower is usually built from a MIX of these to land on the deck height, not one
+  size repeated — the app solves that mix itself, so there is no setting for it; just give
+  the height.
 - "frameBase": "castors" mobile | "plates" static on sole boards
 - "frameExposure": "sheltered" H<=3xDmin | "exposed" H<=2xDmin
 - "frameOutrig": "auto" sized to the ratio | "0" none | "0.6" "1.0" "1.4" metres each side
 - "frameTied": "0" freestanding | "1" tied to the structure
+- "frameRungPitch": "450" | "400" — millimetres between rung centres, drawing only
 - no steps, no hop-ups, no piggyback and no stair tower
 
 ## settings, per run
@@ -930,6 +938,7 @@ Ally Frame — the aluminium mobile tower
     "frameExposure" Ally Frame only — "sheltered" | "exposed"; picks the 3:1 or 2:1 ratio
     "frameOutrig"   Ally Frame only — "auto" | "0" | a projection in metres each side
     "frameTied"     Ally Frame only — "1" if tied in, which takes it out of the ratio
+    "frameRungPitch" Ally Frame only — "450" | "400"mm rung spacing; drawing only, no effect on quantities
     "stairWalkway"  Ringlock only
 
 Leave out anything the drawing does not show — every setting has a sensible default.
@@ -1158,14 +1167,19 @@ const RINGLOCK_PLANK_MM = 240; // AT-PAC Steel Plank O-Type 0.24m
 const ALLY_KG_PER_M = 0.81;      // 50 x 2.0mm 6061-T6 tube
 const ALLY_DECK_KG_PER_M = 7.6;  // multi-chamber 600mm alloy platform extrusion
 const ALLY_HATCH_KG = 3.6;       // what the trapdoor and its frame add to a deck
-// A ladder frame's rungs sit at 500mm centres, which is what makes a 2m frame a
-// 4-rung frame, a 1.5m a 3-rung and a 1m a 2-rung — the names the frames are
-// actually ordered and stacked by.
+// NOT the real rung-to-rung pitch — that is 400 or 450mm and varies by
+// manufacturer (see rungPitches / frameRungPitchM), and is drawing-only.
+// This is the greatest common size the stocked sections share (2.0, 1.5,
+// 1.0, 0.5m are all whole multiples of it), used purely so the stack
+// solver can work in cheap integer units. The name "rung" here is a
+// misnomer kept only because it is what makes a 2m section 4 units and a
+// 1.5m section 3 — the same count as its real rungs, coincidentally,
+// since the frame heights were chosen as whole multiples of 0.5m.
 const ALLY_RUNG_PITCH_M = 0.5;
 const ALLY_WEIGHTS = (() => {
   const w = {};
   const tube = (m, fittings = 0) => Math.round((m * ALLY_KG_PER_M + fittings) * 100) / 100;
-  const frameHs = [2.0, 1.5, 1.0];
+  const frameHs = [2.0, 1.5, 1.0, 0.5];
   const widths = [0.7, 1.3, 1.8];
   const bays = [3.0, 2.5, 2.4, 2.0, 1.8, 1.3];
   for (const h of frameHs) {
@@ -1649,20 +1663,50 @@ const SYSTEMS = {
     plank: 'Alloy Platform',
     alloy: '6061-T6',
     // The rung is the frame's node: braces snap to it, platforms land on it,
-    // and you climb it. 500mm is the pitch the AU ladder frames are welded at.
+    // and you climb it. The real weld pitch is below, in rungPitches — not a
+    // single fixed number, since it varies by manufacturer.
     // plankMM is one platform unit's own width (a 0.6m wide deck), which is what
     // makes a 1.3m double width two decks across and a 0.7m single one.
-    geom: { baseOffsetM: 0, posMM: 40, rungPitchM: ALLY_RUNG_PITCH_M, plankMM: 600 },
+    // Two separate numbers, easy to conflate but not the same thing.
+    //
+    // rungPitchM (0.5) is NOT a real dimension on the frame. It is the
+    // greatest common size the stocked sections share — every frameHeights
+    // value below is a whole multiple of it — so the stack solver can work
+    // in cheap integer units instead of floating-point metres. Nothing about
+    // it claims to be where a rung actually sits.
+    //
+    // rungOffsetM (0.34) IS real: the ONE fixed measurement in the whole
+    // ladder, from the foot standing on the jack or plate up to the CENTRE
+    // of the very first rung. It only happens once, at the very bottom of
+    // the whole stack.
+    //
+    // Every rung after that first one — including the one straight across a
+    // spigot joint into the next frame section — sits at a constant pitch
+    // from the rung below it, centre to centre. That pitch is NOT 500mm and
+    // is not fixed by the system at all: it runs 400mm or 450mm depending
+    // on manufacturer, so it is a per-run choice (`frameRungPitch`,
+    // resolved by frameRungPitchM()) rather than a system constant. Change
+    // it and only the RUNGS redraw — frame section lengths, the stack
+    // solver and every quantity in the gear list are untouched, because
+    // none of them were ever built from this number.
+    geom: { baseOffsetM: 0, posMM: 40, rungPitchM: ALLY_RUNG_PITCH_M, rungOffsetM: 0.34, plankMM: 600 },
+    // The rung-to-rung pitch options the ranges are built to, keyed by the
+    // millimetre figure printed on the yard sheet.
+    rungPitches: { 450: 0.45, 400: 0.40 },
     // Frame sections that stack to the deck height. A frame is ordered, stacked
     // and talked about by its RUNG COUNT, not its metres — nobody on site asks
-    // for a 2.0m frame, they ask for a 4-rung. At the 500mm rung pitch the three
-    // sections the ranges stock are the 4-rung, the 3-rung and the 2-rung, which
-    // is exactly how APAC, Mr Scaffold and the rest list them. The keys stay in
-    // metres because that is what the height solver stacks; the rung count is
-    // what every label says. A yard stocking another section adds one entry to
-    // each of these two maps and nothing else changes.
-    frameHeights: { '2.0': 2.0, 1.5: 1.5, '1.0': 1.0 },
-    frameRungs: { '2.0': 4, 1.5: 3, '1.0': 2 },
+    // for a 2.0m frame, they ask for a 4-rung. These are the 4-rung, the
+    // 3-rung, the 2-rung and the 1-rung — the first three the way APAC, Mr
+    // Scaffold and the rest list them, the 1-rung a shorter section some
+    // yards stock for exactly this reason: it tops a stack up using one
+    // small piece instead of forcing two medium ones. The keys stay in
+    // metres because that is what the height solver stacks; the rung count
+    // is what every label says, and is a catalogue fact independent of the
+    // pitch above — a 4-rung frame has four rungs on it whether they are
+    // spaced at 400mm or 450mm. A yard stocking another section adds one
+    // entry to each of these two maps and nothing else changes.
+    frameHeights: { '2.0': 2.0, 1.5: 1.5, '1.0': 1.0, 0.5: 0.5 },
+    frameRungs: { '2.0': 4, 1.5: 3, '1.0': 2, 0.5: 1 },
     // What the tower stands on. A mobile tower is on castors and is freestanding
     // by definition; a static one is on plates and can be tied. The travel is
     // the adjustment in the stem, and it is what lets a frame stack — which only
@@ -1742,7 +1786,7 @@ const SYSTEMS = {
     outriggers: { 0.6: 0.6, '1.0': 1.0, 1.4: 1.4 },
     // Colours for the frame stack, so a tower reads as its sections the way a
     // modular column reads as its standards.
-    frameClr: { '2.0': '#38bdf8', 1.5: '#34d399', '1.0': '#a78bfa' },
+    frameClr: { '2.0': '#38bdf8', 1.5: '#34d399', '1.0': '#a78bfa', 0.5: '#fb923c' },
     weights: ALLY_WEIGHTS,
   },
 };
@@ -1766,6 +1810,7 @@ const DEFAULT_SETTINGS = {
   frameExposure: 'sheltered',
   frameOutrig: 'auto',
   frameTied: '0',
+  frameRungPitch: '450',
   stairWalkway: '0.81',
   width: '0.71',
   height: '',
@@ -1987,7 +2032,8 @@ const NODES = {
   rosette: { name: 'Rosette', plural: 'rosettes', glyph: '◎', shape: 'ring' },
   // A frame system's node is the rung welded into the end frame: it is what a
   // brace snaps to and what a platform lands on, the same job the star and the
-  // rosette do — at a 250mm pitch rather than 500mm, and you can climb it.
+  // rosette do — at whatever pitch that manufacturer welds to (400 or 450mm,
+  // not a fixed system-wide number), and you can climb it.
   rung: { name: 'Rung', plural: 'rungs', glyph: '▬', shape: 'rung' },
 };
 function nodeSpec(sys = SYS) {
@@ -2598,6 +2644,14 @@ function frameBaseSpec(run, sys = SYS) {
   return bases[run.settings.frameBase] || bases.castors || Object.values(bases)[0] ||
     { label: 'Base', part: 'Base Plate (Adjustable)', minM: 0.15, maxM: 0.6, mobile: false };
 }
+// The real rung-to-rung pitch, in metres — 400mm or 450mm depending on
+// manufacturer, per run since a job may be built from more than one range.
+// Drawing-only: nothing that solves the stack or bills the gear list reads
+// this, only where the rung LINES land.
+function frameRungPitchM(run, sys = SYS) {
+  const pitches = sys.rungPitches || { 450: 0.45 };
+  return pitches[run.settings.frameRungPitch] || Object.values(pitches)[0];
+}
 // Which frame sizes a run may stack from. The checkboxes on screen describe
 // the system on screen, so a run on any other system falls back to that
 // system's full range — the same rule enabledSizesFor uses for standards.
@@ -3164,6 +3218,8 @@ function settingsChanged() {
     if (fo && fo.value) s.frameOutrig = fo.value;
     const ft = document.getElementById('frameTied');
     if (ft) s.frameTied = ft.checked ? '1' : '0';
+    const frp = document.getElementById('frameRungPitch');
+    if (frp && frp.value) s.frameRungPitch = frp.value;
   }
   const walk = document.getElementById('stairWalkway');
   if (walk && SYS.stairTower && walk.value) s.stairWalkway = walk.value;
@@ -3182,6 +3238,7 @@ function loadSettings(run) {
   buildFrameSizesList();
   buildFrameBaseOpts();
   buildOutriggerOpts();
+  buildFrameRungPitchOpts();
   buildStairOpts();
   buildStandardsList();
   buildTreadList();
@@ -3199,6 +3256,8 @@ function loadSettings(run) {
     s.frameOutrig = setSelect('frameOutrig', s.frameOutrig || 'auto', 'auto');
     const tiedEl = document.getElementById('frameTied');
     if (tiedEl) tiedEl.checked = s.frameTied === '1';
+    const rpDefault = Object.keys(SYS.rungPitches || { 450: 1 })[0];
+    s.frameRungPitch = setSelect('frameRungPitch', s.frameRungPitch || rpDefault, rpDefault);
   }
   document.getElementById('width').value =
     s.width && SYS.widths[s.width] ? s.width : defaultWidthKey(SYS);
@@ -3418,6 +3477,17 @@ function buildOutriggerOpts() {
     '<option value="auto">Auto — sized to the ratio</option><option value="0">None</option>' +
     sizes.map((p) => `<option value="${p.toFixed(1)}">${p.toFixed(1)}m each side</option>`).join('');
 }
+// Which rung-to-rung pitch this manufacturer's frames use. Drawing only — see
+// frameRungPitchM() — so this list is just whatever the system declares.
+function buildFrameRungPitchOpts() {
+  const sel = document.getElementById('frameRungPitch');
+  if (!sel) return;
+  if (SYS.model !== 'frame') { sel.innerHTML = ''; return; }
+  sel.innerHTML = Object.keys(SYS.rungPitches || {})
+    .sort((a, b) => parseFloat(b) - parseFloat(a))
+    .map((k) => `<option value="${k}">${k}mm centre to centre</option>`)
+    .join('');
+}
 function buildStandardsList() {
   const heading = document.getElementById('std-heading');
   if (heading) heading.textContent = `Available Standards (${nodeSpec().plural})`;
@@ -3506,6 +3576,7 @@ function systemChanged() {
   buildBayButtons();
   buildFrameBaseOpts();
   buildOutriggerOpts();
+  buildFrameRungPitchOpts();
   buildWidthOpts();
   buildPiggybackOpts();
   buildHopupOpts();
@@ -3976,6 +4047,8 @@ function normaliseSettings(raw, sysId, report) {
     }
     const tied = getAny(raw, ['frameTied', 'tied', 'tiedToStructure']);
     if (tied !== undefined && tied !== null) s.frameTied = toBool(tied) ? '1' : '0';
+    const rp = resolveKey(sys.rungPitches || {}, getAny(raw, ['frameRungPitch', 'rungPitch', 'rungSpacing']));
+    if (rp) s.frameRungPitch = rp.key;
   }
   if (sys.stairTower) {
     const walk = resolveKey(sys.stairTower.walkways, getAny(raw, ['stairWalkway', 'walkway', 'stairWidth']));
@@ -4111,6 +4184,9 @@ function sanitiseRuns(data) {
         const oks = ['auto', '0'].concat(Object.values(sys.outriggers || {}).map((p) => p.toFixed(1)));
         if (!oks.includes(settings.frameOutrig)) settings.frameOutrig = 'auto';
         settings.frameTied = settings.frameTied === '1' ? '1' : '0';
+        if (!(sys.rungPitches || {})[settings.frameRungPitch]) {
+          settings.frameRungPitch = Object.keys(sys.rungPitches || { 450: 1 })[0];
+        }
       }
       const bays = (Array.isArray(run.bays) ? run.bays : []).filter((b) => {
         if (!b || typeof b !== 'object') return false;
@@ -4959,13 +5035,6 @@ function dimension(svg, x1, x2, y, text) {
 /* Section for the frame model. */
 // The section through a frame tower, looking along the run. What it has to show
 // that a modular section does not: the frame is a welded ladder, so its rungs
-// are drawn — they are the climb and they are where a deck can land. What it
-// stands on is drawn as what it is, a braked castor or a plate on a sole board,
-// because that single choice decides whether the thing is mobile at all. And
-// the stabilisers are drawn splayed to the ground, since on a freestanding
-// tower they are the difference between legal and over.
-// The section through a frame tower, looking along the run. What it has to show
-// that a modular section does not: the frame is a welded ladder, so its rungs
 // are drawn — they are the climb and they are where a deck can land. The stack
 // itself is drawn as what it actually is, a mix of sections rather than one
 // size repeated, each in its own colour so a join between a 4-rung and a
@@ -4989,7 +5058,9 @@ function renderFrameElevation(c, run) {
   const guardrailM = run.settings.handrail === '2' ? 2.0 : 1.0;
   const wSpec = SYS.widths[run.settings.width] || Object.values(SYS.widths)[0];
   const deckM = (wSpec.transomMM || 700) / 1000;
-  const rungPitch = SYS.geom.rungPitchM || 0.5;
+  // The real rung-to-rung pitch (400 or 450mm, manufacturer's choice), not
+  // the DP's own internal 0.5m solving unit — see frameRungPitchM().
+  const rungPitch = frameRungPitchM(run);
   const armM = stab.outrigger || 0;
   const totalH = actualH + guardrailM + 0.4;
   // The outriggers reach well outside the frame, so the drawing width has to
@@ -5055,9 +5126,10 @@ function renderFrameElevation(c, run) {
     // header already states the projection and the Dmin it buys.
   }
   // ── The frame stack ───────────────────────────────────────────────────────
-  // Each section is a welded ladder: two legs and a rung every 500mm. The
-  // rungs are drawn because they are the system's node — a brace snaps to
-  // one, a deck lands on one, and you climb them. Walked level by level off
+  // Each section is a welded ladder: two legs and a rung every rungPitch,
+  // this manufacturer's own 400 or 450mm. The rungs are drawn because they
+  // are the system's node — a brace snaps to one, a deck lands on one, and
+  // you climb them. Walked level by level off
   // the SOLVED stack rather than a repeated uniform height, so a run built
   // from a mix of sections is drawn as the mix it is, each in its own colour
   // the way a modular column reads its standards.
@@ -5069,13 +5141,20 @@ function renderFrameElevation(c, run) {
       el('rect', { x: x - 4, y: yOf(yB + h), width: 8, height: h * V,
         fill: frameClr, stroke: '#0d1117', 'stroke-width': 0.8, rx: 1.5 }, svg);
     }
-    const nRungs = Math.max(1, Math.round(h / rungPitch));
+    const nRungs = (SYS.frameRungs || {})[k] || Math.max(1, Math.round(h / rungPitch));
+    const rungOffset = SYS.geom.rungOffsetM ?? rungPitch;
     for (let r = 1; r <= nRungs; r++) {
-      const rz = yB + r * (h / nRungs);
+      // The real weld pattern: 340mm from the foot to the centre of the first
+      // rung, then every rungPitch after that (this manufacturer's own
+      // 400 or 450mm) — not the rungs evenly divided across the frame's own
+      // length, which would put the first one at a different height on
+      // every section, and would use the DP's 0.5m solving unit as if it
+      // were a real dimension.
+      const rz = yB + rungOffset + (r - 1) * rungPitch;
       const head = r === nRungs;
       // The head rung is the one a deck lands on, so it stays the strongest;
-      // the rungs below it are what you climb, and at a 500mm pitch there are
-      // few enough of them to draw properly.
+      // the rungs below it are what you climb, and at four rungs or fewer to
+      // a section there are few enough of them to draw properly.
       el('line', { x1: iX, y1: yOf(rz), x2: oX, y2: yOf(rz),
         stroke: head ? '#0e7490' : '#1c5f78', 'stroke-width': head ? 3 : 1.4,
         opacity: head ? 1 : 0.8 }, svg);
@@ -5260,7 +5339,9 @@ function isoFrameModel(run, prev, sys) {
       working: boardedM.map((m) => ({ m })),
     },
     stab, frameStack, frameLevels, boardedLifts, levelsM, boardedM, boardedKeys,
-    rungPitch: sys.geom.rungPitchM || 0.5,
+    // The real rung-to-rung pitch (400/450mm, manufacturer's choice), not the
+    // DP's own internal 0.5m solving unit — see frameRungPitchM().
+    rungPitch: frameRungPitchM(run, sys),
     base: stab.base, armM: stab.outrigger || 0,
     breakType: (run.bays.find((b) => b.type === 'break') || {}).value || null,
     turn: run.turn === 'left' || run.turn === 'right' ? run.turn : 'straight',
@@ -5364,17 +5445,20 @@ function drawIsoFrameRun(m, P, line, quad, text, svg) {
   faceGear(0, true);
   // ── The frames themselves ─────────────────────────────────────────────────
   // An end frame spans the WIDTH of the run, and it is a ladder: a rung every
-  // 500mm. Those rungs are the system's node — the brace snaps to one and the
+  // rungPitch, this manufacturer's own 400 or 450mm. Those rungs are the
+  // system's node — the brace snaps to one and the
   // deck lands on one — so they are drawn rather than implied. Each level's
   // own section decides its own rung count, so a 3-rung level draws three and
   // a 4-rung level draws four, not the same count copied down the stack.
+  const rungOffset = m.sys.geom.rungOffsetM ?? m.rungPitch;
   for (const p of posts) {
     frameStack.forEach((k, i) => {
-      const h = m.sys.frameHeights[k];
       const z0 = gTFS + levelZ[i];
-      const nRungs = Math.max(1, Math.round(h / m.rungPitch));
+      const nRungs = (m.sys.frameRungs || {})[k] || Math.max(1, Math.round(m.sys.frameHeights[k] / m.rungPitch));
+      // The real weld pattern, not the rungs evenly divided across the frame's
+      // own length: 340mm to the first, then this manufacturer's own pitch.
       for (let r = 1; r <= nRungs; r++) {
-        const rz = z0 + r * (h / nRungs);
+        const rz = z0 + rungOffset + (r - 1) * m.rungPitch;
         const head = r === nRungs;
         line(P(p.x, 0, rz), P(p.x, widthM, rz), head ? '#0e7490' : '#1c5f78',
           head ? 2.4 : 1.2, head ? 1 : 0.7);
@@ -6936,7 +7020,7 @@ window.addEventListener('DOMContentLoaded', () => {
      buttons that nudge them by their own `step`.
      ============================================================ */
   const STEPPED_SELECTS = [
-    'system', 'width', 'lifts', 'handrail', 'hopup', 'clip', 'frameBase', 'frameExposure', 'frameOutrig',
+    'system', 'width', 'lifts', 'handrail', 'hopup', 'clip', 'frameBase', 'frameExposure', 'frameOutrig', 'frameRungPitch',
     'ties', 'tieEvery', 'piggyback', 'stairWalkway', 'break-type', 'break-turn',
   ];
   const STEPPED_NUMBERS = ['height', 'scaffolders'];

@@ -496,14 +496,29 @@ frame sections, deck widths, duty ratings, bay lengths, castor travel and stabil
 follow the AS/NZS 1576 suite and the Australian ranges that publish them — APAC, Mr Scaffold
 (Easyscaf 225 kg / Supascaf 450 kg), Turbo, SafeSmart and Global.
 
-**Frames are named by rung count, because that is what they are ordered by.** Rungs sit at
-500 mm centres, so the stocked sections are the 4-rung (2.0 m), the 3-rung (1.5 m) and the
-2-rung (1.0 m) — the names APAC and the AU ranges list them under. `frameHeights` is keyed
-in metres because that is what the height solver stacks; `frameRungs` supplies the name, and
-`frameName()` / `frameRungLabel()` compose it once so the *Available Frame Sizes* checkbox
-panel, the section header, the 3D legend and the gear list (`Frame 4-Rung (2.0m x 1.3m)`)
-all say it the same way. A yard stocking another section adds one entry to each of those
-two maps and it appears everywhere else on its own.
+**Frames are named by rung count, because that is what they are ordered by.** The stocked
+sections are the 4-rung (2.0 m), the 3-rung (1.5 m), the 2-rung (1.0 m) and the 1-rung
+(0.5 m) — the first three are the names APAC and the AU ranges list under, the 1-rung a
+shorter section some yards stock specifically to top a stack up with one small piece rather
+than forcing two medium ones. `frameHeights` is keyed in metres because that is what the
+height solver stacks; `frameRungs` supplies the name, and `frameName()` / `frameRungLabel()`
+compose it once so the *Available Frame Sizes* checkbox panel, the section header, the 3D
+legend and the gear list (`Frame 4-Rung (2.0m x 1.3m)`) all say it the same way. A yard
+stocking another section adds one entry to each of those two maps and it appears everywhere
+else on its own.
+
+**The rung-to-rung pitch that draws is not 500 mm, and is not one number at all.** The only
+truly fixed dimension is `geom.rungOffsetM` (340 mm), the gap from the foot standing on the
+jack or plate to the centre of the very first rung — a real, unvarying weld measurement. The
+pitch after that first rung, including straight across a spigot joint into the next section,
+runs 400 mm or 450 mm depending on manufacturer, so it is a per-run choice
+(`frameRungPitch`, resolved by `frameRungPitchM()`) rather than a system constant. It is
+drawing-only: nothing that solves the stack, bills the gear list or checks the stability
+ratio reads it, only where the rung lines land in the section and the 3D view. This is
+easy to conflate with `ALLY_RUNG_PITCH_M` (0.5 m), which is a completely different number
+with a completely different job — the greatest common size the stocked sections share,
+used purely so `frameStackList()` can solve in cheap integer units. It is not a real
+dimension on the frame and was never meant to be drawn.
 
 **Bay lengths are 3.0, 2.5, 2.4, 2.0, 1.8 and 1.3 m.** The 3.0 m and 2.5 m decks are both
 everyday lengths — most of a run is built out of them, and auto-fill packs from 3.0 m down —
